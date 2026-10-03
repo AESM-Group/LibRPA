@@ -1,20 +1,23 @@
-#include "librpa.hpp"
-
+#include <array>
+#include <iomanip>
 #include <iostream>
+#include <stdexcept>
 
-#include "../task.h"
+#include "../../src/io/global_io.h"
+#include "../../src/mpi/global_mpi.h"
 #include "../driver.h"
 #include "../read_data.h"
-#include "../../src/mpi/global_mpi.h"
-#include "../../src/io/global_io.h"
+#include "../rpa_qsum.h"
+#include "../task.h"
+#include "librpa.hpp"
 
 // #include "../../src/io/stl_io_helper.h"
 
 void driver::task_rpa()
 {
     using namespace librpa_int;
-    using librpa_int::global::mpi_comm_global_h;
     using librpa_int::global::lib_printf;
+    using librpa_int::global::mpi_comm_global_h;
 
     // Using public API.
     // std::vector<double> temp_corr(2);
@@ -41,6 +44,30 @@ void driver::task_rpa()
 
     corr = h.get_rpa_correlation_energy(driver::opts, corr_irk);
 
+    RpaQTotals qtotals;
+    const bool have_q_coordinates = ibz_kpoints.size() == corr_irk.size();
+    if (have_q_coordinates)
+    {
+        std::vector<RpaQContribution> contributions;
+        contributions.reserve(corr_irk.size());
+        for (std::size_t iq = 0; iq < corr_irk.size(); ++iq)
+        {
+            const auto &q = ibz_kpoints[iq];
+            contributions.push_back({{q.x, q.y, q.z}, corr_irk[iq]});
+        }
+        qtotals = sum_rpa_q_contributions(contributions);
+    }
+    else if (!driver_params.use_rpa_gamma)
+    {
+        throw std::runtime_error(
+            "use_rpa_gamma=false requires q coordinates for every RPA contribution");
+    }
+
+    const double corr_excluding_gamma = corr - qtotals.gamma.real();
+    qtotals.including_gamma = {corr, 0.0};
+    qtotals.excluding_gamma = {corr_excluding_gamma, 0.0};
+    const double selected_corr = select_rpa_q_total(qtotals, driver_params.use_rpa_gamma).real();
+
     mpi_comm_global_h.barrier();
     constexpr auto result_output_level = LIBRPA_VERBOSE_CRITICAL;
     if (mpi_comm_global_h.is_root()
@@ -49,6 +76,8 @@ void driver::task_rpa()
         lib_printf(result_output_level, "RPA correlation energy (Hartree)\n");
         lib_printf(result_output_level, "| Weighted contribution from each k:\n");
 
+        const auto old_precision = std::cout.precision();
+        std::cout << std::setprecision(15);
         for (int i_irk = 0; i_irk < n_ibz_kpoints; i_irk++)
         {
             if (i_irk < static_cast<int>(ibz_kpoints.size()))
@@ -60,7 +89,19 @@ void driver::task_rpa()
                 std::cout << "| q" << i_irk + 1 << ": " << corr_irk[i_irk] << std::endl;
             }
         }
-        lib_printf(result_output_level, "| Total EcRPA: %18.9f\n", corr);
+        std::cout.precision(old_precision);
+        if (have_q_coordinates)
+        {
+            lib_printf(result_output_level,
+                       "| Gamma EcRPA contribution: %20.12e %20.12e\n",
+                       qtotals.gamma.real(), qtotals.gamma.imag());
+            lib_printf(result_output_level, "| Total EcRPA including q=0: %20.12e\n", corr);
+            lib_printf(result_output_level, "| Total EcRPA excluding q=0: %20.12e\n",
+                       corr_excluding_gamma);
+        }
+        lib_printf(result_output_level, "| use_rpa_gamma = %s\n",
+                   driver_params.use_rpa_gamma ? "true" : "false");
+        lib_printf(result_output_level, "| Total EcRPA: %18.9f\n", selected_corr);
     }
     if (mpi_comm_global_h.is_root())
     {
@@ -68,7 +109,10 @@ void driver::task_rpa()
         {
             const auto &im = corr_irk[i_irk].imag();
             if (std::abs(im) > 1.e-3)
-                lib_printf(LIBRPA_VERBOSE_WARN, "Warning: considerable imaginary part of EcRPA = %f\n at IBZ k-point %d\n", im, i_irk + 1);
+                lib_printf(
+                    LIBRPA_VERBOSE_WARN,
+                    "Warning: considerable imaginary part of EcRPA = %f\n at IBZ k-point %d\n", im,
+                    i_irk + 1);
         }
     }
     mpi_comm_global_h.barrier();

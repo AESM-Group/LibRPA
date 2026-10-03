@@ -23,6 +23,18 @@ DriverParams::DriverParams():
     prefix_lri_coeff_shrink("Cs_shrinked_data"),
     prefix_shrink_sinvS("shrink_sinvS_"),
     prefix_coul_full("coulomb_mat"),
+    prefix_sternheimer_chi0("v1_sternheimer_chi0_iq_"),
+    fn_sternheimer_qpoints(""),
+    fn_sternheimer_partial_manifest(""),
+    fn_sternheimer_symmetry_routes(""),
+    fn_sternheimer_qstar_routes(""),
+    prefix_sternheimer_reconstructed(""),
+    prefix_sternheimer_kresolved(""),
+    prefix_sternheimer_symmetry_diagnostic(""),
+    sternheimer_iq(1),
+    sternheimer_qweight(1.0),
+    use_rpa_gamma(true),
+    sternheimer_matrix_only(false),
     prefix_coul_cut("coulomb_cut"),
     prefix_eigvecs_scf("KS_eigenvector"),
     fn_stru("stru_out"),
@@ -113,6 +125,14 @@ std::string DriverParams::format()
             normal_pair(prefix_lri_coeff_shrink),
             normal_pair(prefix_shrink_sinvS),
             normal_pair(prefix_coul_full),
+            normal_pair(prefix_sternheimer_chi0),
+            normal_pair(fn_sternheimer_qpoints),
+            normal_pair(fn_sternheimer_partial_manifest),
+            normal_pair(fn_sternheimer_symmetry_routes),
+            normal_pair(fn_sternheimer_qstar_routes),
+            normal_pair(prefix_sternheimer_reconstructed),
+            normal_pair(prefix_sternheimer_kresolved),
+            normal_pair(prefix_sternheimer_symmetry_diagnostic),
             normal_pair(prefix_coul_cut),
             normal_pair(prefix_eigvecs_scf),
             normal_pair(fn_stru),
@@ -134,6 +154,8 @@ std::string DriverParams::format()
     const std::vector<std::pair<std::string, bool>> bool_params
         {
             normal_pair(use_spinor_wfc),
+            normal_pair(use_rpa_gamma),
+            normal_pair(sternheimer_matrix_only),
             normal_pair(output_energy_qp),
             normal_pair(output_gw_spec_func),
             normal_pair(output_hamgnn),
@@ -145,6 +167,8 @@ std::string DriverParams::format()
 
     ss << "version_coul_reader = " << version_coul_reader << std::endl;
     ss << "version_lri_reader = " << version_lri_reader << std::endl;
+    ss << "sternheimer_iq = " << sternheimer_iq << std::endl;
+    ss << "sternheimer_qweight = " << sternheimer_qweight << std::endl;
     ss << "cs_R_threshold = " << cs_threshold << std::endl;
     ss << "i_state_low = " << i_state_low << std::endl;
     ss << "i_state_high = " << i_state_high << std::endl;

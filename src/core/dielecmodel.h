@@ -18,6 +18,7 @@
 #include "meanfield.h"
 #include "pbc.h"
 #include "ri.h"
+#include "sternheimer_rpa.h"
 
 namespace librpa_int
 {
@@ -415,6 +416,8 @@ public:
 
     matrix_m<std::complex<double>> get_rpa_chi0v_head(const int ifreq) const;
     matrix_m<std::complex<double>> get_rpa_chi0v_wing(const int ifreq) const;
+    SternheimerRpaHeadwingInput get_sternheimer_rpa_headwing_input(
+        int ifreq, const RpaHeadwingSettings &settings) const;
 
     void construct_rpa_trace_log_schur(const int ifreq, ArrayDesc &desc_body,
                                        int wing_row_offset = 0);

@@ -95,7 +95,8 @@ void read_velocity_aims(const MeanField &mf, const std::string &file_path,
                         velocity_matrix_t &velocity);
 void read_velocity_aims(const MeanField &mf, const std::string &file_path,
                         const std::string &file_prefix, velocity_matrix_t &velocity);
-void read_headwing_input(const string &dir_path, bool need_wing);
+void read_headwing_input(const string &dir_path, bool need_wing,
+                         const std::vector<double> *frequencies_override = nullptr);
 
 void read_ri_shrink(const string &dir_path);
 

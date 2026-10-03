@@ -241,6 +241,7 @@ module librpa_f03
       !> Experimental: use the 2D dielectric-function branch where supported.
       logical :: use_2d_dielectric
       !> First regular Coulomb-eigenbasis channel used by RPA head/wing correction.
+      !> -1 keeps all retained positive channels for Sternheimer finite-part Coulomb input.
       integer :: rpa_headwing_body_start
       !> Experimental: read NAO correlation self-energy matrix in real-space/frequency form.
       logical :: read_sigc_mat_rf

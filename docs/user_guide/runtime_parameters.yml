@@ -73,6 +73,25 @@ blocks:
       - driver.version_coul_reader
       - driver.version_lri_reader
 
+  - heading: Sternheimer RPA
+    text: |
+      These experimental driver parameters select aggregate or partial
+      Sternheimer response inputs. Partial reconstruction consumes the
+      producer-generated v1 manifests and response files.
+    fields:
+      - driver.prefix_sternheimer_chi0
+      - driver.fn_sternheimer_qpoints
+      - driver.fn_sternheimer_partial_manifest
+      - driver.fn_sternheimer_symmetry_routes
+      - driver.fn_sternheimer_qstar_routes
+      - driver.prefix_sternheimer_reconstructed
+      - driver.prefix_sternheimer_kresolved
+      - driver.prefix_sternheimer_symmetry_diagnostic
+      - driver.sternheimer_iq
+      - driver.sternheimer_qweight
+      - driver.use_rpa_gamma
+      - driver.sternheimer_matrix_only
+
   - heading: Common Settings
     fields:
       - api.output_dir

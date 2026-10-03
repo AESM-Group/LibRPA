@@ -117,6 +117,8 @@ list(APPEND lib_sources
         core/qsgw/projection_target.cpp
         core/qsgw/vxc_projection.cpp
         core/ri.cpp
+  core/sternheimer_rpa.cpp
+  core/sternheimer_symmetry.cpp
         core/timefreq.cpp
         core/utils_atomic_basis_blacs.cpp
         core/utils_complexmatrix.cpp

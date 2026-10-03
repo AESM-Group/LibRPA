@@ -473,6 +473,8 @@ typedef struct
 
     //! First regular Coulomb-eigenbasis channel used by RPA head/wing correction.
     //! Zero uses channel 1 in the current analytic 3D/2D head/wing path.
+    //! Minus one is reserved for Sternheimer finite-part Coulomb input and keeps
+    //! every retained positive Coulomb eigenchannel as a regular body channel.
     //! @par Default
     //! 0
     //! @par Status

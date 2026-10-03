@@ -1041,6 +1041,71 @@ void SymmetryContext::build_rsh_rotations(const BasisConvention& basis_conventio
     }
 }
 
+SymmetryKStarMember build_symmetry_kspace_operation_member(
+    const SymmetryContext& ctx,
+    const int spatial_isym,
+    const bool time_reversal,
+    const Vector3_Order<double>& k_bz,
+    const Vector3_Order<double>& k_ibz,
+    const int lmax)
+{
+    if (lmax < 0)
+    {
+        throw LIBRPA_INVALID_ARGUMENT("K-space operation member requires non-negative lmax");
+    }
+    if (spatial_isym < 0
+        || spatial_isym >= static_cast<int>(ctx.rspace_operations.size()))
+    {
+        throw LIBRPA_INVALID_ARGUMENT("K-space operation member has an invalid symmetry index");
+    }
+    if (ctx.atom_to_type.empty() || ctx.input_coord_frac.empty())
+    {
+        throw LIBRPA_RUNTIME_ERROR("K-space operation member is missing atom metadata");
+    }
+    if (!is_basis_convention_set(ctx.basis_convention))
+    {
+        throw LIBRPA_RUNTIME_ERROR("K-space operation member is missing the basis convention");
+    }
+
+    SymmetryKStarMember member;
+    member.spatial_isym = spatial_isym;
+    member.time_reversal = time_reversal;
+    member.k_bz = k_bz;
+    member.atom_rotations.reserve(ctx.atom_to_type.size());
+    const auto &operation =
+        ctx.rspace_operations.at(static_cast<std::size_t>(spatial_isym));
+    for (const auto &[atom_from, atom_type] : ctx.atom_to_type)
+    {
+        Vector3_Order<int> return_lattice{0, 0, 0};
+        const atom_t atom_to =
+            find_symmetry_atom_target(ctx, atom_from, spatial_isym, return_lattice);
+
+        SymmetryKAtomRotation atom_rotation;
+        atom_rotation.atom_from = static_cast<int>(atom_from);
+        atom_rotation.atom_to = static_cast<int>(atom_to);
+        atom_rotation.atom_type = atom_type;
+        atom_rotation.lmax = lmax;
+        auto k_source_spatial = k_bz;
+        if (time_reversal)
+        {
+            k_source_spatial = k_source_spatial * -1.0;
+        }
+        atom_rotation.bloch_rsh_rotations =
+            build_symmetry_kspace_shell_rotations(
+                operation,
+                ctx.lattice_vectors,
+                lmax,
+                ctx.basis_convention,
+                k_source_spatial,
+                k_ibz,
+                coord_frac_vector(ctx.input_coord_frac, atom_from),
+                coord_frac_vector(ctx.input_coord_frac, atom_to),
+                return_lattice);
+        member.atom_rotations.push_back(std::move(atom_rotation));
+    }
+    return member;
+}
+
 void SymmetryContext::build_kstar_member_rotations(const int lmax)
 {
     if (lmax < 0 || atom_to_type.empty() || input_coord_frac.empty())

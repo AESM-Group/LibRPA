@@ -218,11 +218,27 @@ int main(int argc, char **argv)
         const string path_eigocc_scf = driver_params.input_dir + driver_params.fn_eigocc_scf;
 
         profiler.start("driver_read_common_input_data", "Driver Read Task-Common Input Data");
-        profiler.start("driver_band_out", "DFT SCF eigenvalues/occupations");
-        read_scf_occ_eigenvalues(path_eigocc_scf);
-        profiler.stop("driver_band_out");
+        const bool sternheimer_analytic_headwing =
+            task == task_t::SternheimerRPA && driver::get_bool(driver::opts.replace_w_head) &&
+            (driver::opts.option_dielect_func == 3 || driver::opts.option_dielect_func == 4);
+        const bool needs_scf_eigenvalues =
+            task != task_t::SternheimerRPA || sternheimer_analytic_headwing;
+        const bool needs_standard_meanfield_data =
+            task != task_t::print_minimax &&
+            (task != task_t::SternheimerRPA || sternheimer_analytic_headwing);
+        const bool needs_sternheimer_symmetry_metadata =
+            task == task_t::SternheimerRPA && !driver_params.fn_sternheimer_partial_manifest.empty();
+        const bool needs_structure_bz_basis =
+            needs_standard_meanfield_data || needs_sternheimer_symmetry_metadata;
 
-        if (task != task_t::print_minimax)
+        if (needs_scf_eigenvalues)
+        {
+            profiler.start("driver_band_out", "DFT SCF eigenvalues/occupations");
+            read_scf_occ_eigenvalues(path_eigocc_scf);
+            profiler.stop("driver_band_out");
+        }
+
+        if (needs_structure_bz_basis)
         {
             profiler.start("driver_struct", "Structure");
             read_stru(path_stru);
@@ -247,42 +263,46 @@ int main(int argc, char **argv)
             lib_printf_root("\n");
             profiler.stop("driver_basis");
 
-            // Direct k-BLACS eigenvector input is a LibRI path.  Resolve AUTO before
-            // reading wave functions so the reader can choose the final ownership
-            // layout instead of first materializing dense matrices on k-group roots.
-            if (driver::opts.parallel_routing == LIBRPA_ROUTING_AUTO)
+            if (needs_standard_meanfield_data)
             {
-                driver::opts.parallel_routing = decide_auto_routing(
-                    driver::n_atoms, driver::opts.nfreq * driver::n_kpoints);
-            }
-
-            profiler.start("driver_read_eigenvector", "SCF eigenvectors");
-            int ret_eigenvec = read_eigenvector(driver_params.input_dir);
-            mpi_comm_global_h.barrier();
-            if (ret_eigenvec == 0)
-            {
-                lib_printf_root("Successfully read eigenvector files\n");
-            }
-            else
-            {
-                if (ret_eigenvec > 0)
+                // Direct k-BLACS eigenvector input is a LibRI path.  Resolve AUTO before
+                // reading wave functions so the reader can choose the final ownership
+                // layout instead of first materializing dense matrices on k-group roots.
+                if (driver::opts.parallel_routing == LIBRPA_ROUTING_AUTO)
                 {
-                    throw LIBRPA_RUNTIME_ERROR("Error in reading eigenvector files (return code " +
-                                               std::to_string(ret_eigenvec) + ")");
+                    driver::opts.parallel_routing = decide_auto_routing(
+                        driver::n_atoms, driver::opts.nfreq * driver::n_kpoints);
                 }
-                throw LIBRPA_RUNTIME_ERROR(
-                    "No eigenvector files found; check the KS_eigenvector input files");
+
+                profiler.start("driver_read_eigenvector", "SCF eigenvectors");
+                int ret_eigenvec = read_eigenvector(driver_params.input_dir);
+                mpi_comm_global_h.barrier();
+                if (ret_eigenvec == 0)
+                {
+                    lib_printf_root("Successfully read eigenvector files\n");
+                }
+                else
+                {
+                    if (ret_eigenvec > 0)
+                    {
+                        throw LIBRPA_RUNTIME_ERROR(
+                            "Error in reading eigenvector files (return code " +
+                            std::to_string(ret_eigenvec) + ")");
+                    }
+                    throw LIBRPA_RUNTIME_ERROR(
+                        "No eigenvector files found; check the KS_eigenvector input files");
+                }
+                profiler.stop("driver_read_eigenvector");
+
+                profiler.start("driver_read_ri");
+                read_ri(driver_params.input_dir, driver::opts.parallel_routing);
+                lib_printf_root("Actual parallel routing used: %s\n",
+                                get_routing_string(driver::opts.parallel_routing).c_str());
+                profiler.stop("driver_read_ri");
+
+                // Vq distributed using the same strategy
+                // There should be no duplicate for V
             }
-            profiler.stop("driver_read_eigenvector");
-
-            profiler.start("driver_read_ri");
-            read_ri(driver_params.input_dir, driver::opts.parallel_routing);
-            lib_printf_root("Actual parallel routing used: %s\n",
-                            get_routing_string(driver::opts.parallel_routing).c_str());
-            profiler.stop("driver_read_ri");
-
-            // Vq distributed using the same strategy
-            // There should be no duplicate for V
         }
 
         mpi_comm_global_h.barrier();

@@ -189,6 +189,17 @@ std::map<int, ComplexMatrix> build_symmetry_kspace_shell_rotations(
     const Vector3_Order<int>& return_lattice,
     double threshold = 1e-5);
 
+// Build the inverse-route member used to rotate an operator from k_ibz to
+// k_bz. This is also used by fixed-q Sternheimer reconstruction, where both
+// canonical k labels can represent the same q modulo a reciprocal vector.
+SymmetryKStarMember build_symmetry_kspace_operation_member(
+    const SymmetryContext& ctx,
+    int spatial_isym,
+    bool time_reversal,
+    const Vector3_Order<double>& k_bz,
+    const Vector3_Order<double>& k_ibz,
+    int lmax);
+
 ComplexMatrix build_symmetry_rotation_matrix(
     const SpeciesBasisLayout& layout,
     const std::map<int, ComplexMatrix>& shell_rotations);

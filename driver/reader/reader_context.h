@@ -15,6 +15,7 @@ struct ReaderParameters
     std::string prefix_lri_coeff = "Cs_data";
     std::string prefix_lri_coeff_shrink = "Cs_shrinked_data";
     bool use_spinor_wfc = false;
+    bool sternheimer_partial_input = false;
 };
 
 // Parsing metadata owned by one input operation; never library-owned data.

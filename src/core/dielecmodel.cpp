@@ -1579,6 +1579,66 @@ matrix_m<std::complex<double>> diele_func::get_rpa_chi0v_wing(const int ifreq) c
     return chi0v_wing;
 }
 
+SternheimerRpaHeadwingInput diele_func::get_sternheimer_rpa_headwing_input(
+    const int ifreq, const RpaHeadwingSettings &settings) const
+{
+    if (settings.rpa_headwing_mode != "qavg" && settings.rpa_headwing_mode != "head_only")
+    {
+        throw std::logic_error("ST-RPA head/wing mode must be qavg or head_only");
+    }
+
+    const auto chi0v_head = get_rpa_chi0v_head(ifreq);
+    SternheimerRpaHeadwingInput result;
+    result.mode = settings.rpa_headwing_mode;
+    result.body_start = rpa_headwing_regular_body_start_channel(settings);
+    result.head = ComplexMatrix(3, 3);
+    for (int alpha = 0; alpha != 3; ++alpha)
+    {
+        for (int beta = 0; beta != 3; ++beta)
+        {
+            result.head(alpha, beta) = chi0v_head(alpha, beta);
+        }
+    }
+
+    if (result.mode == "head_only")
+    {
+        return result;
+    }
+    if (ifreq < 0 || static_cast<std::size_t>(ifreq) >= wing_mu.size())
+    {
+        throw std::runtime_error("ST-RPA qavg requested before analytic wing is available");
+    }
+    if (qx_leb.size() != qy_leb.size() || qx_leb.size() != qz_leb.size() ||
+        qx_leb.size() != qw_leb.size() || qx_leb.size() != q_gamma.size())
+    {
+        throw std::logic_error("ST-RPA head/wing angular quadrature data are inconsistent");
+    }
+
+    // cal_wing stores the dielectric-function convention. Negating here gives
+    // the chi0*v convention returned by get_rpa_chi0v_wing after the usual
+    // sqrt(V) auxiliary-to-Coulomb transformation.
+    result.wing_mu = ComplexMatrix(n_abf, 3);
+    for (int mu = 0; mu != n_abf; ++mu)
+    {
+        for (int alpha = 0; alpha != 3; ++alpha)
+        {
+            result.wing_mu(mu, alpha) = -wing_mu.at(ifreq)(mu, alpha);
+        }
+    }
+
+    const double volume = rpa_headwing_gamma_cell_volume(pbc_, settings.use_2d_dielectric);
+    result.directions.reserve(qw_leb.size());
+    for (std::size_t ileb = 0; ileb != qw_leb.size(); ++ileb)
+    {
+        const double radial_weight = settings.use_2d_dielectric
+                                         ? std::pow(q_gamma[ileb], 2) / (2.0 * volume)
+                                         : std::pow(q_gamma[ileb], 3) / (3.0 * volume);
+        result.directions.push_back(
+            {{{qx_leb[ileb], qy_leb[ileb], qz_leb[ileb]}}, qw_leb[ileb] * radial_weight});
+    }
+    return result;
+}
+
 void diele_func::cal_wing(const Cs_LRI &Cs_data, double coulomb_eigen_threshold,
                           const atpair_k_cplx_mat_t &Vq)
 {
@@ -3257,9 +3317,13 @@ void diele_func::calculate_q_gamma_2d()
 
 int rpa_headwing_regular_body_start_channel(const RpaHeadwingSettings &settings)
 {
-    if (settings.rpa_headwing_body_start < 0)
+    if (settings.rpa_headwing_body_start < -1)
     {
-        throw std::logic_error("rpa_headwing_body_start must be non-negative");
+        throw std::logic_error("rpa_headwing_body_start must be at least -1");
+    }
+    if (settings.rpa_headwing_body_start == -1)
+    {
+        return 0;
     }
     if (settings.rpa_headwing_body_start > 0)
     {
@@ -3797,6 +3861,11 @@ std::complex<double> diele_func::compute_rpa_trace_log_average(
     }
 
     const int body_start = rpa_headwing_regular_body_start_channel(settings);
+    if (body_start == 0)
+    {
+        throw std::logic_error(
+            "rpa_headwing_body_start=-1 is supported only by the Sternheimer RPA path");
+    }
     const int wing_row_offset = body_start - 1;
     if (desc_response.m() <= body_start || wing_row_offset >= wing.at(ifreq).nr())
     {

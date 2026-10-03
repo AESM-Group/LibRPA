@@ -1,0 +1,24 @@
+task = sternheimer_rpa
+input_dir = ../dataset
+output_level = info
+
+prefix_coul_full = v1_coulomb_full_iq_
+prefix_lri_coeff = v1_Cs_data_
+prefix_sternheimer_chi0 = v1_sternheimer_chi0_iq_
+fn_sternheimer_qpoints = v1_sternheimer_qpoints.dat
+fn_basis_wfc = basis_wfc_out
+fn_basis_aux = basis_aux_out
+version_coul_reader = 1
+version_lri_reader = 1
+
+nfreq = 1
+option_dielect_func = 3
+replace_w_head = false
+rpa_headwing_mode = qavg
+rpa_headwing_body_start = 1
+sqrt_coulomb_threshold = 0
+
+parallel_routing = atompair
+use_shrink_abfs = false
+use_shrink_chi = false
+use_symmetry_rpa = false

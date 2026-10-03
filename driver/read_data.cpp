@@ -61,6 +61,8 @@ librpa::reader::ReaderContext driver_reader_context()
     params.prefix_lri_coeff = driver::driver_params.prefix_lri_coeff;
     params.prefix_lri_coeff_shrink = driver::driver_params.prefix_lri_coeff_shrink;
     params.use_spinor_wfc = driver::driver_params.use_spinor_wfc;
+    params.sternheimer_partial_input =
+        !driver::driver_params.fn_sternheimer_partial_manifest.empty();
     return {driver::h, driver::reader_state, params, driver::opts,
             librpa_int::global::mpi_comm_global_h};
 }
@@ -462,7 +464,8 @@ static std::vector<Vector3_Order<double>> read_headwing_k_path_info(const string
     return kfrac_list;
 }
 
-void read_headwing_input(const string &dir_path, bool need_wing)
+void read_headwing_input(const string &dir_path, bool need_wing,
+                         const std::vector<double> *frequencies_override)
 {
     using namespace librpa_int;
     using namespace librpa_int::global;
@@ -516,7 +519,20 @@ void read_headwing_input(const string &dir_path, bool need_wing)
 
     std::vector<double> freq_weights;
     driver::h.get_imaginary_frequency_grids(driver::opts, pds->omegas_imagfreq, freq_weights);
-    const auto &freqs = pds->tfg.get_freq_nodes();
+    const auto &default_freqs = pds->tfg.get_freq_nodes();
+    const std::vector<double> freqs =
+        frequencies_override != nullptr ? *frequencies_override : default_freqs;
+    if (freqs.empty())
+    {
+        throw std::runtime_error("Head/wing frequency grid is empty");
+    }
+    if (frequencies_override != nullptr)
+    {
+        librpa_int::global::lib_printf_root(
+            "Head/wing uses the external Sternheimer response frequency grid: "
+            "nfreq=%zu first=%.12e last=%.12e Ha\n",
+            freqs.size(), freqs.front(), freqs.back());
+    }
 
     if (path_exists(pyatb_velocity.c_str()))
     {

@@ -277,6 +277,18 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_string(driver_params, prefix_lri_coeff_shrink);
     _parse_string(driver_params, prefix_shrink_sinvS);
     _parse_string(driver_params, prefix_coul_full);
+    _parse_string(driver_params, prefix_sternheimer_chi0);
+    _parse_string(driver_params, fn_sternheimer_qpoints);
+    _parse_string(driver_params, fn_sternheimer_partial_manifest);
+    _parse_string(driver_params, fn_sternheimer_symmetry_routes);
+    _parse_string(driver_params, fn_sternheimer_qstar_routes);
+    _parse_string(driver_params, prefix_sternheimer_reconstructed);
+    _parse_string(driver_params, prefix_sternheimer_kresolved);
+    _parse_string(driver_params, prefix_sternheimer_symmetry_diagnostic);
+    _parse_int(driver_params, sternheimer_iq);
+    _parse_double(driver_params, sternheimer_qweight);
+    _parse_bool(driver_params, use_rpa_gamma);
+    _parse_bool(driver_params, sternheimer_matrix_only);
     _parse_string(driver_params, prefix_coul_cut);
     _parse_string(driver_params, prefix_eigvecs_scf);
     _parse_string(driver_params, fn_stru);
@@ -478,8 +490,8 @@ void parse_inputfile_to_params(const std::string &fn)
         if (flag == 0) opts.output_gw_sigc_ks_kf = get_switch(btmp);
     }
     _parse_int(opts, rpa_headwing_body_start);
-    if (opts.rpa_headwing_body_start < 0)
-        throw std::runtime_error("rpa_headwing_body_start must be non-negative");
+    if (opts.rpa_headwing_body_start < -1)
+        throw std::runtime_error("rpa_headwing_body_start must be at least -1");
     parser.parse_string("rpa_headwing_mode", stmp, "qavg", flag);
     if (flag == 0 || flag == 1)
     {

@@ -1,0 +1,166 @@
+Initialized LibRPA global environment at [2026-09-23 07:59:51.805]
+Total number of tasks    :     1
+Total number of nodes    :     1
+Maximal number of threads:   1
+MPI tasks information:
+| Proc    0 of Size    1: c2ln4
+| Global ID of master process of node     0 :     0
+
+LibRPA CMake build info:
+| Build type               : RelWithDebInfo
+| Source code directory    : /data/home/df_iopcas_ghj/app/librpa/librpa-14ce4859-regression-20260922/src
+| Source code Git reference: GITDIR-NOTFOUND
+| Source code Git hash     : GITDIR-NOTFOUND
+| C++ compiler             : /data/app/intel/oneapi-2024.2/mpi/2021.13/bin/mpiicpx
+| C++ compiler flags       :   -fiopenmp
+| Fortran compiler         : /data/app/intel/oneapi-2024.2/mpi/2021.13/bin/mpiifx
+| Fortran compiler flags   :
+| GreenX commit hash       : c90d131
+| Use LibRI                : ON
+| LibRI include directory  : /data/home/df_iopcas_ghj/app/librpa/librpa-14ce4859-regression-20260922/thirdparty/LibRI/include
+| LibComm include directory: /data/home/df_iopcas_ghj/app/librpa/librpa-14ce4859-regression-20260922/thirdparty/LibComm/include
+
+===== Begin driver parameters  =====
+task = sternheimer_rpa
+constants_choice = internal
+input_dir = ../dataset/
+prefix_lri_coeff = v1_Cs_data_
+prefix_lri_coeff_shrink = Cs_shrinked_data
+prefix_shrink_sinvS = shrink_sinvS_
+prefix_coul_full = v1_coulomb_full_iq_
+prefix_sternheimer_chi0 = v1_sternheimer_chi0_iq_
+fn_sternheimer_qpoints = v1_sternheimer_qpoints.dat
+fn_sternheimer_partial_manifest =
+fn_sternheimer_symmetry_routes =
+fn_sternheimer_qstar_routes =
+prefix_sternheimer_reconstructed =
+prefix_sternheimer_kresolved =
+prefix_sternheimer_symmetry_diagnostic =
+prefix_coul_cut = coulomb_cut
+prefix_eigvecs_scf = KS_eigenvector
+fn_stru = stru_out
+fn_bz_sampling = bz_sampling_out
+fn_basis = basis_out
+fn_basis_wfc = basis_wfc_out
+fn_basis_aux = basis_aux_out
+fn_basis_aux_shrink = basis_aux_shrink_out
+fn_eigocc_scf = band_out
+fn_dielfunc = dielecfunc_out
+fn_vxc_scf = vxc_out
+fn_band_kpath_info = band_kpath_info
+output_level = info
+use_spinor_wfc = false
+use_rpa_gamma = true
+sternheimer_matrix_only = false
+output_energy_qp = false
+output_gw_spec_func = false
+output_hamgnn = false
+use_pyatb = false
+version_coul_reader = 1
+version_lri_reader = 1
+sternheimer_iq = 1
+sternheimer_qweight = 1
+cs_R_threshold = 1e-06
+i_state_low = 0
+i_state_high = 999999
+===== End driver parameters    =====
+
+===== Begin control parameters =====
+output_dir = librpa.d/
+restart_from_dir = <output_dir>
+tfgrids_type = minimax
+anacon_tfgrids_type = unset
+parallel_routing = atompair
+rpa_headwing_mode = qavg
+nfreq = 1
+n_bands_chi0 = -1
+n_bands_sigc = -1
+n_params_anacon = -1
+n_params_anacon_resample = -1
+anacon_nfreq = -1
+option_qpe_solver = 0
+option_dielect_func = 3
+option_bvk_remap = 1
+rpa_headwing_body_start = 1
+qpe_solver_n_iter_max = 10000
+libri_chi0_collect_s0_chunk = 0
+istate_ref_hedin_shift = -1
+ifreq_output_wc_start = 0
+ifreq_output_wc_end = -1
+libri_chi0_collect_max_bytes = 0
+gf_R_threshold = 0
+vq_threshold = 0
+minimax_emin = -1
+minimax_emax = -1
+minimax_regulation = 0
+sqrt_coulomb_threshold = 0
+libri_chi0_threshold_C = 0
+libri_chi0_threshold_G = 0
+libri_exx_threshold_C = 0
+libri_exx_threshold_D = 0
+libri_exx_threshold_V = 0
+libri_g0w0_threshold_C = 0
+libri_g0w0_threshold_G = 0
+libri_g0w0_threshold_Wc = 0
+qpe_solver_thres = 1e-06
+qpe_solver_damp_factor = 0.1
+sf_gf_omega_shift = 0.01
+sf_sigc_omega_shift = 0.01
+debug = false
+replace_w_head = false
+use_fullcoul_eps = true
+use_fullcoul_exx = false
+use_fullcoul_wc = false
+use_symmetry_exx = false
+use_symmetry_gw = false
+use_symmetry_rpa = false
+output_abacus_gw_gf = false
+use_shrink_abfs = false
+use_shrink_chi = false
+use_scalapack_ecrpa = true
+use_scalapack_gw_wc = true
+use_cholesky_gw_wc = false
+use_gpu_replace_scalapack = false
+use_elpa_sqrt_coulomb = false
+use_kpara_scf_eigvec = false
+read_sigc_mat_rf = false
+output_gw_sigc_ks_kf = false
+output_gw_sigc_ks_mat_kf = false
+output_gw_sigc_mat_kf = false
+output_gw_sigc_mat_rf = false
+output_gw_sigc_mat_rt = false
+output_wc_rf = false
+output_wc_rf_atom_pair = true
+output_2d_finite_q_diagnostics = false
+use_qpe_adaptive_damp = false
+use_qpe_legacy_update = false
+override_qpe_solver_nan = false
+use_hedin_shift = false
+===== End control parameters   =====
+
+Initialization finished, Wall/CPU time [min]:       0.0000       0.0000
+Free memory on node     0 [GB]:  126.548
+Common data parsed, task sternheimer_rpa will begin
+sternheimer_rpa: Sternheimer RPA correlation energy from response matrices
+Sternheimer RPA correlation energy (Hartree)
+| q mode = manifest
+| q manifest = ../dataset/v1_sternheimer_qpoints.dat
+| Coulomb prefix = v1_coulomb_full_iq_
+| Sternheimer chi0 prefix = v1_sternheimer_chi0_iq_
+| use_rpa_gamma = true
+| analytic head/wing = off
+| iq = 1
+| q = 0.0000000000000000e+00 0.0000000000000000e+00 0.0000000000000000e+00
+| q weight = 1.0000000000000000e+00
+| ifreq omega_Ha weight_Ha integrand_real integrand_imag Ec_real Ec_imag
+|     1   2.388505379513e-04   4.806395295485e-04  -6.658180825732e-01  -2.940667819663e-28  -5.093252455998e-05  -2.249497871384e-32
+| q Sternheimer EcRPA:  -5.093252455998e-05  -2.249497871384e-32
+| Total Sternheimer EcRPA:  -5.093252455998e-05  -2.249497871384e-32
+Finalizing LibRPA global environment at [2026-09-23 07:59:54.807]
+Entry                                             #calls       CPU time (s)       Wall time (s)
+----------------------------------------------------------------------------------------------------
+Total for driver                                  1            0.0342             3.0010
+ Driver Read Input Parameters                     1             0.0003             0.0005
+ Driver Read Task-Common Input Data               1             0.0000             0.0000
+libRPA finished successfully
+elapsed=11.50 s

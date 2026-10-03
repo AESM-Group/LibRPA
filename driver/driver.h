@@ -77,6 +77,97 @@ struct DriverParams
     //! `coulomb_mat`
     std::string prefix_coul_full;
 
+    //! Prefix of Sternheimer chi0 v1 response files.
+    //! @par Default
+    //! `v1_sternheimer_chi0_iq_`
+    //! @par Status
+    //! Experimental
+    std::string prefix_sternheimer_chi0;
+
+    //! Sternheimer q-point manifest filename with rows `iq qx qy qz qweight`.
+    //! An empty value preserves the single-q `sternheimer_iq` mode.
+    //! @par Default
+    //! empty
+    //! @par Status
+    //! Experimental
+    std::string fn_sternheimer_qpoints;
+
+    //! Sternheimer partial-response manifest with rows
+    //! `iq ik_full ifreq response_file`.
+    //! An empty value preserves aggregate Sternheimer response input.
+    //! @par Default
+    //! empty
+    //! @par Status
+    //! Experimental
+    std::string fn_sternheimer_partial_manifest;
+
+    //! Explicit fixed-q inverse routes provided by the producer for reconstruction
+    //! under the symmetry subgroup preserved by the discrete Hamiltonian.
+    //! @par Default
+    //! empty
+    //! @par Status
+    //! Experimental
+    std::string fn_sternheimer_symmetry_routes;
+
+    //! Explicit inverse routes from every full-q member to the discrete
+    //! q-star representative provided by the producer.
+    //! @par Default
+    //! empty
+    //! @par Status
+    //! Experimental
+    std::string fn_sternheimer_qstar_routes;
+
+    //! Optional prefix for reconstructed full-q Sternheimer chi0 v1 files.
+    //! An empty value disables the diagnostic output.
+    //! @par Default
+    //! empty
+    //! @par Status
+    //! Experimental
+    std::string prefix_sternheimer_reconstructed;
+
+    //! Optional prefix for fixed-q k-resolved Sternheimer response matrices.
+    //! An empty value disables the diagnostic output.
+    //! @par Default
+    //! empty
+    //! @par Status
+    //! Experimental
+    std::string prefix_sternheimer_kresolved;
+
+    //! Optional prefix for fixed-q Sternheimer symmetry route diagnostics.
+    //! An empty value disables the diagnostic output.
+    //! @par Default
+    //! empty
+    //! @par Status
+    //! Experimental
+    std::string prefix_sternheimer_symmetry_diagnostic;
+
+    //! One-based q index for Sternheimer-RPA postprocessing.
+    //! @par Default
+    //! 1
+    //! @par Status
+    //! Experimental
+    int sternheimer_iq;
+
+    //! q-point weight for Sternheimer-RPA postprocessing.
+    //! @par Default
+    //! 1.0
+    //! @par Status
+    //! Experimental
+    double sternheimer_qweight;
+
+    //! Include the Gamma-point contribution in the reported RPA q sum.
+    //! @par Default
+    //! true
+    bool use_rpa_gamma;
+
+    //! Reconstruct only fixed-q aggregate and k-resolved response matrices.
+    //! This diagnostic mode skips q-star coverage, Coulomb input, and RPA energy.
+    //! @par Default
+    //! false
+    //! @par Status
+    //! Experimental
+    bool sternheimer_matrix_only;
+
     //! Prefix of truncated Coulomb matrix files.
     //! @par Default
     //! `coulomb_cut`
