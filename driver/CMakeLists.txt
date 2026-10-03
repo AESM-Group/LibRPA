@@ -11,6 +11,7 @@ list(APPEND exe_sources
   input_parser.cpp
   inputfile.cpp
   main.cpp
+  reader_2d_coulomb_head.cpp
   task.cpp
   # Specific task implementations
   tasks/task_helper.cpp

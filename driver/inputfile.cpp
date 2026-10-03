@@ -510,6 +510,7 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_switch(opts, output_gw_sigc_mat_rf);
     _parse_switch(opts, output_wc_rf);
     _parse_switch(opts, output_wc_rf_atom_pair);
+    _parse_switch(opts, output_2d_finite_q_diagnostics);
     _parse_int(opts, ifreq_output_wc_start);
     _parse_int(opts, ifreq_output_wc_end);
     {  // backward-compatible

@@ -825,17 +825,31 @@ void librpa_build_g0w0_sigma(LibrpaHandler* h, const LibrpaOptions *p_opts)
     }
     std::vector<std::complex<double>> epsmac_LF_imagfreq(epsmac_LF_imagfreq_re.cbegin(), epsmac_LF_imagfreq_re.cend());
 
-    std::map<double, std::map<Vector3_Order<double>, librpa_int::matrix_m<std::complex<double>>>> Wc_freq_q;
+    const bool strict_2d_complete_wc = strict_2d_complete_wc_requested(
+        opts.replace_w_head == LIBRPA_SWITCH_ON, opts.option_dielect_func,
+        opts.use_2d_dielectric == LIBRPA_SWITCH_ON);
+    validate_strict_2d_complete_wc_runtime(strict_2d_complete_wc, !epsmac_LF_imagfreq.empty(),
+                                           opts.use_scalapack_gw_wc == LIBRPA_SWITCH_ON,
+                                           pds->p_headwing != nullptr &&
+                                               pds->p_headwing->strict_2d_coulomb_head_configured());
+    validate_strict_2d_gw_coulomb_choices(strict_2d_complete_wc,
+                                          opts.use_fullcoul_eps == LIBRPA_SWITCH_ON,
+                                          opts.use_fullcoul_wc == LIBRPA_SWITCH_ON);
+
+    std::map<double, std::map<Vector3_Order<double>, librpa_int::matrix_m<std::complex<double>>>>
+        Wc_freq_q;
     const auto &wc_desc_abf = use_shrink_abfs ? pds->desc_abf_shrink : pds->desc_abf;
     const auto &coul_eps = opts.use_fullcoul_eps ? pds->vq : pds->vq_cut;
     auto &coul_wc = opts.use_fullcoul_wc ? pds->vq : pds->vq_cut;
     if (opts.use_scalapack_gw_wc == LIBRPA_SWITCH_ON)
     {
         bool replace_w_head = opts.replace_w_head == LIBRPA_SWITCH_ON;
-        Wc_freq_q = compute_Wc_freq_q_blacs(chi0, coul_eps, coul_wc, opts.sqrt_coulomb_threshold,
-                                            replace_w_head, opts.option_dielect_func,
-                                            epsmac_LF_imagfreq, pds->p_headwing.get(), pds->blacs_h, wc_desc_abf,
-                                            debug, opts.output_dir, opts.use_cholesky_gw_wc, opts.use_gpu_replace_scalapack, opts.use_elpa_sqrt_coulomb);
+        Wc_freq_q = compute_Wc_freq_q_blacs(
+            chi0, coul_eps, coul_wc, opts.sqrt_coulomb_threshold, replace_w_head,
+            opts.option_dielect_func, epsmac_LF_imagfreq, pds->p_headwing.get(), pds->blacs_h,
+            wc_desc_abf, debug, opts.output_dir, opts.use_cholesky_gw_wc,
+            opts.use_gpu_replace_scalapack, opts.use_elpa_sqrt_coulomb,
+            opts.output_2d_finite_q_diagnostics == LIBRPA_SWITCH_ON);
     }
     else
     {

@@ -208,6 +208,7 @@ blocks:
       - api.output_gw_sigc_mat_rf
       - api.output_wc_rf
       - api.output_wc_rf_atom_pair
+      - api.output_2d_finite_q_diagnostics
       - api.ifreq_output_wc_start
       - api.ifreq_output_wc_end
 

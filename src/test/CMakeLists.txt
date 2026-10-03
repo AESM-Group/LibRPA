@@ -87,4 +87,6 @@ foreach(target
   config_test(${target} 4)
 endforeach()
 
+target_compile_options(test_rpa_headwing PRIVATE -UNDEBUG)
+
 # TODO(minye): make use of GTest

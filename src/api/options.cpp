@@ -148,6 +148,7 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->output_gw_sigc_mat_rf = LIBRPA_SWITCH_OFF;
     opts->output_wc_rf = LIBRPA_SWITCH_OFF;
     opts->output_wc_rf_atom_pair = LIBRPA_SWITCH_ON;
+    opts->output_2d_finite_q_diagnostics = LIBRPA_SWITCH_OFF;
     opts->ifreq_output_wc_start = 0;
     opts->ifreq_output_wc_end = -1;
 }

@@ -286,6 +286,8 @@ module librpa_f03
       logical :: output_wc_rf
       !> Experimental: output \f$W^c(R,i\omega)\f$ as atom-pair block files.
       logical :: output_wc_rf_atom_pair
+      !> Experimental: output strict-2D finite-q head projection diagnostics.
+      logical :: output_2d_finite_q_diagnostics
       !> First zero-based \f$W^c\f$ frequency index to output.
       integer :: ifreq_output_wc_start
       !> Half-open \f$W^c\f$ frequency output end index; negative means all remaining frequencies.
