@@ -92,6 +92,13 @@ class TFGrids
                         double emax = -1, double tmin = -1, double tinterval = -1,
                         double regulation = 0.0);
 
+        //! Dedicated export grid: rescale the minimax time quadrature to the
+        //! single-response energy interval and set row 0 by chi(i0)=2*integral_0^infty chi(tau) d tau. Never use
+        //! this grid for GW self-energy integration/inverse transforms.
+        void generate_static_export(const TFGrids &source);
+        //! One imported response frequency (including zero), for analytic
+        //! dielectric head/wing evaluation only; not a GW quadrature grid.
+        void generate_single_frequency(double omega);
         //! Generate the even-spaced frequency grid
         void generate_evenspaced(double emin, double interval);
         //! Generate the even-spaced time-frequency grid. @note Currently only for debug use

@@ -13,6 +13,11 @@
 
 #ifdef LIBRPA_USE_ELPA
 #include <elpa/elpa.h>
+// Some ELPA headers expose the C imaginary-unit macro, but LibRPA uses I
+// as an atom index in C++ interfaces.
+#ifdef I
+#undef I
+#endif
 #endif
 
 namespace librpa_int

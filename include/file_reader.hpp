@@ -32,6 +32,8 @@ struct FileReaderOptions
     double coulomb_threshold = 1.0e-12;  ///< Screening threshold for Coulomb matrices.
     bool read_ri = true;                 ///< Whether to read RI and Coulomb data.
     bool read_band_data = true;          ///< Read separate band files; false copies SCF data.
+    bool distribute_lri = false;        ///< Give each RI block one MPI owner (required for analytic wings).
+    bool read_full_coulomb = false;      ///< Also read coulomb_mat for dielectric screening.
 
     // Defaults preserve the original LibBSE input filenames.
     std::string fn_stru = "stru_out";
@@ -55,8 +57,9 @@ struct FileReaderOptions
  * @param[in] opts File reader options.
  * @return Shared pointer to the populated LibRPA dataset.
  *
- * Initialize MPI and LibRPA before calling. Input is replicated on each rank,
- * as in the original LibBSE loader. With read_band_data=false, SCF data is
+ * Initialize MPI and LibRPA before calling. Input is replicated on each rank
+ * by default; distribute_lri=true assigns each RI block to one rank.
+ * With read_band_data=false, SCF data is
  * copied to the band data. Release the dataset before global finalization.
  *
  * @code

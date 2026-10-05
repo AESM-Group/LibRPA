@@ -768,6 +768,7 @@ void librpa_build_g0w0_sigma(LibrpaHandler* h, const LibrpaOptions *p_opts)
     chi0.build(routing, cs_data_chi0, pds->atpairs_local, basis_aux_chi0, sinvS_chi0,
                pds->blacs_h);
     profiler.stop("chi0_build");
+    export_ds_chi0(*pds, opts, routing);
     pds->comm_h.barrier();
 
     if (debug)

@@ -157,11 +157,25 @@ std::shared_ptr<librpa_int::Dataset> read_dataset_from_files(
                         opts.coulomb_threshold, all_pairs, true,
                         -1, false);
         });
+        if (opts.read_full_coulomb)
+        {
+            run_reader("coulomb_mat", [&]
+            {
+                reader::read_Vq_row(ctx, input_dir, "coulomb_mat",
+                            opts.coulomb_threshold, all_pairs, false, -1, false);
+            });
+        }
         run_reader(opts.prefix_lri_coeff.c_str(), [&]
         {
-            reader::read_Cs(ctx, input_dir, opts.cs_threshold, all_pairs,
-                    opts.prefix_lri_coeff,
-                    -1);
+            // Analytic head/wing construction sums partial C(q) across ranks.
+            // Unique ownership prevents replicated coefficients being summed
+            // once per MPI rank. Keep replicated loading as the default.
+            if (opts.distribute_lri)
+                reader::read_Cs_evenly_distribute(ctx, input_dir, opts.cs_threshold,
+                    pds->comm_h.myid, pds->comm_h.nprocs, opts.prefix_lri_coeff, -1);
+            else
+                reader::read_Cs(ctx, input_dir, opts.cs_threshold, all_pairs,
+                        opts.prefix_lri_coeff, -1);
         });
     }
 

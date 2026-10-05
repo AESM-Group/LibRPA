@@ -645,6 +645,12 @@ typedef struct
     //! Experimental
     int ifreq_output_wc_end;
 
+    //! Export bare chi0(R,iw_min), original auxiliary basis, before screening.
+    LibrpaSwitch output_chi0_rf;
+    //! Additionally integrate chi0(R,tau) at physical omega=0 using rescaled minimax
+    //! time quadrature. This is a separate response build, not node index 0.
+    LibrpaSwitch output_chi0_static;
+
 } LibrpaOptions;
 
 /**

@@ -508,6 +508,8 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_switch(opts, output_gw_sigc_mat_kf);
     _parse_switch(opts, output_gw_sigc_mat_rt);
     _parse_switch(opts, output_gw_sigc_mat_rf);
+    _parse_switch(opts, output_chi0_rf);
+    _parse_switch(opts, output_chi0_static);
     _parse_switch(opts, output_wc_rf);
     _parse_switch(opts, output_wc_rf_atom_pair);
     _parse_int(opts, ifreq_output_wc_start);

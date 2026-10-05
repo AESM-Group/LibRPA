@@ -290,6 +290,8 @@ module librpa_f03
       integer :: ifreq_output_wc_start
       !> Half-open \f$W^c\f$ frequency output end index; negative means all remaining frequencies.
       integer :: ifreq_output_wc_end
+      logical :: output_chi0_rf
+      logical :: output_chi0_static
 
       contains
          procedure :: init => librpa_init_options

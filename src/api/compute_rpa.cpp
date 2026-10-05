@@ -114,6 +114,7 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
     chi0.build(routing, pds->cs_data, pds->atpairs_local, pds->basis_aux, pds->sinvS,
                pds->blacs_h);
     profiler.stop("chi0_build");
+    export_ds_chi0(*pds, opts, routing);
 
     if (debug)
     { // debug, check chi0
