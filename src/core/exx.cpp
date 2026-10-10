@@ -641,6 +641,10 @@ void Exx::build(const LibrpaParallelRouting routing,
     // Use either one
     RI::Exx<int, int, 3, double> exx_libri;
     RI::Exx<int, int, 3, cplxdb> exx_libri_cplx;
+#ifdef LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK
+    exx_libri.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
+    exx_libri_cplx.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
+#endif
 
     std::map<int,std::array<double,3>> atoms_pos;
     for (int i = 0; i < n_atoms; i++)

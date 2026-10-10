@@ -329,6 +329,32 @@ if(LIBRPA_USE_LIBRI)
   endif()
 
   add_compile_definitions("LIBRPA_USE_LIBRI")
+
+  if(NOT (LIBRPA_USE_CUDA OR LIBRPA_USE_HIP))
+    # Keep probe settings local and recheck when the selected headers change.
+    function(check_libri_fine_grained_lock)
+      set(CMAKE_REQUIRED_INCLUDES
+        ${LibRI_INCLUDE_DIR} ${LibComm_INCLUDE_DIR} ${Cereal_INCLUDE_DIR})
+      set(CMAKE_REQUIRED_LIBRARIES MPI::MPI_CXX OpenMP::OpenMP_CXX)
+      set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+      unset(LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK CACHE)
+      check_cxx_source_compiles([=[
+#include <RI/ri/LRI.h>
+#include <complex>
+void set_mode(RI::LRI<int, int, 3, double>& real,
+              RI::LRI<int, int, 3, std::complex<double>>& complex)
+{
+  real.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
+  complex.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
+}
+]=] LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK)
+    endfunction()
+    check_libri_fine_grained_lock()
+    if(LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK)
+      add_compile_definitions(LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK)
+      message(STATUS "LibRI CPU fine-grained locking enabled for RPA, EXX and GW")
+    endif()
+  endif()
 endif()
 
 if(NOT LIBRPA_MPI_THREAD_LEVEL)

@@ -2154,6 +2154,9 @@ void Chi0::build_chi0_q_space_time_LibRI_routing(const Cs_LRI &Cs,
     const auto atom_nw = atbasis_wfc.get_atom_nb_map<int>();
 
     RI::RPA<int, int, 3, Tdata> rpa;
+#ifdef LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK
+    rpa.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
+#endif
     global::profiler.start("chi0_libri_routing_set_parallel");
 #if !defined(__DDLA_RI) && !defined(__CUDA_RI) && !defined(__HIP_RI)
     rpa.lri.parallel =

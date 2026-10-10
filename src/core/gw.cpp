@@ -1580,6 +1580,10 @@ void G0W0::build_spacetime(
 
     RI::GW<int, int, 3, double> gw_libri;
     RI::GW<int, int, 3, cplxdb> gw_libri_cplx;
+#ifdef LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK
+    gw_libri.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
+    gw_libri_cplx.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
+#endif
 
     std::map<int,std::array<double,3>> atoms_pos;
     // Dummy atoms position
