@@ -83,10 +83,16 @@ def _process_validate_parameters(node_validate):
     file_test = nv.get('file_test', file)
     file_refr = nv.get('file_refr', file)
 
-    pars = ["regex", "occurences", "headers", "rows", "comparison", "binary_extract"]
+    pars = ["regex", "occurences", "headers", "rows", "comparison", "binary_extract",
+            "binary_extract_preset"]
     ret = dict(name=name, file=file, file_test=file_test, file_refr=file_refr)
     for p in pars:
         ret[p] = nv.get(p, None)
+
+    collective = nv.get("collective", "false").strip().lower()
+    if collective not in ("true", "false"):
+        raise ValueError("collective must be true or false")
+    ret["collective"] = TRUE_FALSE_NONE[collective]
 
     return ret
 
