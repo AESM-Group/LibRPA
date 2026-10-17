@@ -1721,6 +1721,8 @@ void fill_ap_map_from_blacs_dist_scheduler(ap_p_map<matrix_m<T>> &data,
     const auto IJs = std::unordered_set<atpair_t, atpair_hash>(sched.atpairs.cbegin(), sched.atpairs.cend());
     const auto nr = m_loc.nr();
     const auto nc = m_loc.nc();
+    // Avoid zero inner extents in OpenMP collapse; empty tiles still participate in communication.
+    const bool has_local_data = nr > 0 && nc > 0;
     // Allocate necessary blocks first
     for (const auto &atpair: sched.atpairs)
     {
@@ -1730,7 +1732,7 @@ void fill_ap_map_from_blacs_dist_scheduler(ap_p_map<matrix_m<T>> &data,
         const auto &nJ = atbasis_c.get_atom_nb(J);
         data[atpair] = matrix_m<T>(nI, nJ, major_data);
     }
-    if (row_major)
+    if (row_major && has_local_data)
     {
         #pragma omp parallel for collapse(2) schedule(static)
         for (int ir = 0; ir < nr; ir++)
@@ -1747,7 +1749,7 @@ void fill_ap_map_from_blacs_dist_scheduler(ap_p_map<matrix_m<T>> &data,
             }
         }
     }
-    else
+    else if (has_local_data)
     {
         #pragma omp parallel for collapse(2) schedule(static)
         for (int ic = 0; ic < nc; ic++)
