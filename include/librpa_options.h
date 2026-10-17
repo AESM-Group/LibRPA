@@ -501,6 +501,8 @@ typedef struct
     int rpa_headwing_body_start;
 
     //! Flag of reading NAO correlation self-energy matrix in real-space/frequency form.
+    //! Reads indexed SigcRF .bin checkpoints. Legacy .dat checkpoints remain readable
+    //! but are deprecated and will be removed in a future release.
     //! @par Default
     //! false
     //! @par Status

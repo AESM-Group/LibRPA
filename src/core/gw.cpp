@@ -176,7 +176,8 @@ static std::vector<std::string> make_sigc_rf_filenames(
     const int ispinor_ket, const int n_spinor, const int iomega, const int myid)
 {
     const auto dir = path_as_directory(input_dir);
-    std::vector<std::string> names;
+    std::vector<std::string> names{
+        rspace_matrix_filename(input_dir, "SigcRF", ispin, ispinor_bra, ispinor_ket, myid, iomega)};
 
     std::ostringstream ss;
     ss << dir << "SigcRF_ispin_" << std::setfill('0') << std::setw(2) << ispin
@@ -200,12 +201,12 @@ static std::vector<std::string> make_sigc_rf_filenames(
     return names;
 }
 
-static int parse_sigc_rf_myid(const std::string &file_path)
+static int parse_sigc_rf_myid(const std::string &file_path, const bool indexed)
 {
     const auto name = base_name(file_path);
     const auto tag = std::string{"_myid_"};
     const auto pos = name.rfind(tag);
-    const auto suffix = std::string{".dat"};
+    const auto suffix = std::string{indexed ? ".bin" : ".dat"};
     if (pos == std::string::npos || name.size() < suffix.size()
         || name.compare(name.size() - suffix.size(), suffix.size(), suffix) != 0)
         return -1;
@@ -224,14 +225,15 @@ static int parse_sigc_rf_myid(const std::string &file_path)
     return myid;
 }
 
-static int discover_sigc_rf_nprocs_old(const std::string &input_dir)
+static int discover_sigc_rf_nprocs_old(const std::string &input_dir, bool &indexed)
 {
-    // Old SigcRF files have no manifest; largest _myid_ is the old rank count.
+    // Prefer the new format as a set; never mix old and new shards.
+    const auto files = discover_files_with_prefix(input_dir, "SigcRF_");
+    indexed = std::any_of(files.begin(), files.end(),
+                          [](const auto &fn) { return parse_sigc_rf_myid(fn, true) >= 0; });
     int myid_max = -1;
-    for (const auto &file_path: discover_files_with_prefix(input_dir, "SigcRF_"))
-    {
-        myid_max = std::max(myid_max, parse_sigc_rf_myid(file_path));
-    }
+    for (const auto &file_path : files)
+        myid_max = std::max(myid_max, parse_sigc_rf_myid(file_path, indexed));
     return myid_max + 1;
 }
 
@@ -257,16 +259,16 @@ static std::pair<int, int> sigc_rf_file_range_for_rank(
     return {begin, begin + count_sigc_rf_files_for_rank(nfiles, nprocs, myid)};
 }
 
-static std::string find_sigc_rf_file(
-    const std::string &input_dir, const int ispin, const int ispinor_bra,
-    const int ispinor_ket, const int n_spinor, const int iomega, const int myid,
-    bool *found)
+static std::string find_sigc_rf_file(const std::string &input_dir, const int ispin,
+                                     const int ispinor_bra, const int ispinor_ket,
+                                     const int n_spinor, const int iomega, const int myid,
+                                     const bool indexed, bool *found)
 {
     const auto candidates = make_sigc_rf_filenames(
         input_dir, ispin, ispinor_bra, ispinor_ket, n_spinor, iomega, myid);
     for (const auto &candidate: candidates)
     {
-        if (file_exists(candidate))
+        if (parse_sigc_rf_myid(candidate, indexed) >= 0 && file_exists(candidate))
         {
             require_readable_file(candidate);
             if (found != nullptr) *found = true;
@@ -274,7 +276,7 @@ static std::string find_sigc_rf_file(
         }
     }
     if (found != nullptr) *found = false;
-    return candidates.front();
+    return candidates[indexed ? 0 : 1];
 }
 
 static void read_exact(std::ifstream &ifs, void *dst, const std::streamsize n,
@@ -282,6 +284,58 @@ static void read_exact(std::ifstream &ifs, void *dst, const std::streamsize n,
 {
     if (!ifs.read(static_cast<char *>(dst), n))
         throw LIBRPA_RUNTIME_ERROR("failed to read SigC checkpoint file: " + fn);
+}
+
+static void read_indexed_sigc(std::ifstream &ifs, const std::string &fn, const AtomicBasis &basis,
+                              const double expected_omega,
+                              ap_p_map<std::map<Vector3_Order<int>, Matz>> &blocks)
+{
+    double omega;
+    std::size_t n_blocks;
+    int dtype;
+    read_exact(ifs, &omega, sizeof(omega), fn);
+    read_exact(ifs, &n_blocks, sizeof(n_blocks), fn);
+    read_exact(ifs, &dtype, sizeof(dtype), fn);
+    if (!std::isfinite(omega) ||
+        std::abs(omega - expected_omega) > 1e-12 * std::max(1.0, std::abs(expected_omega)))
+        throw LIBRPA_RUNTIME_ERROR("SigC checkpoint frequency mismatch: " + fn);
+    if (dtype != 1)
+        throw LIBRPA_RUNTIME_ERROR("SigC checkpoint requires complex<double> payloads: " + fn);
+
+    const auto table_start = ifs.tellg();
+    ifs.seekg(0, std::ios::end);
+    const auto file_end = ifs.tellg();
+    const std::size_t record_bytes = 7 * sizeof(int) + sizeof(std::size_t);
+    if (file_end < table_start ||
+        n_blocks > static_cast<std::size_t>(file_end - table_start) / record_bytes)
+        throw LIBRPA_RUNTIME_ERROR("truncated SigC checkpoint index: " + fn);
+    const auto table_end = static_cast<std::size_t>(table_start) + n_blocks * record_bytes;
+    ifs.seekg(table_start);
+    for (std::size_t idx = 0; idx != n_blocks; ++idx)
+    {
+        int dims[7];
+        std::size_t offset;
+        read_exact(ifs, dims, sizeof(dims), fn);
+        read_exact(ifs, &offset, sizeof(offset), fn);
+        const auto next_record = ifs.tellg();
+        const int I = dims[3], J = dims[4];
+        if (I < 0 || J < 0 || as_size(I) >= basis.n_atoms || as_size(J) >= basis.n_atoms)
+            throw LIBRPA_RUNTIME_ERROR("SigC checkpoint atom index is out of range: " + fn);
+        if (dims[5] != as_int(basis.get_atom_nb(I)) || dims[6] != as_int(basis.get_atom_nb(J)))
+            throw LIBRPA_RUNTIME_ERROR("SigC checkpoint block size mismatch: " + fn);
+        const auto nbytes = as_size(dims[5]) * as_size(dims[6]) * sizeof(cplxdb);
+        if (offset < table_end || offset > static_cast<std::size_t>(file_end) ||
+            nbytes > static_cast<std::size_t>(file_end) - offset)
+            throw LIBRPA_RUNTIME_ERROR("SigC checkpoint payload is out of range: " + fn);
+        const Vector3_Order<int> R{dims[0], dims[1], dims[2]};
+        auto &R_blocks = blocks[{I, J}];
+        if (R_blocks.count(R)) throw LIBRPA_RUNTIME_ERROR("duplicate SigC checkpoint block: " + fn);
+        Matz mat(dims[5], dims[6], MAJOR::ROW);
+        ifs.seekg(static_cast<std::streamoff>(offset));
+        read_exact(ifs, mat.ptr(), static_cast<std::streamsize>(nbytes), fn);
+        R_blocks.emplace(R, std::move(mat));
+        ifs.seekg(next_record);
+    }
 }
 
 static bool use_symmetry_ibz_root_projection(
@@ -755,9 +809,15 @@ void G0W0::read_sigc(const std::string &input_dir)
                             path_as_directory(input_dir).c_str());
     global::profiler.start("g0w0_read_sigc(R,iw) in NAO");
 
-    const int nprocs_old = discover_sigc_rf_nprocs_old(input_dir);
+    bool indexed = false;
+    const int nprocs_old = discover_sigc_rf_nprocs_old(input_dir, indexed);
     if (nprocs_old == 0)
         throw LIBRPA_RUNTIME_ERROR("no SigC checkpoint files found in: " + path_as_directory(input_dir));
+    if (!indexed)
+        global::lib_printf_root(
+            LIBRPA_VERBOSE_WARN,
+            "Warning: legacy SigcRF .dat checkpoints are deprecated and will be removed in a "
+            "future release. Reading is still supported; new checkpoints use the .bin format.\n");
 
     const auto myid_old_range = sigc_rf_file_range_for_rank(
         nprocs_old, global::size_global, global::myid_global);
@@ -780,9 +840,9 @@ void G0W0::read_sigc(const std::string &input_dir)
                     for (int myid_old = myid_old_begin; myid_old != myid_old_end; ++myid_old)
                     {
                         bool found = false;
-                        const auto fn = find_sigc_rf_file(
-                            input_dir, ispin, ispinor_bra, ispinor_ket,
-                            n_spinor, as_int(iomega), myid_old, &found);
+                        const auto fn =
+                            find_sigc_rf_file(input_dir, ispin, ispinor_bra, ispinor_ket, n_spinor,
+                                              as_int(iomega), myid_old, indexed, &found);
                         if (!found)
                         {
                             missing_file_local = 1;
@@ -813,17 +873,24 @@ void G0W0::read_sigc(const std::string &input_dir)
                 {
                     for (int myid_old = myid_old_begin; myid_old != myid_old_end; ++myid_old)
                     {
-                        const auto fn = find_sigc_rf_file(
-                            input_dir, ispin, ispinor_bra, ispinor_ket,
-                            n_spinor, as_int(iomega), myid_old, nullptr);
+                        const auto fn =
+                            find_sigc_rf_file(input_dir, ispin, ispinor_bra, ispinor_ket, n_spinor,
+                                              as_int(iomega), myid_old, indexed, nullptr);
                         std::ifstream ifs_sigmac_r(fn, std::ios::binary);
                         if (!ifs_sigmac_r)
                             throw LIBRPA_RUNTIME_ERROR("cannot open SigC checkpoint file: " + fn);
 
+                        const auto omega = tfg.get_freq_nodes()[iomega];
+                        if (indexed)
+                        {
+                            read_indexed_sigc(
+                                ifs_sigmac_r, fn, atbasis_wfc, omega,
+                                sigc_is_f_IJ_R[ispin][ispinor_bra][ispinor_ket][omega]);
+                            continue;
+                        }
                         size_t n_IJR_myid = 0;
                         read_exact(ifs_sigmac_r, &n_IJR_myid, sizeof(n_IJR_myid), fn);
 
-                        const auto omega = tfg.get_freq_nodes()[iomega];
                         for (size_t idx = 0; idx != n_IJR_myid; ++idx)
                         {
                             size_t dims[5];
@@ -947,7 +1014,8 @@ void G0W0::write_sigc_rf_output_files() const
                     const auto omega = tfg.get_freq_nodes()[iomega];
                     const auto &sigc_IJ_R =
                         sigc_is_f_IJ_R.at(ispin).at(ispinor_bra).at(ispinor_ket).at(omega);
-                    int write_ok = write_rspace_matrices_binary(sigc_IJ_R, atbasis_wfc, pbc, fn);
+                    int write_ok =
+                        write_rspace_matrices_binary<cplxdb>(sigc_IJ_R, atbasis_wfc, fn, omega);
                     MPI_Allreduce(MPI_IN_PLACE, &write_ok, 1, MPI_INT, MPI_MIN, comm_h.comm);
                     if (!write_ok)
                         throw LIBRPA_RUNTIME_ERROR("failed to write SigC output file: " + fn);

@@ -121,12 +121,19 @@ endif()
 if(LIBRPA_USE_LIBRI)
   config_test(test_exx_coulomb_ownership 1)
   target_compile_options(test_exx_coulomb_ownership PRIVATE -UNDEBUG)
+  config_test(test_sigc_matrix_output 1)
+  target_compile_options(test_sigc_matrix_output PRIVATE -UNDEBUG)
   foreach(nproc 2 4)
     add_test(NAME test_exx_coulomb_ownership_mpi${nproc}
       COMMAND mpirun -np ${nproc} $<TARGET_FILE:test_exx_coulomb_ownership>)
+    add_test(NAME test_sigc_matrix_output_mpi${nproc}
+      COMMAND mpirun -np ${nproc} $<TARGET_FILE:test_sigc_matrix_output>)
   endforeach()
   set_tests_properties(test_exx_coulomb_ownership test_exx_coulomb_ownership_mpi2
     test_exx_coulomb_ownership_mpi4 PROPERTIES LABELS "symmetry;exx" TIMEOUT 120)
+  set_tests_properties(test_sigc_matrix_output test_sigc_matrix_output_mpi2
+    test_sigc_matrix_output_mpi4 PROPERTIES LABELS "gw;io" TIMEOUT 120
+    ENVIRONMENT "OMP_NUM_THREADS=1")
 endif()
 
 add_test(NAME test_rpa_logdet_mpi

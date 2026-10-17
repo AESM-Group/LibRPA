@@ -4,10 +4,12 @@ import importlib
 import struct
 from typing import Tuple
 
+from .binary_presets import extractors
+
 
 def _extract_files(directory: str, file: str,
                    regex: re.Pattern, headers: int, rows: int, occurences: Tuple[int, int, int],
-                   binary_extract=None):
+                   binary_extract=None, binary_extract_preset=None, collective=False):
     """Extract text selections or decode binary values."""
     raw = {}
     d = pathlib.Path(directory)
@@ -18,10 +20,22 @@ def _extract_files(directory: str, file: str,
         matches = list(d.glob(fallback))
         canonical_prefix = pathlib.Path("librpa")
 
-    for f in matches:
+    if binary_extract_preset is not None and not matches:
+        raise ValueError("no files found for {} in {}".format(file, directory))
+
+    for f in sorted(matches):
         rela = f.relative_to(d)
         if canonical_prefix is not None:
             rela = canonical_prefix / f.name
+        if binary_extract_preset is not None:
+            try:
+                blocks = extractors[binary_extract_preset](
+                    f.read_bytes(), raw if collective else None)
+            except (struct.error, ValueError) as exc:
+                raise ValueError("invalid binary data in {}: {}".format(f, exc)) from exc
+            if not collective:
+                raw[rela] = blocks
+            continue
         if binary_extract is not None:
             try:
                 raw[rela] = binary_extract(f.read_bytes())
@@ -200,7 +214,8 @@ class Validate():
 
     def __init__(self, name: str, file: str, comparison: str, headers: str, rows: str,
                  regex: str, occurences: str, binary_extract: str,
-                 file_test: str = None, file_refr: str = None):
+                 file_test: str = None, file_refr: str = None,
+                 collective: bool = False, binary_extract_preset: str = None):
         """Configure file matching, data extraction, and comparison.
 
         Args:
@@ -223,6 +238,10 @@ class Validate():
                 to extract data.
             file_test: Optional test-file pattern overriding file.
             file_refr: Optional reference-file pattern overriding file.
+            collective: Merge all matched preset files into one block dictionary.
+                False preserves the outer filename dictionary. Requires a preset.
+            binary_extract_preset: ExxR or SigcRF indexed binary reader, mutually
+                exclusive with binary_extract. Text selectors are ignored.
 
         Raises:
             ImportError: The comparison module cannot be imported.
@@ -231,6 +250,17 @@ class Validate():
             re.error: The regular expression is invalid.
             struct.error: The binary struct format cannot be compiled.
         """
+        if not isinstance(collective, bool):
+            raise ValueError("collective must be a boolean")
+        if binary_extract_preset is not None:
+            if binary_extract is not None:
+                raise ValueError("binary_extract and binary_extract_preset are mutually exclusive")
+            if binary_extract_preset not in extractors:
+                raise ValueError("unknown binary_extract_preset: " + binary_extract_preset)
+        elif collective:
+            raise ValueError("collective requires binary_extract_preset")
+        self._collective = collective
+        self._binary_extract_preset = binary_extract_preset
         self._name = name
         self._file_test = file_test if file_test is not None else file
         self._file_refr = file_refr if file_refr is not None else file
@@ -245,13 +275,16 @@ class Validate():
     def evaluate(self, dir_test, dir_refr):
         try:
             test = _extract_files(dir_test, self._file_test, self._regex, self._headers,
-                                  self._rows, self._occurences, self._binary_extract)
+                                  self._rows, self._occurences, self._binary_extract,
+                                  self._binary_extract_preset, self._collective)
             refr = _extract_files(dir_refr, self._file_refr, self._regex, self._headers,
-                                  self._rows, self._occurences, self._binary_extract)
-        except ValueError as exc:
+                                  self._rows, self._occurences, self._binary_extract,
+                                  self._binary_extract_preset, self._collective)
+        except (OSError, ValueError) as exc:
             return False, str(exc)
 
-        test, refr = _align_extracted_files(test, refr, self._align_files)
+        if not self._collective:
+            test, refr = _align_extracted_files(test, refr, self._align_files)
 
         # print(dir_test, dir_refr)
         return self._comparison(test, refr)

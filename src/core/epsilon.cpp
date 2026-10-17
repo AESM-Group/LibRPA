@@ -4436,6 +4436,18 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> CT_FT_Wc_freq_q(
     }
     Wc_freq_R.clear();
 
+    // Empty local tiles still need the time/R keys and the final collective barrier.
+    if (size == 0)
+    {
+        for (const auto &tau : tfg.get_time_nodes())
+            for (const auto &R : Rlist)
+                Wc_tau_R[tau][R] = Matz(nr, nc, major_orig);
+        Wc_R_freq.clear();
+        librpa_int::global::lib_printf_root("Done converting Wc q,w -> R,t\n");
+        comm_h.barrier();
+        return Wc_tau_R;
+    }
+
     // initialize inverse consine tranform matrix.
     Matz coeff_f2t(n_freq, n_freq, MAJOR::COL);
     for (size_t itau = 0; itau < n_freq; itau++)

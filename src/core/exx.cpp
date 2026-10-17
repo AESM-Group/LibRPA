@@ -543,66 +543,61 @@ static void build_dmat_libri_kblacs_para(
 void Exx::write_rspace_matrices_binary() const
 {
 #ifdef LIBRPA_USE_LIBRI
-    using RI::Communicate_Tensors_Map_Judge::comm_map2_first;
-    const int n_atoms = as_int(atbasis_wfc.n_atoms);
+    using RI::Communicate_Tensors_Map_Judge::comm_map2;
+    std::set<int> all_atoms;
+    std::vector<int> atoms;
+    for (std::size_t I = 0; I != atbasis_wfc.n_atoms; ++I)
+    {
+        all_atoms.insert(as_int(I));
+        atoms.push_back(as_int(I));
+    }
+    std::set<std::pair<int, std::array<int, 3>>> local_JRs;
+    for (const auto &[J, R] :
+         dispatch_vector_prod(atoms, pbc.Rlist, comm_h.myid, comm_h.nprocs, true, false))
+        local_JRs.insert({J, {R.x, R.y, R.z}});
+
     for (int isp = 0; isp != mf.get_n_spins(); ++isp)
         for (int bra = 0; bra != mf.get_n_spinor(); ++bra)
             for (int ket = 0; ket != mf.get_n_spinor(); ++ket)
             {
-                auto write_channel = [&](const auto &blocks)
+                auto write_channel = [&](const auto &blocks, auto scalar)
                 {
-                    for (int I = 0; I != n_atoms; ++I)
-                    {
-                        std::map<int, std::map<std::pair<int, std::array<int, 3>>,
-                                               RI::Tensor<cplxdb>>> local;
-                        const auto channel = find_nested_int_map_3(blocks, isp, bra, ket);
-                        if (channel != nullptr && channel->count(I))
-                            for (const auto &[J, R_blocks] : channel->at(I))
+                    using T = decltype(scalar);
+                    std::map<int, std::map<std::pair<int, std::array<int, 3>>, RI::Tensor<T>>>
+                        local;
+                    const auto channel = find_nested_int_map_3(blocks, isp, bra, ket);
+                    if (channel != nullptr)
+                        for (const auto &[I, J_blocks] : *channel)
+                            for (const auto &[J, R_blocks] : J_blocks)
                                 for (const auto &[R, mat] : R_blocks)
-                                {
-                                    auto block = make_exx_ijk_complex_block(mat);
-                                    local[I][{as_int(J), {R.x, R.y, R.z}}] =
-                                        RI::Tensor<cplxdb>({as_size(block.nr()), as_size(block.nc())},
-                                                          block.sptr());
-                                }
-                        std::set<int> rows, columns;
-                        if (comm_h.is_root())
+                                    local[as_int(I)][{as_int(J), {R.x, R.y, R.z}}] = RI::Tensor<T>(
+                                        {as_size(mat.nr()), as_size(mat.nc())}, mat.sptr());
+
+                    // As for Sigma_c, each summed (I,J,R) block belongs to exactly one rank.
+                    const auto gathered = comm_map2(comm_h.comm, local, all_atoms, local_JRs);
+                    ap_p_map<std::map<Vector3_Order<int>, matrix_m<T>>> output_blocks;
+                    for (const auto &[I, JR_blocks] : gathered)
+                        for (const auto &[JR, tensor] : JR_blocks)
                         {
-                            rows.insert(I);
-                            for (int J = 0; J != n_atoms; ++J)
-                                columns.insert(J);
+                            const auto &R = JR.second;
+                            const matrix_m<T> block(as_int(atbasis_wfc.get_atom_nb(I)),
+                                                    as_int(atbasis_wfc.get_atom_nb(JR.first)),
+                                                    tensor.data, MAJOR::ROW);
+                            output_blocks[{I, JR.first}][{R[0], R[1], R[2]}] = block * (-1.0);
                         }
-                        // Sum distributed contributions before writing rank-independent files.
-                        const auto gathered = comm_map2_first(comm_h.comm, local, rows, columns);
-                        int write_ok = 1;
-                        for (const auto &[atom, JR_blocks] : gathered)
-                            for (const auto &[JR, tensor] : JR_blocks)
-                            {
-                                const auto &R = JR.second;
-                                std::ostringstream fn;
-                                fn << path_as_directory(output_dir) << "ExxR_ispin_" << isp
-                                   << "_spinor_" << bra << "_" << ket << "_I_" << atom
-                                   << "_J_" << JR.first << "_R_" << R[0] << "_" << R[1]
-                                   << "_" << R[2] << ".bin";
-                                const Matz block(as_int(atbasis_wfc.get_atom_nb(atom)),
-                                                 as_int(atbasis_wfc.get_atom_nb(JR.first)),
-                                                 tensor.data, MAJOR::ROW);
-                                const ap_p_map<std::map<Vector3_Order<int>, Matz>> output_blocks{
-                                    {{as_atom(atom), as_atom(JR.first)},
-                                     {{{R[0], R[1], R[2]}, block * (-1.0)}}}};
-                                if (!librpa_int::write_rspace_matrices_binary(
-                                        output_blocks, atbasis_wfc, pbc, fn.str()))
-                                    write_ok = 0;
-                            }
-                        MPI_Allreduce(MPI_IN_PLACE, &write_ok, 1, MPI_INT, MPI_MIN, comm_h.comm);
-                        if (!write_ok)
-                            throw LIBRPA_RUNTIME_ERROR("failed to write real-space EXX matrix output");
-                    }
+                    const auto fn = rspace_matrix_filename(output_dir, "ExxR", isp, bra, ket,
+                                                           global::myid_global);
+                    int write_ok =
+                        librpa_int::write_rspace_matrices_binary<T>(output_blocks, atbasis_wfc, fn);
+                    MPI_Allreduce(MPI_IN_PLACE, &write_ok, 1, MPI_INT, MPI_MIN, comm_h.comm);
+                    if (!write_ok)
+                        throw LIBRPA_RUNTIME_ERROR(
+                            "failed to write real-space EXX matrix output: " + fn);
                 };
                 if (mf.get_n_spinor() > 1)
-                    write_channel(exx_IJR_cplx);
+                    write_channel(exx_IJR_cplx, cplxdb{});
                 else
-                    write_channel(exx_IJR);
+                    write_channel(exx_IJR, double{});
             }
 #endif
 }

@@ -1,5 +1,9 @@
 #include <cmath>
+#include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 #include "../core/coulmat.h"
@@ -78,7 +82,64 @@ static double exchange(const bool qstar, const bool clear_sector, const bool inv
     // The band wave-function descriptor is unused by this fixture but must
     // still refer to a live object; the last flag enables the symmetry context.
     Exx exx(mf, basis, pbc, ctx, kctx, kctx, desc, desc, qstar, true);
+    exx.output_dir = "test_exx_output_" + std::to_string(comm.nprocs) + "_" +
+                     std::to_string(qstar) + std::to_string(clear_sector) +
+                     std::to_string(inversion);
+    if (comm.is_root()) std::filesystem::create_directories(exx.output_dir);
+    comm.barrier();
+    exx.output_exx_mat_r = true;
     exx.build(LIBRPA_ROUTING_LIBRI, basis, cs, vr, replicated);
+
+    std::ostringstream filename;
+    filename << exx.output_dir << "/ExxR_ispin_00_s_00_myid_" << std::setfill('0') << std::setw(5)
+             << comm.myid << ".bin";
+    std::ifstream input(filename.str(), std::ios::binary);
+    auto read = [&](auto& value)
+    {
+        if (!input.read(reinterpret_cast<char*>(&value), sizeof(value)))
+            throw std::runtime_error("truncated EXX matrix output");
+    };
+    std::size_t n_blocks;
+    int dtype;
+    read(n_blocks);
+    read(dtype);
+    if (dtype != 0) throw std::runtime_error("EXX output must retain real double type");
+    std::vector<double> actual(pbc.Rlist.size(), 0.0), expected(pbc.Rlist.size(), 0.0);
+    std::vector<int> owners(pbc.Rlist.size(), 0);
+    std::size_t expected_offset =
+        sizeof(n_blocks) + sizeof(dtype) + n_blocks * (7 * sizeof(int) + sizeof(std::size_t));
+    for (std::size_t b = 0; b != n_blocks; ++b)
+    {
+        int dims[7];
+        std::size_t offset;
+        read(dims);
+        read(offset);
+        if (dims[3] != 0 || dims[4] != 0 || dims[5] != 1 || dims[6] != 1 ||
+            offset != expected_offset)
+            throw std::runtime_error("invalid EXX block index");
+        const auto next_record = input.tellg();
+        const auto iR = pbc.get_R_index({dims[0], dims[1], dims[2]});
+        input.seekg(offset);
+        read(actual.at(iR));
+        ++owners.at(iR);
+        input.seekg(next_record);
+        expected_offset += sizeof(double);
+    }
+    if (std::filesystem::file_size(filename.str()) != expected_offset)
+        throw std::runtime_error("invalid EXX file size");
+    for (const auto& spin : exx.exx_IJR)
+        for (const auto& bra : spin.second)
+            for (const auto& ket : bra.second)
+                for (const auto& I : ket.second)
+                    for (const auto& J : I.second)
+                        for (const auto& [R, block] : J.second)
+                            expected.at(pbc.get_R_index(R)) -= block(0, 0);
+    MPI_Allreduce(MPI_IN_PLACE, actual.data(), actual.size(), MPI_DOUBLE, MPI_SUM, comm.comm);
+    MPI_Allreduce(MPI_IN_PLACE, expected.data(), expected.size(), MPI_DOUBLE, MPI_SUM, comm.comm);
+    MPI_Allreduce(MPI_IN_PLACE, owners.data(), owners.size(), MPI_INT, MPI_SUM, comm.comm);
+    for (std::size_t r = 0; r != actual.size(); ++r)
+        if (owners[r] > 1 || std::abs(actual[r] - expected[r]) > 1e-12)
+            throw std::runtime_error("EXX output block ownership or value mismatch");
     double local = 0.0;
     for (const auto& s : exx.exx_IJR)
         for (const auto& b : s.second)
