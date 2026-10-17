@@ -7,6 +7,7 @@
 - Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone download and source-preparation scripts remain compatible with 3.13.
 - Stopped shipping third-party sources. Default configuration uses network access, cached archives or prepared sources. For offline builds, download archives with `cmake/LibRPADownloadThirdparty.cmake` on a connected machine and transfer them to the build machine.
 - Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
+- Changed the real-space EXX and Sigma_c output to one indexed binary layout. EXX writes one `ExxR_ispin_SS_s_BK_myid_NNNNN.bin` file per MPI rank and spin/spinor channel instead of one file per (I,J,R) block, and keeps its real or complex storage. Sigma_c adds a leading frequency value and changes its extension from `.dat` to `.bin`. External readers and filename patterns must be updated.
 - Removed automatic loading of `cmake.inc` and the `LIBRPA_USE_CMAKE_INC` build option. Use CMake `-C` initial cache files or `-D` arguments instead ([#85](https://github.com/AESM-Group/LibRPA/issues/85)).
 
 ### Added
@@ -43,6 +44,12 @@
 - Unified ELPA selection under `LIBRPA_USE_ELPA`, which defaults to `OFF`. Setting it to `ON` builds managed sources when no dependency is supplied. A parent ELPA target, source path or installation prefix enables ELPA automatically.
 - Updated cereal to `d81e2f7df7b334fee057e53017388d02e555a836`.
 - Updated LibRI to `ab81ac9`, which includes the portable allocator cleanup. LibRPA no longer patches LibRI. Headers of `a0661cb` with the former patch now have status `unpinned`.
+
+### Deprecated
+
+- Deprecated legacy `SigcRF_*.dat` checkpoints. Restart still reads them with a
+  warning; new checkpoints use the indexed `.bin` format. Legacy reading will
+  be removed in a future release.
 
 ### Fixed
 
