@@ -4615,6 +4615,81 @@ void test_wq_to_wr_symmetry_collective_handles_empty_local_rank()
     }
 }
 
+void test_wq_to_wr_full_grid_k_input_restores_from_ibz_stars()
+{
+    // FHI-aims hands the shrink run the full-BZ SCF k list, so the symmetry
+    // context folds that list into IBZ q-stars while pbc.klist keeps every
+    // full-grid point.  The W(R) restore must pick the star representatives
+    // and still reproduce the direct full-BZ transform.
+    const auto pbc_full = make_wq_full_pbc();
+    auto ctx_full = make_two_atom_inversion_context(pbc_full);
+    assert(ctx_full.kstars.size() < pbc_full.kfrac_list.size());
+    assert(ctx_full.count_kstar_members() == pbc_full.kfrac_list.size());
+    assert(ctx_full.kstar_grid_mapping.size() == pbc_full.kfrac_list.size());
+
+    AtomicBasis basis_abf(std::vector<std::size_t>{1, 1});
+    basis_abf.set_l_shells({{0}, {0}});
+
+    // The production shrink path evaluates Wc only at the IBZ q points.
+    atom_mapping<std::map<Vector3_Order<double>, matrix_m<std::complex<double>>>>::pair_t_old
+        wq_full;
+    atom_mapping<std::map<Vector3_Order<double>, matrix_m<std::complex<double>>>>::pair_t_old
+        wq_ibz;
+    const auto representative_indices =
+        librpa_int::build_symmetry_full_grid_kstar_representative_indices(
+            ctx_full, pbc_full.kfrac_list);
+    assert(representative_indices.size() == 2);
+    if (librpa_int::global::mpi_comm_global_h.is_root())
+    {
+        const auto gamma_blocks = scalar_wq_to_blocks({
+            {0, {{0, {1.5, 0.0}}, {1, {0.4, 0.0}}}},
+            {1, {{0, {0.4, 0.0}}, {1, {1.5, 0.0}}}}});
+        const auto rep_blocks = scalar_wq_to_blocks({
+            {0, {{0, {2.1, 0.0}}, {1, {-0.7, 0.5}}}},
+            {1, {{0, {-0.7, -0.5}}, {1, {1.4, 0.0}}}}});
+        const auto inversion_minus_blocks = scalar_wq_to_blocks({
+            {0, {{0, {1.4, 0.0}}, {1, {-0.7, -0.5}}}},
+            {1, {{0, {-0.7, 0.5}}, {1, {2.1, 0.0}}}}});
+
+        add_scalar_wq_blocks(wq_full, pbc_full.klist.at(0), gamma_blocks);
+        add_scalar_wq_blocks(wq_full, pbc_full.klist.at(1), rep_blocks);
+        add_scalar_wq_blocks(wq_full, pbc_full.klist.at(2), inversion_minus_blocks);
+
+        for (const auto ik: representative_indices)
+        {
+            const auto &kfrac = pbc_full.kfrac_list.at(ik);
+            if (std::abs(kfrac.x) < 1e-8)
+            {
+                add_scalar_wq_blocks(wq_ibz, pbc_full.klist.at(ik), gamma_blocks);
+            }
+            else if (kfrac.x < 0.5)
+            {
+                add_scalar_wq_blocks(wq_ibz, pbc_full.klist.at(ik), rep_blocks);
+            }
+            else
+            {
+                add_scalar_wq_blocks(wq_ibz, pbc_full.klist.at(ik), inversion_minus_blocks);
+            }
+        }
+    }
+
+    const TFGrids dummy_tfg;
+    SymmetryContext no_symmetry;
+    const auto expected = librpa_int::FT_Wc_q2R(
+        librpa_int::global::mpi_comm_global_h, basis_abf, no_symmetry, wq_full,
+        dummy_tfg, pbc_full, pbc_full.Rlist, false, "", false);
+    const auto restored = librpa_int::FT_Wc_q2R(
+        librpa_int::global::mpi_comm_global_h, basis_abf, ctx_full, wq_ibz,
+        dummy_tfg, pbc_full, pbc_full.Rlist, false, "", true);
+
+    assert_wq_rspace_maps_close(restored, expected);
+    if (!librpa_int::global::mpi_comm_global_h.is_root())
+    {
+        assert(expected.empty());
+        assert(restored.empty());
+    }
+}
+
 void test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(const BlacsCtxtHandler &blacs_h)
 {
     const auto pbc_full = make_wq_full_pbc();
@@ -4958,6 +5033,7 @@ int main(int argc, char *argv[])
         test_bn_kstar_green_function_matches_explicit_full_bz_on_odd_and_even_meshes();
         test_wq_to_wr_symmetry_reduced_q_matches_full_bz();
         test_wq_to_wr_symmetry_collective_handles_empty_local_rank();
+        test_wq_to_wr_full_grid_k_input_restores_from_ibz_stars();
         test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(blacs_h);
         test_gamma_only_dense_wq_fourier_weight_scales_as_inverse_bvk_cells();
         test_abf_space_wing_rewrite_matches_coulomb_basis(blacs_h);
