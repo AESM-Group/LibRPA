@@ -135,7 +135,7 @@
 
   <group name="Exact-exchange (EXX) potentials" prefix="EXX">
     <testcase name="BCC He, with eigenvector parallelized over k (aims input)" directory="exx_aims_bccHe_k_parallel_libri">
-      <labels refhash="f1fef9e75ad73b79142f0cbdf606d402c913fa02" />
+      <labels refhash="e8617a5942caa4183b624ef26e599870fbf4a6a7" />
       <build require_libri="true"
       />
       <validate name="EXX potential on k-grid"
