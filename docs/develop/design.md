@@ -4,15 +4,15 @@ LibRPA is designed to provide efficient and scalable implementations of various 
 
 ## Framework of RPA calculation
 
-![Framework of RPA calculation](../assets/librpa_flowchat.jpg)
+![Framework of RPA calculation](../assets/librpa_flowchart.png)
 
 ## RPA interface to FHI-aims
 
-![RPA interface to FHI-aims](../assets/aims_interface.drawio.jpg)
+![RPA interface to FHI-aims](../assets/aims_interface.png)
 
 ## RPA interface to ABACUS
 
-![RPA interface to ABACUS](../assets/abacus_interface.drawio.jpg)
+![RPA interface to ABACUS](../assets/abacus_interface.png)
 
 ## QSGW task boundary
 
