@@ -1,0 +1,50 @@
+@startuml
+!ENABLE_ALL_PLANT_ELEMENTS = 1
+!theme C4_blue_new from <C4/themes>
+!include <C4/C4_Container>
+
+title LibRPA - C2 Container (Driver and API workflows)
+
+SHOW_PERSON_OUTLINE()
+LAYOUT_TOP_DOWN()
+skinparam linetype polyline
+<style>
+.boundary {
+  HorizontalAlignment right
+}
+</style>
+
+Person(user, "User", "Prepares model")
+System_Ext(dft, "DFT program", "Prepares input data")
+artifact "Input data files" as input_files
+
+System_Boundary(librpa, "LibRPA") {
+  'Container(control, "Control file", "librpa.in", $baseShape="artifact")
+  Container(driver, "LibRPA driver", "C++, MPI, OpenMP", "Reads files, selects tasks and organizes calculations")
+  Container(lib, "LibRPA library", "C/C++/Fortran, MPI, OpenMP", "Manages data and performs MBPT calculations")
+  'Container(results, "Output", "File system", "Results and diagnostic files", $baseShape="folder")
+}
+
+artifact "Control file\n\nlibrpa.in" as control
+
+artifact "Output files" as results
+
+Rel_R(user, dft, "Configure and run")
+Rel(user, driver, "Run")
+Rel_D(user, control, "Edit")
+Rel_L(control, driver, "Supply\nparameters to", "Text file")
+
+Rel_D(dft, input_files, "Export")
+Rel_D(input_files, driver, "Supply data", "Files")
+Rel(driver, lib, "Parse input;\nRetrieve results", "C++ calls")
+Rel_D(dft, lib, "Parse input;\nRetrieve results", "C/C++/Fortran API")
+
+Rel(driver, results, "Write", "Files")
+Rel_L(lib, results, "Write", "Files")
+
+'footer C2 convention: the linked library is shown as a container-level unit.\nIt executes within each caller's processes; its internal components are expanded in C3.
+
+SHOW_FLOATING_LEGEND()
+Lay_R(lib, LEGEND())
+
+@enduml

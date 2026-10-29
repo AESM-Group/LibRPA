@@ -1,0 +1,131 @@
+@startuml
+!ENABLE_ALL_PLANT_ELEMENTS = 1
+!theme C4_blue_new from <C4/themes>
+!include <C4/C4_Component>
+
+title LibRPA Library - C3 Component
+
+LAYOUT_TOP_DOWN()
+skinparam linetype polyline
+<style>
+.boundary {
+  HorizontalAlignment left
+}
+</style>
+
+Container(driver, "LibRPA driver", "C++, MPI, OpenMP", "Reads files, selects tasks and organizes calculations")
+System_Ext(dft, "DFT program", "Prepares input data")
+System_Ext(libri, "LibRI", "C++ template library for RI-based EXX, RPA and GW tensor contractions")
+artifact "Output files" as results
+
+Container_Boundary(lib, "LibRPA library") {
+  ' include/librpa*.h(pp), src/api/librpa.cpp, binding/fortran/librpa_f03.f90
+  ' This groups the API surface and bindings; native C entrypoints are implemented below.
+  Component(api, "Public interfaces", "C/C++/Fortran", "Exposes initialization, input and computation operations")
+  ' src/api/global.cpp, src/mpi/global_mpi.cpp, src/io/global_io.cpp, src/utils/profiler.cpp
+  Component(environment, "Global environment", "", "Manages global parallel context, logging and profiling")
+  ' src/api/input.cpp
+  Component(input, "Input handling", "", "Checks and stores caller-supplied input data")
+  ' src/api/handler.cpp, instance_manager.cpp, dataset.cpp and associated data classes
+  Component(instances, "Instance management")
+  ' src/api/compute_*.cpp, dataset_helper.cpp, options.cpp
+  Component(compute, "Calculation control", "", "Applies runtime options, prepares calculations, calls kernels and retrieves results")
+  ' src/core/{chi0,epsilon,dielecmodel,headwing_velocity,native_velocity,sternheimer_rpa}*: response
+  ' src/core/{exx,gw,hartree,pair_density_vertex}*: self-energy and potentials
+  ' src/core/{ri,coulmat,orbital_weights,qpoint_*,utils_complexmatrix}*: RI, Coulomb and helpers
+  ' src/core/{qsgw/,crpa*,correlated_subspace}*: QSGW and cRPA workflows
+  Component(kernels, "MBPT kernels", "", "Response, self-energy, QSGW and cRPA")
+  ' src/mpi/{base_*,*parallel_context,utils_blacs}*
+  Component(parallel, "Parallel model")
+  ' src/math/{matrix*,complexmatrix*,utils_matrix*,*_connector}, src/interface/{blas_lapack,blacs_scalapack}.h
+  Component(linalg, "Linear algebra")
+  ' src/core/{timefreq,minimax_gx}*, src/interface/gx_minimax_wrp.f90
+  Component(grids, "Time-frequency grids")
+  ' src/core/{symmetry_*,sternheimer_symmetry}*, src/math/{symmetry,wigner_rotation,rsh}*
+  Component(symmetry, "Symmetry operations")
+  ' src/core/meanfield*
+  Component(mf, "Mean-field model")
+  ' src/core/{atom.h,geometry,pbc}*
+  Component(atom, "Atomic model", "", "Geometry, PBC")
+  ' src/core/{atomic_basis,utils_atomic_basis_blacs}*
+  Component(basis, "Basis", "", "NAO, ABF, shrink")
+  ' src/core/{analycont,qpe_solver}*
+  Component(qp, "AC and QPE solvers")
+  ' src/io/{output_*,npz_writer,input_elsi,aux_basis_summary,fs}*
+  Component(io, "I/O helpers", "", "Writes results and restart data")
+}
+
+Rel_D(driver, api, "Parse input;\nRetrieve results", "C++ calls")
+Rel_D(dft, api, "Parse input;\nRetrieve results", "C/C++/Fortran API")
+
+Rel_D(api, environment, "Initialize and finalize")
+Rel_D(api, input, "Set input data")
+Rel_D(api, instances, "Create and free\ninstances")
+Rel_D(api, compute, "Compute and retrieve")
+
+Rel(input, instances, "Populate input data")
+Rel(input, mf, "")
+
+Rel(compute, instances, "Access data and\ncomputation state")
+Rel(environment, instances, "Release instances\nat finalization")
+Rel(compute, kernels, "Execute")
+Rel(compute, grids, "")
+Rel(compute, symmetry, "")
+Rel(compute, qp, "")
+Rel(compute, parallel, "")
+Rel(compute, linalg, "")
+Rel(compute, input, "")
+Rel(compute, mf, "")
+Rel(compute, atom, "")
+Rel(compute, io, "")
+Rel(kernels, grids, "")
+Rel(kernels, symmetry, "")
+Rel(kernels, linalg, "")
+Rel(kernels, mf, "")
+Rel(kernels, io, "")
+Rel(kernels, libri, "Contract tensors", "C++ templates")
+
+Rel(instances, linalg, "")
+Rel(instances, parallel, "")
+Rel(instances, symmetry, "")
+Rel(instances, grids, "")
+Rel(instances, mf, "")
+Rel(instances, atom, "")
+Rel(instances, basis, "")
+Rel(instances, kernels, "Hold computation\nobjects")
+
+Rel(mf, parallel, "")
+Rel(mf, symmetry, "")
+Rel(mf, basis, "")
+Rel(mf, linalg, "")
+
+Rel(basis, atom, "")
+Rel(basis, parallel, "")
+Rel(basis, linalg, "")
+
+Rel(symmetry, basis, "")
+Rel(symmetry, atom, "")
+Rel(symmetry, linalg, "")
+
+Rel(atom, linalg, "")
+Rel(grids, linalg, "")
+Rel(qp, linalg, "")
+
+Rel(kernels, parallel, "")
+Rel(kernels, basis, "")
+Rel(kernels, atom, "")
+Rel(kernels, qp, "")
+
+Rel(linalg, parallel, "")
+Rel(environment, parallel, "")
+Lay_R(instances, kernels)
+Lay_R(dft, driver)
+
+Rel(io, results, "Write", "Files")
+Rel(environment, results, "Write logs", "Files")
+Lay_D(grids, results)
+
+SHOW_FLOATING_LEGEND()
+Lay_R(driver, LEGEND())
+
+@enduml

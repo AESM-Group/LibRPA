@@ -14,5 +14,5 @@ all: $(PNGS)
 	$(PDFLATEX) -interaction=nonstopmode -halt-on-error -output-directory=.build "$<"
 	$(PDFTOPPM) -r 300 -singlefile -png ".build/$*.pdf" "$*"
 
-%.png: %.puml
-	$(PLANTUML) -failfast2 -tpng -Sdpi=300 "$<"
+%.png: %.puml Makefile
+	PLANTUML_LIMIT_SIZE=8192 $(PLANTUML) -failfast2 -tpng -Sdpi=300 "$<"

@@ -1,0 +1,53 @@
+@startuml
+!ENABLE_ALL_PLANT_ELEMENTS = 1
+!theme C4_blue_new from <C4/themes>
+!include <C4/C4_Component>
+
+title LibRPA Driver - C3 Component
+
+SHOW_PERSON_OUTLINE()
+LAYOUT_TOP_DOWN()
+'skinparam linetype polyline
+'<style>
+'.boundary {
+'  HorizontalAlignment right
+'}
+'</style>
+
+Person(user, "User", "Prepares model")
+artifact "Control file\n\nlibrpa.in" as control
+artifact "Input data files" as input_files
+artifact "Output files" as results
+
+Container_Boundary(driver, "LibRPA driver") {
+  ' driver/main.cpp
+  Component(runtime, "Run control", "C++, MPI", "Initializes, coordinates input and tasks, handles failures and releases resources")
+  ' driver/inputfile.cpp, input_parser.cpp and DriverParams in driver.cpp
+  Component(config, "Parameter parsing", "C++", "Loads runtime and driver parameters; checks parameter combinations")
+  ' driver/read_data.cpp, reader/*, reader_*.cpp and qsgw/vxc_io.cpp
+  Component(readers, "Data readers", "C++", "Reads input data into the calculation instance")
+  ' driver/task.cpp, tasks/* and qsgw output helpers
+  Component(tasks, "Task execution", "C++", "Dispatches computation task; organizes calculations and writes results")
+}
+
+Container(lib, "LibRPA library", "C/C++/Fortran, MPI, OpenMP", "Manages data and performs MBPT calculations")
+
+Rel_D(user, runtime, "Run")
+Rel_L(user, control, "Edit")
+Rel_D(control, config, "Supply\nparameters to", "Text file")
+Rel_L(runtime, config, "Load parameters and options")
+Rel_D(runtime, readers, "Load common data")
+Rel_D(runtime, tasks, "Run selected task")
+Rel_L(tasks, readers, "Load task-specific data")
+Rel_U(input_files, readers, "Supply data", "Files")
+
+Rel(runtime, lib, "Initialize and finalize\nenvironment and instance", "C++ API")
+Rel_D(readers, lib, "Populate input data", "C++ API")
+Rel_D(tasks, lib, "Compute and retrieve results", "C++ API")
+Rel_R(tasks, results, "Write", "Files")
+Rel(lib, results, "Write", "Files")
+
+SHOW_FLOATING_LEGEND()
+Lay_R(user, LEGEND())
+
+@enduml
