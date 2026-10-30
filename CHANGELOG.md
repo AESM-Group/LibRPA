@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Stopped installing the experimental `file_reader.hpp` and
+  `librpa_file_reader.hpp` headers and the `librpa_file_reader` library. The
+  headers include headers under `src/` and work only from a LibRPA source tree.
+  Built `librpa_file_reader` as a static library with position-independent code,
+  so the installed driver does not depend on it at run time.
+
 ### Added
 
 - Added `output_exx_mat_r` for binary real-space NAO EXX blocks, with MPI-independent

@@ -6,6 +6,10 @@
  * Link against librpa_file_reader, which depends on rpa_lib and is also built
  * with LIBRPA_ENABLE_DRIVER=OFF. This interface retains the existing Dataset
  * return type, input defaults, and replicated loading behavior.
+ *
+ * This header exposes internal types and includes headers under src/, so it and
+ * librpa_file_reader are not installed and are usable only from a LibRPA source tree. It is not part of
+ * the stable public API.
  */
 
 // Public API headers
@@ -13,6 +17,7 @@
 
 // Internal data types exposed by this C++ interface
 #include "../src/api/dataset.h"
+// LibBSE calls FT_Vq through this header; keep until LibBSE includes coulmat.h itself.
 #include "../src/core/coulmat.h"
 #include "../src/math/lapack_connector.h"
 #include "../src/math/scalapack_connector.h"
