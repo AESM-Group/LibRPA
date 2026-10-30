@@ -11,7 +11,9 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import re
 import sys
+from docutils import nodes
 sys.path.insert(0, os.path.abspath('.'))
 
 
@@ -110,3 +112,28 @@ mathjax3_config = {
         'displayMath': [['$$', '$$'], ['\\[', '\\]']],
     }
 }
+
+
+def add_changelog_heading_ids(app, relative_path, parent_docname, content):
+    """Give each release and its subsections stable, version-specific anchors."""
+    if parent_docname != 'changelog' or str(relative_path) != '../CHANGELOG.md':
+        return
+
+    release_id = None
+    lines = []
+    for line in content[0].splitlines(keepends=True):
+        release = re.match(r'^## \[([^\]]+)\]', line)
+        subsection = re.match(r'^### (.+)', line)
+        if release:
+            version = release.group(1)
+            release_id = nodes.make_id('v' + version) if version != 'Unreleased' else 'unreleased'
+            lines.append(f'{{#{release_id}}}\n')
+        elif subsection and release_id:
+            section_id = nodes.make_id(subsection.group(1))
+            lines.append(f'{{#{release_id}-{section_id}}}\n')
+        lines.append(line)
+    content[0] = ''.join(lines)
+
+
+def setup(app):
+    app.connect('include-read', add_changelog_heading_ids)
