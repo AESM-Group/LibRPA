@@ -96,9 +96,9 @@ cmake -S "${repo_root}" -B "${build_dir}" \
 cmake --build "${build_dir}" -j "${SLURM_CPUS_PER_TASK}"
 
 grep -q '^LIBRPA_USE_LIBRI_GPU:BOOL=OFF$' "${build_dir}/CMakeCache.txt"
-if grep -Eq -- "-D(__DDLA_RI|__HIP_RI|__CUDA_RI)" "${build_dir}/compile_commands.json"; then
+if grep -Eq -- "-D(__GPU_RI|__DDLA_RI|__HIP_RI|__CUDA_RI)" "${build_dir}/compile_commands.json"; then
     echo "Unexpected GPU LibRI definition in the HIP CPURI build" >&2
-    grep -E -- "-D(__DDLA_RI|__HIP_RI|__CUDA_RI)" "${build_dir}/compile_commands.json" >&2
+    grep -E -- "-D(__GPU_RI|__DDLA_RI|__HIP_RI|__CUDA_RI)" "${build_dir}/compile_commands.json" >&2
     exit 1
 fi
 

@@ -40,7 +40,7 @@ using namespace ddla;
 #include "pbc.h"
 #include "utils_atomic_basis_blacs.h"
 #ifdef LIBRPA_USE_LIBRI
-#if !defined(__DDLA_RI) && !defined(__CUDA_RI) && !defined(__HIP_RI)
+#ifndef __GPU_RI
 #include <RI/parallel/Parallel_LRI_Equally_Weighted.h>
 #endif
 #include <RI/physics/Exx.h>
@@ -689,7 +689,10 @@ void Exx::build(const LibrpaParallelRouting routing,
     // Use either one
     RI::Exx<int, int, 3, double> exx_libri;
     RI::Exx<int, int, 3, cplxdb> exx_libri_cplx;
-#ifdef LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK
+#ifdef __GPU_RI
+    exx_libri.lri.cal_mode = RI::LRI_Cal_Mode::GPU;
+    exx_libri_cplx.lri.cal_mode = RI::LRI_Cal_Mode::GPU;
+#elif defined(LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK)
     exx_libri.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
     exx_libri_cplx.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
 #endif
@@ -701,7 +704,7 @@ void Exx::build(const LibrpaParallelRouting routing,
 
     if (use_complex_exx_r)
     {
-#if !defined(__DDLA_RI) && !defined(__CUDA_RI) && !defined(__HIP_RI)
+#ifndef __GPU_RI
         exx_libri_cplx.lri.parallel =
             std::make_shared<RI::Parallel_LRI_Equally_Weighted<int, int, 3, cplxdb>>(atom_nw);
 #endif
@@ -710,7 +713,7 @@ void Exx::build(const LibrpaParallelRouting routing,
     }
     else
     {
-#if !defined(__DDLA_RI) && !defined(__CUDA_RI) && !defined(__HIP_RI)
+#ifndef __GPU_RI
         exx_libri.lri.parallel =
             std::make_shared<RI::Parallel_LRI_Equally_Weighted<int, int, 3, double>>(atom_nw);
 #endif

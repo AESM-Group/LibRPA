@@ -114,6 +114,7 @@ cmake -S "${repo_root}" -B "${build_dir}" \
 
 cmake --build "${build_dir}" -j "${SLURM_CPUS_PER_TASK}"
 
+grep -q -- "-D__GPU_RI" "${build_dir}/compile_commands.json"
 grep -q -- "-D__DDLA_RI" "${build_dir}/compile_commands.json"
 if grep -q -- "-D__HIP_RI" "${build_dir}/compile_commands.json"; then
     echo "Unexpected __HIP_RI definition in the bundled DDLA_RI build" >&2

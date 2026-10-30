@@ -140,7 +140,7 @@ grep -q '^LIBRPA_USE_HIP:BOOL=OFF$' "${build_dir}/CMakeCache.txt"
 
 grep -q -- '-DLIBRPA_USE_ELPA' "${build_dir}/compile_commands.json"
 grep -q -- '-DLIBRPA_MPI_THREAD_LEVEL=MPI_THREAD_MULTIPLE' "${build_dir}/compile_commands.json"
-if grep -Eq -- '-D(__DDLA_RI|__HIP_RI|__CUDA_RI)' "${build_dir}/compile_commands.json"; then
+if grep -Eq -- '-D(__GPU_RI|__DDLA_RI|__HIP_RI|__CUDA_RI)' "${build_dir}/compile_commands.json"; then
     echo "Unexpected GPU LibRI compile definition in CPU build" >&2
     exit 1
 fi

@@ -52,7 +52,7 @@ using namespace ddla;
 
 #ifdef LIBRPA_USE_LIBRI
 #include <RI/global/Tensor.h>
-#if !defined(__DDLA_RI) && !defined(__CUDA_RI) && !defined(__HIP_RI)
+#ifndef __GPU_RI
 #include <RI/parallel/Parallel_LRI_Equally_Weighted.h>
 #endif
 #include <RI/physics/GW.h>
@@ -1637,7 +1637,10 @@ void G0W0::build_spacetime(
 
     RI::GW<int, int, 3, double> gw_libri;
     RI::GW<int, int, 3, cplxdb> gw_libri_cplx;
-#ifdef LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK
+#ifdef __GPU_RI
+    gw_libri.lri.cal_mode = RI::LRI_Cal_Mode::GPU;
+    gw_libri_cplx.lri.cal_mode = RI::LRI_Cal_Mode::GPU;
+#elif defined(LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK)
     gw_libri.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
     gw_libri_cplx.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
 #endif
@@ -1651,7 +1654,7 @@ void G0W0::build_spacetime(
     global::profiler.start("g0w0_build_spacetime_2", "Setup LibRI G0W0 object and C data");
     if (use_complex_tensor)
     {
-#if !defined(__DDLA_RI) && !defined(__CUDA_RI) && !defined(__HIP_RI)
+#ifndef __GPU_RI
         gw_libri_cplx.lri.parallel =
             std::make_shared<RI::Parallel_LRI_Equally_Weighted<int, int, 3, cplxdb>>(atom_nw);
 #endif
@@ -1673,7 +1676,7 @@ void G0W0::build_spacetime(
     }
     else
     {
-#if !defined(__DDLA_RI) && !defined(__CUDA_RI) && !defined(__HIP_RI)
+#ifndef __GPU_RI
         gw_libri.lri.parallel =
             std::make_shared<RI::Parallel_LRI_Equally_Weighted<int, int, 3, double>>(atom_nw);
 #endif

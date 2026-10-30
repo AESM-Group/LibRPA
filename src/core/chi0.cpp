@@ -40,7 +40,7 @@
 #include "ri.h"
 #include "utils_atomic_basis_blacs.h"
 #ifdef LIBRPA_USE_LIBRI
-#if !defined(__DDLA_RI) && !defined(__CUDA_RI) && !defined(__HIP_RI)
+#ifndef __GPU_RI
 #include <RI/parallel/Parallel_LRI_Equally_Weighted.h>
 #endif
 #include <RI/physics/RPA.h>
@@ -2316,11 +2316,13 @@ void Chi0::build_chi0_q_space_time_LibRI_routing(const Cs_LRI &Cs,
     const auto atom_nw = atbasis_wfc.get_atom_nb_map<int>();
 
     RI::RPA<int, int, 3, Tdata> rpa;
-#ifdef LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK
+#ifdef __GPU_RI
+    rpa.lri.cal_mode = RI::LRI_Cal_Mode::GPU;
+#elif defined(LIBRPA_LIBRI_HAS_FINE_GRAINED_LOCK)
     rpa.lri.cal_mode = RI::LRI_Cal_Mode::CPU_fine_grained_lock;
 #endif
     global::profiler.start("chi0_libri_routing_set_parallel");
-#if !defined(__DDLA_RI) && !defined(__CUDA_RI) && !defined(__HIP_RI)
+#ifndef __GPU_RI
     rpa.lri.parallel =
         std::make_shared<RI::Parallel_LRI_Equally_Weighted<int, int, 3, Tdata>>(atom_nw);
 #endif

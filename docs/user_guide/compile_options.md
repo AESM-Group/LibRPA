@@ -57,9 +57,14 @@ only when [`LIBRPA_USE_LIBRI`](#librpa-use-libri) and exactly one of
 [`LIBRPA_USE_CUDA`](#librpa-use-cuda) or
 [`LIBRPA_USE_HIP`](#librpa-use-hip) are enabled.
 
-When `LIBRI_INCLUDE_DIR` is empty, LibRPA uses the bundled GPU-enabled LibRI
-variant under `thirdparty/LibRI_GPU`. When an external `LIBRI_INCLUDE_DIR` is supplied,
-that LibRI installation must support the selected GPU backend.
+CPU and GPU builds use the same bundled headers under `thirdparty/LibRI`.
+With this option enabled, LibRPA defines `__GPU_RI` and `__DDLA_RI` and selects
+LibRI's GPU calculation mode for RPA, EXX, and GW tensor contractions. LibDDLA
+uses the selected CUDA or HIP backend. With this option disabled, LibRI tensor
+contractions remain on the CPU even if CUDA or HIP is enabled for other operations.
+
+When an external `LIBRI_INCLUDE_DIR` is supplied, its headers must support
+`__GPU_RI`, the DDLA backend, and `RI::LRI_Cal_Mode::GPU`.
 
 Example:
 ```sh
