@@ -331,6 +331,8 @@ class TestDriver:
                                  v["binary_extract"],
                                  file_test=v.get("file_test"),
                                  file_refr=v.get("file_refr"),
+                                 collective=v.get("collective", False),
+                                 binary_extract_preset=v.get("binary_extract_preset"),
                                  )
                 good, msg = entry.evaluate(test, refr)
                 good_all.append(good)

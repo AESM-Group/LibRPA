@@ -4,9 +4,8 @@
 
 ### Added
 
-- Added `output_exx_mat_r` for binary real-space NAO EXX blocks, with MPI-independent
-  filenames and BCC He regression monitoring. EXX and Sigma_c share the
-  real-space block writer and checkpoint layout.
+- Added `output_exx_mat_r` for binary real-space NAO EXX blocks. EXX and Sigma_c
+  share a typed, indexed binary layout and write one file per MPI rank and channel.
 
 - Documented the reader-v1 `librpa_2d_coulomb_head.txt` contract used by
   strict-2D complete-Wc calculations.
@@ -15,6 +14,12 @@
 - Added `n_bands_exclude_chi0` and `n_bands_exclude_sigc` to independently
   exclude the lowest input bands from response and correlation self-energy
   Green's functions. Both default to zero and leave EXX unchanged.
+
+### Deprecated
+
+- Deprecated legacy `SigcRF_*.dat` checkpoints. Restart still reads them with a
+  warning; new checkpoints use the indexed `.bin` format. Legacy reading will
+  be removed in a future release.
 
 ### Fixed
 

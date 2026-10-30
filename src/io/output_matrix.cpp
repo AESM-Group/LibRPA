@@ -2,9 +2,12 @@
 
 #include <cstdint>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <vector>
 
 #include "../utils/error.h"
+#include "fs.h"
 
 namespace librpa_int
 {
@@ -35,35 +38,16 @@ static bool write_matrix_binary(const Matz &mat, const std::string &fn)
     return ofs.good();
 }
 
-bool write_rspace_matrices_binary(const ap_p_map<std::map<Vector3_Order<int>, Matz>> &blocks,
-                                  const AtomicBasis &basis, const PeriodicBoundaryData &pbc,
-                                  const std::string &fn)
+std::string rspace_matrix_filename(const std::string &dir, const std::string &prefix,
+                                   const int ispin, const int bra, const int ket, const int myid,
+                                   const int iomega)
 {
-    std::ofstream ofs(fn, std::ios::binary);
-    if (!ofs) return false;
-
-    std::size_t n_blocks = 0;
-    for (const auto &[IJ, R_blocks] : blocks)
-        n_blocks += R_blocks.size();
-    ofs.write(reinterpret_cast<const char *>(&n_blocks), sizeof(n_blocks));
-    for (const auto &[IJ, R_blocks] : blocks)
-    {
-        const auto n_I = basis.get_atom_nb(IJ.first);
-        const auto n_J = basis.get_atom_nb(IJ.second);
-        for (const auto &[R, mat] : R_blocks)
-        {
-            assert(mat.nr() == as_int(n_I) && mat.nc() == as_int(n_J));
-            assert(mat.major() == MAJOR::ROW);
-            const std::size_t dims[5] = {as_size(pbc.get_R_index(R)), IJ.first, IJ.second,
-                                         n_I, n_J};
-            ofs.write(reinterpret_cast<const char *>(dims), sizeof(dims));
-            ofs.write(reinterpret_cast<const char *>(mat.ptr()),
-                      static_cast<std::streamsize>(mat.size() * sizeof(cplxdb)));
-            if (!ofs) return false;
-        }
-    }
-    ofs.close();
-    return ofs.good();
+    std::ostringstream name;
+    name << path_as_directory(dir) << prefix << "_ispin_" << std::setfill('0') << std::setw(2)
+         << ispin << "_s_" << bra << ket;
+    if (iomega >= 0) name << "_iomega_" << std::setw(3) << iomega;
+    name << "_myid_" << std::setw(5) << myid << ".bin";
+    return name.str();
 }
 
 void write_matrix_binary_parallel(const Matz &mat_loc, const ArrayDesc &desc, const std::string &fn,
