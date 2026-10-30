@@ -11,7 +11,7 @@
 #include "../global/Tensor_Multiply.h"
 #include <cmath>
 #include <omp.h>
-#include <malloc.h>
+#include "../global/Memory.h"
 #ifdef __MKL_RI
 #include <mkl_service.h>
 #endif
@@ -240,7 +240,7 @@ LRI_k<TA, Tcell, Ndim, Tdata>::cal_cvcd_k_hartree(
 	mkl_set_num_threads(mkl_threads);
 #endif
 
-	malloc_trim(0);
+	Global_Func::release_free_memory();
 	return hartree_k;
 }
 
