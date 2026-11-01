@@ -1726,7 +1726,8 @@ void G0W0::build_spacetime(
         gw_libri_cplx.set_symmetry(false, {});
         if (use_complex_tensor)
         {
-            global::lib_printf(
+            printf_comm_root(
+                comm_h,
                 "Reducing GW real-space self-energy outputs with symmetry irreducible sectors\n");
             gw_libri_cplx.lri.filter_atom =
                 std::make_shared<OutputOnlyFilter_GW_Symmetry<int, std::array<int, 3>, cplxdb>>(
@@ -1734,7 +1735,8 @@ void G0W0::build_spacetime(
         }
         else
         {
-            global::lib_printf(
+            printf_comm_root(
+                comm_h,
                 "Reducing GW real-space self-energy outputs with symmetry irreducible sectors\n");
             gw_libri.lri.filter_atom =
                 std::make_shared<OutputOnlyFilter_GW_Symmetry<int, std::array<int, 3>, double>>(

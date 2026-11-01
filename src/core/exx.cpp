@@ -754,8 +754,8 @@ void Exx::build(const LibrpaParallelRouting routing,
         && !symmetry_ctx.spin_operations.empty();
     if (use_symmetry_exx)
     {
-        global::lib_printf(
-            "Reducing EXX real-space contractions with irreducible sectors\n");
+        printf_comm_root(
+            comm_h, "Reducing EXX real-space contractions with irreducible sectors\n");
         exx_libri.set_symmetry(false, {});
         exx_libri_cplx.set_symmetry(false, {});
         if (use_complex_exx_r)
@@ -1082,7 +1082,7 @@ void Exx::build(const LibrpaParallelRouting routing,
                 // exx_libri.set_Ds({}, libri_threshold_D);
                 global::profiler.stop("build_real_space_exx_libri_set_Ds");
                 global::profiler.stop("build_real_space_exx_3");
-                global::lib_printf("Task %4d: DM setup for EXX\n", comm_h.myid);
+                printf_comm_coll(comm_h, "Task %4d: DM setup for EXX\n", comm_h.myid);
 
                 global::profiler.start("build_real_space_exx_4", "Call libRI Hexx calculation");
                 if (use_complex_exx_r)
@@ -1129,7 +1129,8 @@ void Exx::build(const LibrpaParallelRouting routing,
                                      << get_num_keys(Hs) << std::endl;
                     if (use_symmetry_exx)
                     {
-                        global::lib_printf(
+                        printf_comm_root(
+                            comm_h,
                             "Restoring the symmetry-filtered LibRI EXX blocks to the full AO real-space sector\n");
                     }
                     for (const auto &I_JR_exx : Hs)
