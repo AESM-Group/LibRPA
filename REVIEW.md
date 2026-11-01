@@ -8,8 +8,9 @@ this risk.
 - Interface conventions: basis (AO, ABF, Coulomb), row or column order, transpose
   or conjugate, normalization, units, k or q mapping, Bloch phase.
 - Parallel errors: data ownership, double counting, a root-only failure that
-  blocks other ranks, `int` overflow in descriptors, stdout output from ranks
-  other than root.
+  blocks other ranks, `int` overflow in descriptors, stdout output from several
+  ranks without `lib_printf_coll`, a `lib_printf_coll` call that some ranks do
+  not reach.
 - Numerical failures: overflow or NaN for valid input, empty blocks.
 - Tests that do not protect the claim: a test of a separate reference
   implementation, a check of column count without values, a parser that drops

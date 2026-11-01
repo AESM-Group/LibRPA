@@ -53,9 +53,13 @@ run, or add `-f`.
 - Do not change references, tolerances, or comparators to make a test pass. Give
   the physical reason for each change to an existing reference.
 - Give a bug fix a test that fails without the fix.
-- Write to stdout from rank 0 only, with `lib_printf_root` or `lib_printf_coll`.
-  Put per-rank output in `global::ofs_myid`. Output from other ranks can break
-  the tables that the regression tests parse.
+- Do not write to stdout from several ranks without coordination, because this
+  can break the tables that the regression tests parse.
+  - Use `lib_printf_root` for text that is the same on all ranks.
+  - Use `lib_printf_coll` for text that differs by rank. All ranks in the
+    communicator must reach the call, because it gathers the text and then calls
+    a barrier.
+  - Use `printf_comm_root` or `printf_comm_coll` for another communicator.
 - Give the command and its output when you say that a check passes.
 
 ## Commits and pull requests
