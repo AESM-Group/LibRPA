@@ -48,7 +48,7 @@ run, or add `-f`.
 ## Rules
 
 - Read `docs/develop/develop_tips.md` for the architecture rules, the runtime
-  option rules, and the risk tiers.
+  option rules, the risk tiers, and the evidence standards.
 - Use `REVIEW.md` for each code review, which includes local `/code-review` runs.
 - Do not change references, tolerances, or comparators to make a test pass. Give
   the physical reason for each change to an existing reference.

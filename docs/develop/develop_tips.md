@@ -16,10 +16,14 @@ A squash merge keeps each pull request as one commit on `master`, so that one
 `git revert` undoes it. Use a Conventional Commits title for the pull request,
 because this title becomes the commit title.
 
-Keep a pull request small enough to read. Split it if it adds more than 1000
-lines of production code. If the complete work adds more than 3000 lines, open a
-design issue first. The issue gives the physical definition, the inputs, the file
-formats, and the validation plan.
+Keep a pull request small enough to read. If it adds more than 1000 lines of
+production code, split it or give the reason in the description. Do not count
+dependency snapshots, data, or generated files. Keep each test in the pull
+request whose behavior it protects.
+
+If the complete work adds more than 3000 lines, open a design issue first. The
+issue gives the physical definition, the inputs, the file formats, and the
+validation plan.
 
 ### Risk tiers
 
@@ -28,7 +32,7 @@ tier, but cannot lower it.
 
 | Tier | Change | Review |
 | :--- | :----- | :----- |
-| L | Documentation, or new tests with no change to existing references | The author can merge after CI passes |
+| L | Documentation or new tests, with no H condition | The author can merge after CI passes |
 | M | Code changes with no H condition | One reviewer other than the author examines the intent, the evidence, and the agent findings |
 | H | At least one H condition | One area owner other than the author examines the change and its numerical evidence |
 
@@ -38,7 +42,9 @@ The H conditions are:
 - A removed or changed line in `regression_tests/testsuite.xml`.
 - A change to a comparator in `regression_tests/backend/comparisons/`.
 - A removed or changed line in `include/` or `binding/fortran/`.
-- A change to `.github/workflows/`, `thirdparty/`, or `src/mpi/`.
+- A change to the installed files or targets.
+- A change to an input, output, or restart file format.
+- A change to `.github/`, `REVIEW.md`, `CLAUDE.md`, `thirdparty/`, or `src/mpi/`.
 - A change to a default value.
 - A change to a convention: basis, matrix order, transpose or conjugate,
   normalization, units, k or q mapping, or parallel data ownership.
@@ -51,6 +57,46 @@ conditions are true:
 - The pull request has no open Important finding.
 
 A reviewer then examines the merged change in the next 7 days.
+
+### Numerical evidence
+
+Give evidence that supports the claim. Each type of evidence has limits.
+
+| Evidence | It supports | It does not support |
+| :------- | :---------- | :------------------ |
+| Build and link | The interfaces build in the tested configuration | Correct results |
+| Small model or analytic comparison | A specific formula, convention, limit, or branch | All production paths |
+| Driver or API regression | Behavior on the tested path and inputs | Material convergence or general accuracy |
+| Comparison of MPI layouts, symmetry paths, or restarts | Agreement between the compared paths | The absence of an error that the paths share |
+| Material benchmark or convergence study | A result for the tested systems and accuracy | Systems that were not tested |
+
+The standard depends on the type of change:
+
+- A refactor keeps the behavior, so existing references do not change. If it
+  changes the order of operations, give the floating-point difference that it
+  allows.
+- A method change needs independent evidence. Agreement with the old results
+  does not show that the new method is correct.
+
+### Agent review
+
+Record the status of each agent review: completed, failed, or not run. A failed
+review with no findings does not show that the change is correct. If the review
+did not complete, the reviewer examines the full change.
+
+Use a maximum of three rounds of agent review and fixes. This limit does not
+mean that the pull request passes. After the third round, the author examines
+the approach with a maintainer.
+
+### Numerical errors
+
+A revert does not correct results that users already calculated. If a fix
+corrects a wrong number, record these items in the `Fixed` section of
+`CHANGELOG.md`:
+
+- The affected versions.
+- The input conditions that cause the error.
+- The size of the error, if it is known.
 
 ## Fortran binding
 

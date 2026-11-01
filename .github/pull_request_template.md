@@ -16,6 +16,7 @@ Reason:
 - Existing references or tolerances:
 - Defaults, public interfaces, or file formats:
 - Conventions (basis, matrix order, normalization, units, k or q mapping, data ownership):
+- Numerical error corrected (affected versions, input conditions, size):
 
 ## Evidence that CI does not show
 
@@ -24,14 +25,15 @@ Reason:
 - Bug fix: the output that fails without the fix:
 - H tier: the old and new values, and the physical reason for the difference:
 
-## Agent review
-
-<!-- Give the command, the level, the number of Important findings, and the number of rounds. -->
-
 ## How to revert
 
 <!-- Give what a plain revert does not undo, such as data files, input keywords, or changes in host programs. -->
 
-## Agent-written code
+## Agent use
 
-<!-- If an agent wrote the code, give the person who directed the agent and examined the result. -->
+<!-- Review status: completed, failed, or not run. If the review did not complete, the reviewer examines the full change. -->
+
+Review status:
+Review command and level:
+Important findings and rounds:
+Person who directed the agent, if an agent wrote the code:
