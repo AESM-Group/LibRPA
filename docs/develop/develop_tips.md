@@ -8,9 +8,49 @@ The recommended workflow is:
 2. Create a topic branch for your changes.
 3. Rebase your branch on `master` when it is ready for review.
 4. Resolve any conflicts locally.
-5. Open a merge request.
-6. Address review comments.
-7. Merge with a fast-forward merge.
+5. Open a pull request and complete the template.
+6. Address review comments. Resolve each review thread with a fix or a reason.
+7. Merge with a squash merge.
+
+A squash merge keeps each pull request as one commit on `master`, so that one
+`git revert` undoes it. Use a Conventional Commits title for the pull request,
+because this title becomes the commit title.
+
+Keep a pull request small enough to read. Split it if it adds more than 1000
+lines of production code. If the complete work adds more than 3000 lines, open a
+design issue first. The issue gives the physical definition, the inputs, the file
+formats, and the validation plan.
+
+### Risk tiers
+
+The change sets the tier, not the author. A reviewer or an agent can raise the
+tier, but cannot lower it.
+
+| Tier | Change | Review |
+| :--- | :----- | :----- |
+| L | Documentation, or new tests with no change to existing references | The author can merge after CI passes |
+| M | Code changes with no H condition | One reviewer other than the author examines the intent, the evidence, and the agent findings |
+| H | At least one H condition | One area owner other than the author examines the change and its numerical evidence |
+
+The H conditions are:
+
+- A change to an existing file in `regression_tests/refs/`.
+- A removed or changed line in `regression_tests/testsuite.xml`.
+- A change to a comparator in `regression_tests/backend/comparisons/`.
+- A removed or changed line in `include/` or `binding/fortran/`.
+- A change to `.github/workflows/`, `thirdparty/`, or `src/mpi/`.
+- A change to a default value.
+- A change to a convention: basis, matrix order, transpose or conjugate,
+  normalization, units, k or q mapping, or parallel data ownership.
+
+A maintainer can merge an M pull request without a reviewer if all these
+conditions are true:
+
+- No reviewer responded in 24 hours.
+- The pull request has no more than 300 changed lines of production code.
+- The pull request has no open Important finding.
+
+A reviewer then examines the merged change in the next 7 days.
 
 ## Fortran binding
 
