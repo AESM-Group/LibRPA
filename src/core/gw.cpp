@@ -2206,13 +2206,15 @@ void G0W0::build_spacetime(
                         }
                         wtime_g0w0_cal_sigc = omp_get_wtime() - wtime_g0w0_cal_sigc;
                         if (n_spinor > 1)
-                            global::lib_printf(
+                            printf_comm_coll(
+                                comm_h,
                                 "Task %4d. libRI G0W0, spin %1d, bra %1d, ket %1d, time grid %12.6f. Wc size %zu, GF "
                                 "size %zu. Wall time %f\n",
                                 comm_h.myid, ispin, ispinor_bra, ispinor_ket, t, n_obj_wc_libri, n_obj_gf_libri,
                                 wtime_g0w0_cal_sigc);
                         else
-                            global::lib_printf(
+                            printf_comm_coll(
+                                comm_h,
                                 "Task %4d. libRI G0W0, spin %1d, time grid %12.6f. Wc size %zu, GF "
                                 "size %zu. Wall time %f\n",
                                 comm_h.myid, ispin, t, n_obj_wc_libri, n_obj_gf_libri,

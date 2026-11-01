@@ -831,7 +831,7 @@ CorrEnergy compute_RPA_correlation_blacs_2d_gamma_only(Chi0 &chi0, atpair_k_cplx
                                           coul_block.ptr(), 1, 1, desc_nabf_nabf_opt.desc,
                                           blacs_h.ictxt);
             double block_end = omp_get_wtime();
-            lib_printf("Vq Time  myid: %d  arr_time: %f  comm_time: %f   block_time: %f   pair_size: %d\n",comm_h.myid,arr_end-vq_begin, comm_end-comm_begin, block_end-block_begin,set_IJ_nabf_nabf.size());
+            printf_comm_coll(comm_h, "Vq Time  myid: %d  arr_time: %f  comm_time: %f   block_time: %f   pair_size: %d\n",comm_h.myid,arr_end-vq_begin, comm_end-comm_begin, block_end-block_begin,set_IJ_nabf_nabf.size());
             comm_h.barrier();
             double vq_end = omp_get_wtime();
 
@@ -1030,7 +1030,7 @@ CorrEnergy compute_RPA_correlation_blacs_2d(Chi0 &chi0, atpair_k_cplx_mat_t &cou
     profiler.start("compute_RPA_correlation_blacs_2d");
 
     const auto &comm_h = blacs_h.comm_h();
-    lib_printf("Begin to compute_RPA_correlation_blacs_2d  myid: %d\n", comm_h.myid );
+    printf_comm_coll(comm_h, "Begin to compute_RPA_correlation_blacs_2d  myid: %d\n", comm_h.myid );
     release_free_mem();
     CorrEnergy corr;
     if (comm_h.myid == 0)
@@ -1151,7 +1151,7 @@ CorrEnergy compute_RPA_correlation_blacs_2d(Chi0 &chi0, atpair_k_cplx_mat_t &cou
                                               blacs_h.ictxt);
             }
             double block_end = omp_get_wtime();
-            lib_printf("Vq Time  myid: %d  arr_time: %f  comm_time: %f   block_time: %f   pair_size: %d\n",comm_h.myid,arr_end-vq_begin, comm_end-comm_begin, block_end-block_begin,set_IJ_nabf_nabf.size());
+            printf_comm_coll(comm_h, "Vq Time  myid: %d  arr_time: %f  comm_time: %f   block_time: %f   pair_size: %d\n",comm_h.myid,arr_end-vq_begin, comm_end-comm_begin, block_end-block_begin,set_IJ_nabf_nabf.size());
             comm_h.barrier();
             double vq_end = omp_get_wtime();
 
@@ -1878,7 +1878,7 @@ CorrEnergy compute_RPA_correlation(LibrpaParallelRouting routing, const Chi0 &ch
         pi_freq_q_Mu_Nu = compute_Pi_q_MPI(chi0, coulmat);
     else
         pi_freq_q_Mu_Nu = compute_Pi_q(chi0, coulmat);
-    lib_printf("Finish Pi freq on Proc %4d, size %zu\n", comm_h.myid, pi_freq_q_Mu_Nu.size());
+    printf_comm_coll(comm_h, "Finish Pi freq on Proc %4d, size %zu\n", comm_h.myid, pi_freq_q_Mu_Nu.size());
     //comm_h.barrier();
 
     int range_all = chi0.atbasis_abf.nb_total;
@@ -2057,7 +2057,7 @@ map<double, map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>>
     using librpa_int::global::lib_printf;
 
     map<double, map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>> pi;
-    lib_printf("Begin compute_Pi_q , pid:  %d\n", chi0.comm_h.myid);
+    printf_comm_coll(chi0.comm_h, "Begin compute_Pi_q , pid:  %d\n", chi0.comm_h.myid);
     for (auto const & freq_qJQchi0: chi0.get_chi0_q())
     {
         const double freq = freq_qJQchi0.first;
@@ -2182,7 +2182,7 @@ map<double, map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>>
     using librpa_int::global::lib_printf;
 
     map<double, map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>> pi;
-    lib_printf("Begin compute_Pi_q_MPI , pid:  %d\n", chi0.comm_h.myid);
+    printf_comm_coll(chi0.comm_h, "Begin compute_Pi_q_MPI , pid:  %d\n", chi0.comm_h.myid);
     const auto &abf = chi0.atbasis_abf;
     for (auto const & freq_qJQchi0: chi0.get_chi0_q())
     {
@@ -2287,7 +2287,7 @@ map<double, map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>>
     //fp.close();
     // print_complex_matrix(" first_pi_mat:",pi.at(chi0.tfg.get_freq_nodes()[0]).at({0,0,0}).at(0).at(0));
     /* print_complex_matrix("  last_pi_mat:",pi.at(chi0.tfg.get_freq_nodes()[0]).at({0,0,0}).at(natom-1).at(natom-1)); */
-    lib_printf("End compute_Pi_q_MPI , pid:  %d\n", chi0.comm_h.myid);
+    printf_comm_coll(chi0.comm_h, "End compute_Pi_q_MPI , pid:  %d\n", chi0.comm_h.myid);
     return pi;
 }
 

@@ -842,8 +842,8 @@ void erase_Cs_from_local_atp(atpair_R_mat_t &Cs, std::vector<atpair_t> &local_at
     //         Cs.erase(Ip.first);
     //     }
     release_free_mem();
-    global::lib_printf("| process %d, size of Cs after erase: %lu\n",
-                       librpa_int::global::mpi_comm_global_h.myid, Cs.size());
+    global::lib_printf_coll("| process %d, size of Cs after erase: %lu\n",
+                            librpa_int::global::mpi_comm_global_h.myid, Cs.size());
 }
 
 void read_stru(const std::string &file_path)
