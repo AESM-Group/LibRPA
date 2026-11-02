@@ -4,7 +4,7 @@ LibRPA stores dependency versions, upstream URLs, patch lists, tree hashes and l
 
 ## Resolution and configuration
 
-Header libraries resolve in this order: an existing `LibRI::LibRI`, `LibComm::LibComm` or `cereal::cereal` target; an explicit include directory; managed sources. CMake variables take precedence over environment variables. Explicit paths must contain the expected header; an invalid path is an error and never triggers a download fallback.
+Header libraries resolve in this order: an existing `LibRI::LibRI`, `LibComm::LibComm` or `cereal::cereal` target; an explicit include directory; managed sources. Nonempty CMake path variables take precedence over environment variables. Explicit paths must contain the expected header; an invalid path is an error and never triggers a download fallback.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
@@ -24,10 +24,10 @@ On a connected machine, from the LibRPA checkout:
 cmake -DLIBRPA_THIRDPARTY_DIR=/path/to/deps -P cmake/LibRPAPrepareThirdparty.cmake
 ```
 
-Sync `/path/to/deps` to the offline machine, then configure with:
+Copy `/path/to/deps` to the offline machine, preserving symbolic links (for example, with `rsync -a`). From the LibRPA checkout, configure with:
 
 ```sh
-cmake -B build -DLIBRPA_THIRDPARTY_DIR=/path/to/deps -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF
+cmake -S . -B build -DLIBRPA_THIRDPARTY_DIR=/path/to/deps -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF
 ```
 
 The preparation script defaults to all six components. To prepare a subset, add `-DCOMPONENTS="LibRI;LibComm;cereal;greenX"`. Alternatively, place the exact archive filenames listed in the manifest in `/path/to/deps/downloads/`; configuration can extract, patch and verify these with downloads disabled. Mirrors serve those same filenames.
@@ -36,7 +36,9 @@ The preparation script defaults to all six components. To prepare a subset, add 
 
 Set `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR` or `CEREAL_INCLUDE_DIR` to the directory containing `RI`, `Comm` or `cereal`, respectively. Matching patched headers are used directly (`pinned`). Pristine pinned LibRI headers are copied and patched in managed storage (`overlay`); the supplied directory is never modified. Other revisions are used with a warning (`unpinned`). A required compile probe checks the three libraries together. Parent targets have status `target` and are not patched; the parent must provide compatible headers.
 
-For parent projects, set `LIBRPA_THIRDPARTY_DIR` to the parent's dependency directory before `add_subdirectory`, and ignore its `downloads/` and `src/` directories. The LibRPA source directory then needs no generated dependency files.
+For a complete example, see [Parent-project integration](../docs/develop/thirdparty.md#parent-project-integration). Set `LIBRPA_THIRDPARTY_DIR` to the parent's dependency directory before `add_subdirectory`, and ignore its `downloads/` and `src/` directories. The LibRPA source directory then needs no generated dependency files.
+
+For compiler requirements, build/install commands and troubleshooting, see [Installation](../docs/user_guide/install.md). See [Compile Options](../docs/user_guide/compile_options.md) for defaults and all path rules. The three cache settings above are not read from environment variables.
 
 ## Updates
 

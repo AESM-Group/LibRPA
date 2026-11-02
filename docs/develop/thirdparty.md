@@ -27,7 +27,8 @@ Use the CMake helper as the authoritative definition for all trees, including th
 4. Apply the patches to a fresh upstream tree. Compute pristine and patched hashes with `cmake/LibRPAThirdparty.cmake`, and independently cross-check a header tree with the shell command above.
 5. Update the declaration's full version, URL, archive name, patch list and hashes. Update the license list in `docs/develop/licensing.md`, then run `python3 utilities/update_readme_licensing_list.py`.
 6. Prepare sources into an empty dependency directory. Test online download, local mirrors, cached archives with downloads disabled, repeated configuration, and rejection of modified managed trees. For LibRI, also check pristine-path overlays and verify that the original include tree is unchanged.
-7. Build with and without LibRI, run unit and numerical regression tests, and run the QSGW, Hartree and cRPA verification scripts used in CI. Check parent targets and explicit paths. For ELPA and greenX, verify the source hashes again after building.
+7. Run `python3 utilities/test_thirdparty.py` to check helper failure paths, overlays, concurrent preparation and directory-symlink handling.
+8. Build with and without LibRI, run unit and numerical regression tests, and run the QSGW, Hartree and cRPA verification scripts used in CI. Check parent targets and explicit paths. For ELPA and greenX, verify the source hashes again after building.
 
 A minimal hash script is:
 
@@ -45,3 +46,69 @@ Run it with `cmake -P hash.cmake`. Do not edit a managed tree to update a depend
 Run `cmake -P cmake/LibRPAPrepareThirdparty.cmake` on a connected machine to prepare every component, or select `-DCOMPONENTS="LibRI;LibComm;cereal;greenX"`. The `LIBRPA_THIRDPARTY_DIR`, `LIBRPA_THIRDPARTY_DOWNLOAD` and `LIBRPA_THIRDPARTY_MIRRORS` settings also work in script mode. Copy the prepared directory to offline machines and disable downloads there.
 
 Each preparation uses a separate temporary directory. Only a verified tree is renamed into its content-addressed final location. Concurrent configurations verify a tree published by another process; no filesystem lock is required. Build outputs must stay in build directories. In particular, copy greenX's Python directory to scratch space before installing it, because Python packaging writes build files into its source directory.
+
+(thirdparty-parent-projects)=
+## Parent-project integration
+
+A parent can let LibRPA prepare dependencies while keeping its checkout free of generated source trees. Set the cache directory before adding LibRPA:
+
+```cmake
+cmake_minimum_required(VERSION 3.15)
+project(HostCode LANGUAGES CXX Fortran)
+
+set(LIBRPA_THIRDPARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/librpa"
+    CACHE PATH "Shared LibRPA source cache")
+set(LIBRPA_ENABLE_DRIVER OFF CACHE BOOL "Build the LibRPA driver")
+set(LIBRPA_ENABLE_TEST OFF CACHE BOOL "Build LibRPA tests")
+set(ENABLE_GREENX_CTEST OFF CACHE BOOL "Register GreenX tests")
+add_subdirectory(LibRPA)
+
+add_executable(host main.cpp)
+target_link_libraries(host PRIVATE rpa_lib)
+```
+
+This example assumes that `LibRPA/` and `main.cpp` are in the parent source directory. Configure the parent with its compiler, MPI and math-library settings. Ignore `dependencies/librpa/downloads/` and `dependencies/librpa/src/` in the parent's repository. An existing cache value takes precedence over these `set(... CACHE ...)` defaults.
+
+### Header targets
+
+To supply header dependencies, define their targets before `add_subdirectory(LibRPA)`. For example:
+
+```cmake
+add_library(LibRI::LibRI INTERFACE IMPORTED)
+set_target_properties(LibRI::LibRI PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES "/path/to/compatible/LibRI/include")
+add_library(LibComm::LibComm INTERFACE IMPORTED)
+set_target_properties(LibComm::LibComm PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES "/path/to/LibComm/include")
+add_library(cereal::cereal INTERFACE IMPORTED)
+set_target_properties(cereal::cereal PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES "/path/to/cereal/include")
+```
+
+Each target independently takes precedence over its path variable and managed source. A parent may provide only some of these targets. LibRPA resolves the others through their paths or managed sources.
+
+Header targets have status `target`. LibRPA does not hash or patch them. The parent must supply compatible headers, including required portability fixes. Use a path variable instead if pristine pinned LibRI headers need LibRPA's managed patch overlay.
+
+The required configure-time compile probe reads each target's direct `INTERFACE_INCLUDE_DIRECTORIES`. Absolute paths and simple `BUILD_INTERFACE` expressions are supported. `INSTALL_INTERFACE` entries are ignored, and other generator expressions cause an error. The probe does not traverse transitive include directories or inherit arbitrary target compile definitions. Expose the required header paths directly on these targets.
+
+The header combination must compile before configuration can continue. This check does not prove numerical compatibility. Target-provided LibComm also keeps the conservative automatic `MPI_THREAD_MULTIPLE` selection. See {ref}`Compile Options <librpa-mpi-thread-level>`.
+
+### Compiled dependency targets
+
+| Parent target | Selection requirement | Parent responsibilities |
+| --- | --- | --- |
+| `LibDDLA::ddla` | Enable CUDA or HIP | Supply a library, public include paths and link dependencies compatible with that backend |
+| `ELPA::ELPA` | Set `LIBRPA_USE_EXTERNAL_ELPA=ON` | Supply the library, headers and required link dependencies |
+| `LibGXMiniMax` | Set `LIBRPA_USE_EXTERNAL_GREENX=ON` | Supply the library, link dependencies and `Fortran_MODULE_DIRECTORY` pointing to compatible Fortran modules |
+
+Define these targets before adding LibRPA. A target alone does not enable external ELPA or GreenX. Neither external-mode switch downloads or builds a source directory. LibRPA's default GreenX build and a parent-defined target of the same name cannot coexist.
+
+Use `rpa_lib` to link a C or C++ consumer. With `LIBRPA_ENABLE_FORTRAN_BIND=ON`, the Fortran target is `rpa_f03_lib`, which also exposes its build-time module directory. LibRPA does not currently install a package configuration or target export for `find_package(librpa)`.
+
+## Migration from vendored sources
+
+Existing `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR`, `CEREAL_INCLUDE_DIR` and `LIBDDLA_PATH` settings remain supported. Check both the environment and the CMake cache when changing dependency selection. An empty header-path cache value permits an environment fallback.
+
+The old `thirdparty/LibRI`, `thirdparty/LibComm`, `thirdparty/cereal`, `thirdparty/LibDDLA` and `thirdparty/greenX` source paths no longer exist. Replace scripts that copy those directories with the preparation script or explicit external paths. Do not hard-code `src/<Name>-<hash12>` paths: a manifest update changes them. Preserve symbolic links when transferring a prepared cache.
+
+`LIBRPA_USE_BUNDLED_ELPA` and its related option names remain supported, but now select downloaded managed sources. The tracked `thirdparty/ELPA` directory contains only LibRPA's build wrapper. A dependency cache contains sources and archives, not compiler-specific installed libraries. Each build directory creates its own compiled dependencies.
