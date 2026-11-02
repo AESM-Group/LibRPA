@@ -1,5 +1,0 @@
-#pragma once
-
-#define LIBDDLA_MAJOR_VERSION 0
-#define LIBDDLA_MINOR_VERSION 0
-#define LIBDDLA_MICRO_VERSION 4
