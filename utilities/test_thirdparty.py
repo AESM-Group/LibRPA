@@ -108,7 +108,7 @@ if(NOT status STREQUAL "unpinned")
   message(FATAL_ERROR "Expected unpinned, got ${{status}}")
 endif()
 ''')
-        self.assertIn("differs from the pinned version", output)
+        self.assertIn("differs from the pinned version", " ".join(output.split()))
 
     def test_offline_archive_and_failed_patch(self):
         body = "set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\nlibrpa_thirdparty_prepare(Fixture source)\n"
