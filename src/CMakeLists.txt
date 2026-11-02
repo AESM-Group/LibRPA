@@ -191,17 +191,10 @@ if(NOT LIBRPA_USE_EXTERNAL_ELPA AND NOT LIBRPA_USE_BUNDLED_ELPA)
 endif()
 
 if(LIBRPA_USE_LIBRI)
-  target_include_directories(rpa_lib
-    PUBLIC
-      $<BUILD_INTERFACE:${Cereal_INCLUDE_DIR}>
-      $<BUILD_INTERFACE:${LibComm_INCLUDE_DIR}>
-      $<BUILD_INTERFACE:${LibRI_INCLUDE_DIR}>
-    )
-  target_include_directories(rpa_lib PRIVATE
-    ${Cereal_INCLUDE_DIR}
-    ${LibComm_INCLUDE_DIR}
-    ${LibRI_INCLUDE_DIR}
-  )
+  target_link_libraries(rpa_lib PUBLIC
+    $<BUILD_INTERFACE:cereal::cereal>
+    $<BUILD_INTERFACE:LibComm::LibComm>
+    $<BUILD_INTERFACE:LibRI::LibRI>)
 endif()
 
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)

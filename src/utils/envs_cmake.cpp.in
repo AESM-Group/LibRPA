@@ -36,6 +36,10 @@ const char * libri_include_dir = "${LibRI_INCLUDE_DIR}";
 
 const char * libcomm_include_dir = "${LibComm_INCLUDE_DIR}";
 
+const char * cereal_include_dir = "${Cereal_INCLUDE_DIR}";
+
+const char * thirdparty_sources = "${LIBRPA_THIRDPARTY_SUMMARY}";
+
 const char * greenx_commit_hash = "${LIBRPA_GREENX_COMMIT_HASH}";
 
 const char * ddla_use_ccl = "${DDLA_USE_CCL}";

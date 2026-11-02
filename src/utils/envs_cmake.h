@@ -49,6 +49,10 @@ extern const char * libri_include_dir;
 
 extern const char * libcomm_include_dir;
 
+extern const char * cereal_include_dir;
+
+extern const char * thirdparty_sources;
+
 extern const char * ddla_use_ccl;
 
 extern const char * ddla_use_gpu_cpu_tunnel;
