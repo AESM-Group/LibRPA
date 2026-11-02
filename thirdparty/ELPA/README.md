@@ -1,17 +1,7 @@
-# Bundled ELPA
+# Managed ELPA build wrapper
 
-This directory contains bundled source releases of
-[ELPA](https://elpa.mpcdf.mpg.de/), used when LibRPA is configured with
-`LIBRPA_USE_BUNDLED_ELPA=ON`.
+This directory contains only LibRPA's CMake wrapper. With `LIBRPA_USE_BUNDLED_ELPA=ON`, the source release pinned in `../manifest.cmake` is downloaded, patched and verified in managed storage before the wrapper builds it through upstream autotools in a separate build directory.
 
-Bundled versions:
+The supported `LIBRPA_BUNDLED_ELPA_VERSION` is `2026.02.001`. The option names remain compatible with existing build scripts. The wrapper exposes an `elpa` target; external installations remain selectable with `LIBRPA_USE_EXTERNAL_ELPA`.
 
-- `elpa-2026.02.001`: latest ELPA release listed in the official tarball
-  archive as of 2026-05-30.
-
-The CMake wrapper in this directory builds ELPA through its upstream autotools
-build system and exposes an `elpa` CMake target for LibRPA.
-
-ELPA is licensed under LGPL-3.0. The upstream license text is included in each
-bundled source tree, `elpa-2026.02.001/LICENSE`, with full license copies under each release's
-`COPYING/` directory.
+ELPA is licensed under LGPL-3.0. License texts are in the prepared source tree's `LICENSE` and `COPYING/` paths. The macOS affinity patch is documented in `../patches/README.md`.

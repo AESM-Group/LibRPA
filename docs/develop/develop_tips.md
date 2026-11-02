@@ -253,7 +253,7 @@ overhead while keeping essential results and the timing report visible.
 |   |-- mpi           : MPI, BLACS, and k-point/process-grid helpers
 |   |-- utils         : Constants, errors, profiling, memory, and configured build information
 |   `-- test          : C++ unit and MPI tests for library components
-|-- thirdparty        : Bundled external libraries used when not supplied by the user
+|-- thirdparty        : Dependency manifest, patches, and managed source cache
 `-- utilities         : Standalone conversion, consistency-check, and maintenance tools
 ```
 
@@ -333,3 +333,5 @@ Below are a few specific guidelines for LibRPA:
   user-guide table places the keyword.
 - Use `utilities/check_librpa_options.py` to cross-check the consistency between the C
   struct, Fortran interface and high-level wrapper of `LibrpaOptions`.
+
+See [third-party maintenance](thirdparty.md) for dependency updates and offline preparation.

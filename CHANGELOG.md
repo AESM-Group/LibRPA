@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Stopped shipping third-party sources. Default configuration now needs network access or dependencies prepared with `cmake/LibRPAPrepareThirdparty.cmake`.
+- Restored unmodified upstream LibComm by removing the local `.wait()` patch.
+- Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
+
+### Added
+
+- Added `LIBRPA_THIRDPARTY_DIR`, `LIBRPA_THIRDPARTY_DOWNLOAD`, `LIBRPA_THIRDPARTY_MIRRORS`, and an offline preparation script with mandatory tree verification.
+- Added `LIBDDLA_SOURCE_DIR` for separate builds from local source trees, pristine LibRI path overlays, parent dependency targets, and dependency source summaries in runtime output.
+
+### Changed
+
+- Updated cereal to `d81e2f7df7b334fee057e53017388d02e555a836`.
+
+### Fixed
+
+- Corrected the LibDDLA revision in the license list to `0d576d4`.
+
 ## [0.9.0] - 2026-10-31
 
 ### Breaking changes

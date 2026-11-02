@@ -31,6 +31,10 @@
 | [`LIBRPA_BUNDLED_ELPA_OPENMP`](#librpa-bundled-elpa-openmp) | bool              | `OFF`      |
 | [`LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS`](#librpa-bundled-elpa-configure-args) | string | empty |
 | [`LIBRPA_BUNDLED_ELPA_LIBS`](#librpa-bundled-elpa-libs)     | string            | empty      |
+| [`LIBRPA_THIRDPARTY_DIR`](#librpa-thirdparty-dir) | path | source `thirdparty/` |
+| [`LIBRPA_THIRDPARTY_DOWNLOAD`](#librpa-thirdparty-download) | bool | `ON` |
+| [`LIBRPA_THIRDPARTY_MIRRORS`](#librpa-thirdparty-mirrors) | string | empty |
+| [`LIBDDLA_SOURCE_DIR`](#libddla-source-dir) | path | empty |
 
 These options can be parsed on the CMake command line, for example:
 
@@ -57,7 +61,7 @@ only when [`LIBRPA_USE_LIBRI`](#librpa-use-libri) and exactly one of
 [`LIBRPA_USE_CUDA`](#librpa-use-cuda) or
 [`LIBRPA_USE_HIP`](#librpa-use-hip) are enabled.
 
-CPU and GPU builds use the same bundled headers under `thirdparty/LibRI`.
+CPU and GPU builds use the same resolved LibRI headers.
 With this option enabled, LibRPA defines `__GPU_RI` and `__DDLA_RI` and selects
 LibRI's GPU calculation mode for RPA, EXX, and GW tensor contractions. LibDDLA
 uses the selected CUDA or HIP backend. With this option disabled, LibRI tensor
@@ -82,7 +86,7 @@ The CUDA toolkit, NCCL, and LibDDLA must be discoverable by the build.
 If `CMAKE_CUDA_ARCHITECTURES` is not specified, LibRPA uses `70;75;80`.
 Set this standard CMake variable explicitly when building for other GPU
 architectures. An external LibDDLA installation can be selected with
-[`LIBDDLA_PATH`](#libddla-path); otherwise the bundled LibDDLA is built.
+[`LIBDDLA_PATH`](#libddla-path); otherwise `LIBDDLA_SOURCE_DIR` or managed LibDDLA sources are built.
 
 Example:
 ```sh
@@ -100,7 +104,7 @@ The HIP/ROCm libraries, RCCL, and LibDDLA must be discoverable by the build.
 Set `CMAKE_HIP_ARCHITECTURES` for the target GPU when necessary. `ROCM_PATH`
 can be used when the ROCm installation cannot be inferred from the
 environment. An external LibDDLA installation can be selected with
-[`LIBDDLA_PATH`](#libddla-path); otherwise the bundled LibDDLA is built.
+[`LIBDDLA_PATH`](#libddla-path); otherwise `LIBDDLA_SOURCE_DIR` or managed LibDDLA sources are built.
 
 Example:
 ```sh
@@ -128,8 +132,8 @@ cmake -DLIBRPA_USE_EXTERNAL_ELPA=ON -DEXTERNAL_ELPA_DIR=/path/to/elpa
 (librpa-use-bundled-elpa)=
 ## `LIBRPA_USE_BUNDLED_ELPA`
 
-When enabled, LibRPA builds and links against a bundled ELPA source release
-under `thirdparty/ELPA`.
+When enabled, LibRPA downloads, verifies, builds and links the pinned ELPA release.
+The option name is retained for compatibility with existing build scripts.
 
 This option is mutually exclusive with
 [`LIBRPA_USE_EXTERNAL_ELPA`](#librpa-use-external-elpa).
@@ -249,14 +253,14 @@ When enabled, the `cmake.inc` file is used to initialize compilers and other bui
 (librpa-use-external-greenx)=
 ## `LIBRPA_USE_EXTERNAL_GREENX`
 
-Controls whether LibRPA uses the bundled GreenX library or an external one.
+Controls whether LibRPA uses managed GreenX sources or an external target.
 
 The minimax grids used by LibRPA are provided through the
 [GreenX](https://nomad-coe.github.io/greenX/) library.
 
-When this option is `OFF` (default), LibRPA builds and links against the bundled GreenX source distributed with LibRPA under `thirdparty/greenX`.
+When this option is `OFF` (default), LibRPA prepares and builds the pinned GreenX source in `LIBRPA_THIRDPARTY_DIR`.
 
-When this option is `ON`, LibRPA does not build the bundled GreenX copy.
+When this option is `ON`, LibRPA does not build managed GreenX sources.
 Instead, it expects an external GreenX library to be provided by the parent or higher-level CMake project.
 In particular, the CMake target `LibGXMiniMax` must already be defined and available for linking.
 
@@ -290,7 +294,7 @@ tests. Supported values are `MPI_THREAD_SINGLE`, `MPI_THREAD_FUNNELED`,
 `MPI_THREAD_SERIALIZED`, and `MPI_THREAD_MULTIPLE`.
 
 When left empty, LibRPA selects the value from the enabled components: CPU
-ELPA builds use `MPI_THREAD_MULTIPLE`, builds with bundled LibComm use
+ELPA builds use `MPI_THREAD_MULTIPLE`, builds with managed or pinned LibComm use
 `MPI_THREAD_FUNNELED`, and other builds use `MPI_THREAD_MULTIPLE`. An explicit
 value takes precedence over this automatic selection:
 
@@ -346,9 +350,9 @@ This option is meaningful only if both `LIBRPA_ENABLE_TEST=ON` and `LIBRPA_ENABL
 
 Specifies the path to the LibRI include directory.
 
-If this variable is empty, the internal LibRI copy is used.
-Otherwise, CMake searches for `RI/ri/RI_Tools.h` under the specified directory.
-An error is raised if the file cannot be found.
+An existing LibRI::LibRI target takes precedence. Otherwise, a nonempty CMake variable takes precedence over the environment variable. The directory must contain `RI/ri/LRI.h`. An invalid explicit path stops configuration without a download fallback.
+
+Matching patched headers are used directly (`pinned`). Matching pristine headers are copied and patched in managed storage (`overlay`) without modifying the supplied directory. Other revisions produce a warning (`unpinned`). A compile probe checks compatibility. If no target or path is supplied, LibRPA prepares managed sources.
 
 Example:
 ```sh
@@ -360,9 +364,9 @@ cmake -DLIBRI_INCLUDE_DIR=/path/to/LibRI/include
 
 Specifies the path to the LibComm include directory.
 
-If this variable is empty, the internal LibComm copy is used.
-Otherwise, CMake searches for `Comm/Comm_Tools.h` under the specified directory.
-An error is raised if the file cannot be found.
+An existing LibComm::LibComm target takes precedence. Otherwise, a nonempty CMake variable takes precedence over the environment variable. The directory must contain `Comm/Comm_Tools.h`. An invalid explicit path stops configuration without a download fallback.
+
+Matching patched headers are used directly (`pinned`). Matching pristine headers are copied and patched in managed storage (`overlay`) without modifying the supplied directory. Other revisions produce a warning (`unpinned`). A compile probe checks compatibility. If no target or path is supplied, LibRPA prepares managed sources.
 
 Example:
 ```sh
@@ -374,9 +378,9 @@ cmake -DLIBCOMM_INCLUDE_DIR=/path/to/LibComm/include
 
 Specifies the path to the cereal include directory.
 
-If this variable is empty, the bundled cereal copy is used.
-Otherwise, CMake searches for `cereal/cereal.hpp` under the specified directory.
-An error is raised if the file cannot be found.
+An existing cereal::cereal target takes precedence. Otherwise, a nonempty CMake variable takes precedence over the environment variable. The directory must contain `cereal/cereal.hpp`. An invalid explicit path stops configuration without a download fallback.
+
+Matching patched headers are used directly (`pinned`). Matching pristine headers are copied and patched in managed storage (`overlay`) without modifying the supplied directory. Other revisions produce a warning (`unpinned`). A compile probe checks compatibility. If no target or path is supplied, LibRPA prepares managed sources.
 
 Example:
 ```sh
@@ -391,8 +395,7 @@ HIP builds. It can be set as either a CMake variable or an environment
 variable.
 
 CMake expects `include/ddla/ddla.h` and a `libddla` shared library under
-`lib/` or `lib64/`. If this variable is empty, LibRPA builds the bundled
-LibDDLA source.
+`lib/` or `lib64/`. An existing `LibDDLA::ddla` target takes precedence. If no installation is supplied, LibRPA builds `LIBDDLA_SOURCE_DIR` or managed sources.
 
 Example:
 ```sh
@@ -450,3 +453,23 @@ or as an environment variable:
 export EXTERNAL_ELPA_DIR=/path/to/elpa
 cmake -DLIBRPA_USE_EXTERNAL_ELPA=ON
 ```
+
+(librpa-thirdparty-dir)=
+## `LIBRPA_THIRDPARTY_DIR`
+
+Directory for shared `downloads/` archives and verified `src/` trees. The default is `thirdparty/` under the LibRPA source directory. Set this before adding LibRPA to a parent project to keep generated dependencies outside the LibRPA checkout.
+
+(librpa-thirdparty-download)=
+## `LIBRPA_THIRDPARTY_DOWNLOAD`
+
+Allow downloads of missing archives (default `ON`). With `OFF`, configuration uses prepared trees or local archives and reports missing components. Every selected managed tree is verified on each configuration.
+
+(librpa-thirdparty-mirrors)=
+## `LIBRPA_THIRDPARTY_MIRRORS`
+
+Semicolon-separated URL prefixes, tried in order before the upstream URL. Each prefix serves the archive filename in the manifest. HTTPS and local `file://` mirrors are supported.
+
+(libddla-source-dir)=
+## `LIBDDLA_SOURCE_DIR`
+
+LibDDLA source tree for CUDA or HIP builds, supplied as a CMake variable or environment variable. Requires `include/ddla/ddla.h` and `CMakeLists.txt`. A different tree hash produces a warning. LibRPA builds this tree through an ExternalProject. An existing `LibDDLA::ddla` target or `LIBDDLA_PATH` installation takes precedence. Without any of these, LibRPA prepares managed LibDDLA sources.

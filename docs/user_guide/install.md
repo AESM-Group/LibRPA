@@ -16,7 +16,7 @@ Optionally, LibRPA can also be linked with an external
 ELPA-backed optimized linear algebra subroutines. To enable the build
 interface, configure with
 `-DLIBRPA_USE_EXTERNAL_ELPA=ON -DEXTERNAL_ELPA_DIR=/path/to/elpa`.
-Alternatively, LibRPA can build a bundled ELPA source release with
+Alternatively, LibRPA can prepare and build the pinned ELPA release with
 `-DLIBRPA_USE_BUNDLED_ELPA=ON`.
 
 For *GW*, the following packages are additionally required:
@@ -30,11 +30,11 @@ with `-DLIBRPA_USE_LIBRI=OFF`.
 
 CUDA and HIP builds additionally require
 [LibDDLA](https://github.com/userchba/LibDDLA) for distributed GPU linear
-algebra. A compatible LibDDLA revision is bundled under `thirdparty/LibDDLA`;
-an external installation can also be supplied through `LIBDDLA_PATH`.
+algebra. LibRPA prepares a pinned LibDDLA revision by default. Supply an external installation through `LIBDDLA_PATH`, or a source tree through `LIBDDLA_SOURCE_DIR`.
 
-The required source dependencies are bundled under the `thirdparty/`
-directory in current LibRPA releases.
+LibRPA records source dependencies in `thirdparty/manifest.cmake` and downloads missing components during configuration. Existing parent targets and explicit local paths take precedence. Managed sources are patched and verified on every configuration. An explicit invalid include path is an error.
+
+Set `LIBRPA_THIRDPARTY_DIR` to share sources across builds. Set `LIBRPA_THIRDPARTY_MIRRORS` to a semicolon-separated list of archive URL prefixes. See [compile options](compile_options.md) and [dependency maintenance](../develop/thirdparty.md).
 
 ## Download
 
@@ -96,8 +96,7 @@ export LD_LIBRARY_PATH="$MKLROOT/lib/intel64:$LD_LIBRARY_PATH"
 CXX=mpiicpc FC=mpiifort cmake ..
 ```
 
-By default, LibRPA builds and links against the bundled GreenX source
-distributed under thirdparty/greenX.
+By default, LibRPA prepares and builds the pinned GreenX source, including when `LIBRPA_USE_LIBRI=OFF`.
 If you want to use an external GreenX instead, you should enable the CMake
 option [`LIBRPA_USE_EXTERNAL_GREENX`](<librpa-use-external-greenx>):
 
@@ -175,3 +174,21 @@ with
 ```
 
 Then rerun CMake from a clean build directory.
+
+## Offline installation
+
+On a connected machine, prepare dependencies from the matching LibRPA checkout:
+
+```sh
+cmake -DLIBRPA_THIRDPARTY_DIR=/path/to/deps -P cmake/LibRPAPrepareThirdparty.cmake
+```
+
+Copy that directory to the offline machine. Configure with the local directory and disable downloads:
+
+```sh
+cmake -B build -DLIBRPA_THIRDPARTY_DIR=/path/to/deps -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF
+```
+
+Alternatively, put the archives listed in `thirdparty/manifest.cmake` into `/path/to/deps/downloads/`. Configuration extracts, patches and verifies them without network access. The preparation script accepts `-DCOMPONENTS="LibRI;LibComm;cereal;greenX"` to select components.
+
+For local header libraries, set `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR` and `CEREAL_INCLUDE_DIR`. Matching patched headers are used directly. Pristine pinned LibRI headers are copied and patched without modifying the supplied tree. Other revisions produce a warning and undergo a compile probe. Parent targets take precedence over these paths.
