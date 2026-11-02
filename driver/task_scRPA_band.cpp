@@ -305,15 +305,21 @@ void task_scRPA_band()
     efermi_values.push_back(efermi * HA2EV);  // 初始费米能级
     iteration_numbers.push_back(0);  // 初始迭代次数为 0
 
-    std::cout << "Initial HOMO = " << homo * HA2EV << " eV, "
-              << "LUMO = " << lumo * HA2EV << " eV, "
-              << "Fermi Energy = " << efermi * HA2EV << " eV\n";
+    if (mpi_comm_global_h.is_root())
+    {
+        std::cout << "Initial HOMO = " << homo * HA2EV << " eV, "
+                  << "LUMO = " << lumo * HA2EV << " eV, "
+                  << "Fermi Energy = " << efermi * HA2EV << " eV\n";
+    }
     plot_homo_lumo_vs_iterations();
     
     //计算初始体系总电子数/初始总占据数
     double total_electrons = meanfield.get_total_weight();
-    printf("%5s\n","Total_electrons");
-    printf("%5f\n",total_electrons);
+    if (mpi_comm_global_h.is_root())
+    {
+        printf("%5s\n","Total_electrons");
+        printf("%5f\n",total_electrons);
+    }
     
 
     // 设置收敛条件
