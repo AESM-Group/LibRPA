@@ -4,7 +4,16 @@
 
 ### Added
 
-- Added conventional k-space RPA through frequency-only grids such as `tfgrids_type = GL`. The direct band sum supports full-mesh scalar and collinear inputs with LibRI routing and replicated eigenvectors, and reuses the existing RPA energy routines. Symmetry restoration, spinor inputs, and auxiliary-basis shrinking are not supported by this route.
+- Added conventional k-space RPA energies on frequency-only grids such as
+  `tfgrids_type = GL`, for all parallel routings and for builds without LibRI.
+  Required replicated scalar or collinear eigenvectors on the full k mesh,
+  `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.
+- Rejected frequency-only grids at the start of GW and cRPA calculations.
+
+### Fixed
+
+- Fixed the `map::at` failure of RPA energies with `parallel_routing = rtau` for
+  more than one q point on more than one MPI rank.
 
 ## [0.9.0] - 2026-10-31
 

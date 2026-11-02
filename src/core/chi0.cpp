@@ -824,8 +824,6 @@ Chi0::Chi0(const MeanField &mf_in, const AtomicBasis &atbasis_wfc_in,
     nbands_G = -1;
 }
 
-namespace
-{
 void check_chi0_collective_error(const MpiCommHandler &comm, const std::string &error)
 {
     const int failed = !error.empty();
@@ -835,7 +833,6 @@ void check_chi0_collective_error(const MpiCommHandler &comm, const std::string &
         throw LIBRPA_RUNTIME_ERROR(
             (error.empty() ? "Chi0: another rank rejected the response operation" : error));
 }
-}  // namespace
 
 void Chi0::set_band_selection(const BandSelection &selection)
 {
@@ -1068,11 +1065,11 @@ void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
     else
     {
         check_chi0_collective_error(comm_h,
-            routing != LIBRPA_ROUTING_LIBRI || !sinvS.empty() || abf_Cs != atbasis_abf
-                ? "Conventional chi0 requires parallel_routing=libri and no auxiliary shrinking"
+            !sinvS.empty() || abf_Cs != atbasis_abf
+                ? "Conventional chi0 does not support auxiliary shrinking"
                 : "");
         // conventional method does not need to build Green's function explicitly
-        build_chi0_q_conventional(Cs, atpairs_ABF);
+        build_chi0_q_conventional(routing, Cs, atpairs_ABF);
     }
 
     // Free the intermediate Green's functions to lower memory load

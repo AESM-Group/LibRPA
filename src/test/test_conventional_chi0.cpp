@@ -3,9 +3,12 @@
 #include <complex>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <valarray>
+#include <vector>
 
 #include "../api/dataset.h"
 #include "../core/chi0.h"
@@ -34,9 +37,16 @@ struct Coefficient
     std::vector<double> values;  // mu,i,j
 };
 
+#ifdef LIBRPA_USE_LIBRI
+const LibrpaParallelRouting default_routing = LIBRPA_ROUTING_LIBRI;
+#else
+const LibrpaParallelRouting default_routing = LIBRPA_ROUTING_ATOMPAIR;
+#endif
+
 struct Fixture
 {
     Dataset ds{MPI_COMM_WORLD};
+    LibrpaParallelRouting routing;
     std::unique_ptr<Chi0> chi;
     std::vector<atpair_t> pairs;
     std::map<Vector3_Order<double>, ComplexMatrix> no_shrink;
@@ -47,18 +57,23 @@ struct Fixture
     // Deliberately shuffled full k mesh; k+q cannot be found by adding indices.
     std::array<int, 4> mesh{2, 0, 3, 1};
 
-    explicit Fixture(int nspin = 1)
+    explicit Fixture(int nspin = 1, LibrpaParallelRouting routing_in = default_routing,
+                     bool replicate_cs = false)
+        : routing(routing_in)
     {
         ds.basis_wfc.set(std::vector<std::size_t>{1, 2});
         ds.basis_aux.set(std::vector<std::size_t>{1, 2});
         ds.mf.set(nspin, 4, 3, 3, 1);
         ds.mf.get_efermi() = 0;
-        ds.pbc.set_latvec({1, 0, 0, 0, 1, 0, 0, 0, 1});
+        // Sheared cell, so that a transposed lattice matrix fails in both the k+q
+        // search and the Bloch phases. The mesh runs along the reciprocal vector
+        // b1 = (1, -0.3, 0) / 0.88.
+        ds.pbc.set_latvec({1, 0.4, 0, 0.3, 1, 0, 0, 0, 1});
         std::vector<double> kv;
         for (const auto k : mesh)
         {
-            kv.push_back(TWO_PI * k / 4);
-            kv.push_back(0);
+            kv.push_back(TWO_PI * k / 4 / 0.88);
+            kv.push_back(-TWO_PI * k / 4 * 0.3 / 0.88);
             kv.push_back(0);
         }
         ds.pbc.set_kgrids_kvec(4, 1, 1, kv);
@@ -88,19 +103,37 @@ struct Fixture
                 }
                 ds.mf.get_eigenvectors()[s][0][k] = c;
             }
-        ds.cs_data.use_libri = true;
+        ds.cs_data.use_libri = routing == LIBRPA_ROUTING_LIBRI;
         for (std::size_t b = 0; b < cs.size(); ++b)
         {
-            if (static_cast<int>(b) % ds.comm_h.nprocs != ds.comm_h.myid) continue;
+            if (!replicate_cs && static_cast<int>(b) % ds.comm_h.nprocs != ds.comm_h.myid) continue;
             const auto &c = cs[b];
-            auto data = std::make_shared<std::valarray<double>>(c.values.data(), c.values.size());
-            ds.cs_data.data_libri[c.I][{c.J, {c.R, 0, 0}}] =
-                RI::Tensor<double>({ds.basis_aux[c.I], ds.basis_wfc[c.I], ds.basis_wfc[c.J]}, data);
+            const std::size_t n_mu = ds.basis_aux[c.I], n_ij = ds.basis_wfc[c.I] * ds.basis_wfc[c.J];
+            if (ds.cs_data.use_libri)
+            {
+                auto data =
+                    std::make_shared<std::valarray<double>>(c.values.data(), c.values.size());
+                ds.cs_data.data_libri[c.I][{c.J, {c.R, 0, 0}}] = RI::Tensor<double>(
+                    {ds.basis_aux[c.I], ds.basis_wfc[c.I], ds.basis_wfc[c.J]}, data);
+            }
+            else
+            {
+                auto data = std::make_shared<matrix>(n_ij, n_mu);
+                for (std::size_t mu = 0; mu < n_mu; ++mu)
+                    for (std::size_t ij = 0; ij < n_ij; ++ij)
+                        (*data)(ij, mu) = c.values[mu * n_ij + ij];
+                ds.cs_data.data_IJR[c.I][c.J][Vector3_Order<int>{c.R, 0, 0}] = data;
+            }
         }
-        const auto assigned = dispatch_upper_triangular_tasks(2, ds.blacs_h.myid, ds.blacs_h.nprows,
-                                                              ds.blacs_h.npcols, ds.blacs_h.myprow,
-                                                              ds.blacs_h.mypcol);
-        pairs.assign(assigned.begin(), assigned.end());
+        if (routing == LIBRPA_ROUTING_RTAU)
+            pairs = generate_atom_pair_from_nat(2, false);
+        else
+        {
+            const auto assigned = dispatch_upper_triangular_tasks(
+                2, ds.blacs_h.myid, ds.blacs_h.nprows, ds.blacs_h.npcols, ds.blacs_h.myprow,
+                ds.blacs_h.mypcol);
+            pairs.assign(assigned.begin(), assigned.end());
+        }
         chi = std::make_unique<Chi0>(ds.mf, ds.basis_wfc, ds.basis_aux, ds.pbc, ds.symmetry_context,
                                      ds.tfg, ds.scfk_blacs_ctxt, ds.desc_wfc_kb_full, false, false);
         chi->gf_threshold = chi->libri_threshold_C = chi->libri_threshold_G = 0;
@@ -108,12 +141,13 @@ struct Fixture
 
     void build()
     {
-        chi->build(LIBRPA_ROUTING_LIBRI, ds.cs_data, pairs, ds.basis_aux, no_shrink, ds.blacs_h);
+        chi->build(routing, ds.cs_data, pairs, ds.basis_aux, no_shrink, ds.blacs_h);
     }
 
     ComplexMatrix oracle(double omega, const Vector3_Order<double> &q) const
     {
         ComplexMatrix result(3, 3);
+        // Only b1 has a nonzero mesh, so the fractional x coordinate selects the shift.
         const int shift = std::llround(4 * (ds.pbc.latvec * q).x);
         const int last = chi->nbands_G < 0 ? 3 : chi->nbands_G;
         for (int s = 0; s < ds.mf.get_n_spins(); ++s)
@@ -164,6 +198,9 @@ struct Fixture
         for (double w : ds.tfg.get_freq_nodes())
             for (const auto &q : chi->active_qpoints())
             {
+                // The R-tau routing keeps each q on one rank.
+                const auto found = chi->get_chi0_q().find(w);
+                if (found == chi->get_chi0_q().end() || !found->second.count(q)) continue;
                 const auto ref = oracle(w, q);
                 for (const auto &[I, J] : pairs)
                 {
@@ -205,9 +242,26 @@ void test_response()
     }
 }
 
-void test_space_time()
+// Each routing has its own Cs storage, and the input can repeat a block on several ranks.
+void test_cs_inputs()
 {
-    Fixture f;
+    std::vector<LibrpaParallelRouting> routings{LIBRPA_ROUTING_ATOMPAIR, LIBRPA_ROUTING_RTAU};
+#ifdef LIBRPA_USE_LIBRI
+    routings.push_back(LIBRPA_ROUTING_LIBRI);
+#endif
+    for (const auto routing : routings)
+        for (const bool replicate_cs : {false, true})
+        {
+            Fixture f(1, routing, replicate_cs);
+            f.build();
+            f.compare();
+        }
+}
+
+void test_space_time(int spins, int n_bands)
+{
+    Fixture f(spins);
+    f.chi->nbands_G = n_bands;
     f.ds.tfg.reset(16);
     f.ds.tfg.generate_minimax(0.8, 3.0);
     f.build();
@@ -230,9 +284,9 @@ void test_space_time()
     }
 }
 
-void test_energy()
+void test_energy(LibrpaParallelRouting routing, bool use_blacs)
 {
-    Fixture f;
+    Fixture f(1, routing);
     f.ds.tfg.reset(24);
     f.ds.tfg.generate_GaussLegendre();
     f.build();
@@ -260,7 +314,9 @@ void test_energy()
                              a(0, 2) * (a(1, 0) * a(2, 1) - a(1, 1) * a(2, 0));
             expected += (std::log(det) + trace(x)) * weights[iw] * f.chi->q_weight(q) / TWO_PI;
         }
-    const auto energy = compute_RPA_correlation_blacs_2d(*f.chi, v, f.pairs, f.ds.blacs_h);
+    const auto energy = use_blacs
+                            ? compute_RPA_correlation_blacs_2d(*f.chi, v, f.pairs, f.ds.blacs_h)
+                            : compute_RPA_correlation(routing, *f.chi, v);
     if (f.ds.comm_h.is_root()) close(energy.value, expected);
     if (f.ds.comm_h.is_root())
         std::cout << "Energy=" << energy.value << " reference=" << expected << '\n';
@@ -279,7 +335,7 @@ void test_rejections()
         catch (const std::exception &e)
         {
             failed = std::string(e.what()).find(message) != std::string::npos ||
-                     std::string(e.what()).find("another MPI rank rejected") != std::string::npos;
+                     std::string(e.what()).find("another rank rejected") != std::string::npos;
         }
         if (!failed) throw std::runtime_error("unsupported input accepted");
     };
@@ -291,6 +347,34 @@ void test_rejections()
     f.ds.mf.get_eigenvals()[0](3, 1) += 0.137;
     rejected("non-Hermitian imaginary-frequency response");
     f.ds.mf.get_eigenvals()[0](3, 1) -= 0.137;
+    // A cutoff inside an exactly degenerate pair keeps a k-dependent mix of its states.
+    {
+        Fixture degenerate;
+        for (int k = 0; k < 4; ++k)
+        {
+            degenerate.ds.mf.get_eigenvals()[0](k, 2) = degenerate.ds.mf.get_eigenvals()[0](k, 1);
+            auto &c = degenerate.ds.mf.get_eigenvectors()[0][0][k];
+            const double t = 0.4 * std::sin(TWO_PI * degenerate.mesh[k] / 4);
+            for (int a = 0; a < 3; ++a)
+            {
+                const Complex x = c(1, a), y = c(2, a);
+                c(1, a) = std::cos(t) * x + std::sin(t) * y;
+                c(2, a) = -std::sin(t) * x + std::cos(t) * y;
+            }
+        }
+        degenerate.build();  // the complete pair is gauge invariant
+        degenerate.chi->nbands_G = 2;
+        bool failed = false;
+        try
+        {
+            degenerate.build();
+        }
+        catch (const std::exception &e)
+        {
+            failed = std::string(e.what()).find("degenerate multiplet") != std::string::npos;
+        }
+        if (!failed) throw std::runtime_error("cutoff inside a degenerate pair accepted");
+    }
     // Inconsistent data on one MPI owner must fail collectively before communication.
     if (f.ds.comm_h.is_root()) f.ds.mf.get_eigenvectors()[0][0][0].create(1, 1);
     rejected("missing full band/AO eigenvector matrix");
@@ -303,8 +387,16 @@ int main(int argc, char **argv)
     global::init_global_mpi(MPI_COMM_WORLD);
     global::init_global_io();
     test_response();
-    test_space_time();
-    test_energy();
+    test_cs_inputs();
+#ifdef LIBRPA_USE_LIBRI
+    test_space_time(1, -1);
+    test_space_time(2, -1);
+    test_space_time(1, 2);
+    test_energy(LIBRPA_ROUTING_LIBRI, true);
+#endif
+    test_energy(LIBRPA_ROUTING_RTAU, false);
+    // With four ranks, one rank has no atom pair.
+    test_energy(LIBRPA_ROUTING_ATOMPAIR, false);
     test_rejections();
     global::finalize_global_io();
     global::finalize_global_mpi();

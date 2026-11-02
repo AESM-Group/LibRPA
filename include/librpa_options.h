@@ -79,9 +79,11 @@ typedef struct
     /*!
      * Available driver values: `GL`, `GC-I`, `GL-II`, `minimax`, `evenspaced`, `evenspaced_tf`.
      * The driver maps the unset API value to `minimax`.
-     * Frequency-only grids select direct k-space chi0. This route requires LibRI routing,
-     * replicated scalar/collinear full-mesh eigenvectors, no symmetry restore, and no ABF shrinking.
-     * Grids with time nodes retain the space-time algorithm.
+     * Frequency-only grids select the conventional k-space response for RPA energies.
+     * This method requires replicated scalar or collinear eigenvectors on the full k mesh,
+     * `use_symmetry_rpa = false`, and
+     * `use_shrink_abfs = false`. GW and cRPA require a grid with time nodes.
+     * Grids with time nodes use the space-time method.
      *
      * @par Default
      * LIBRPA_TFGRID_UNSET

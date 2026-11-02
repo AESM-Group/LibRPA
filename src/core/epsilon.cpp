@@ -1918,7 +1918,9 @@ CorrEnergy compute_RPA_correlation(LibrpaParallelRouting routing, const Chi0 &ch
         for (const auto &q : chi0.active_qpoints())
         {
             atom_mapping<ComplexMatrix>::pair_t_old q_MuNupi;
-            if (!chi0.get_chi0_q().empty()) q_MuNupi = freq_q_MuNupi.at(q);
+            // The R-tau routing keeps each q on one rank. The other ranks add zero.
+            const auto found_q = freq_q_MuNupi.find(q);
+            if (found_q != freq_q_MuNupi.end()) q_MuNupi = found_q->second;
             const auto MuNupi = q_MuNupi;
             pi_freq_q[freq][q].create(range_all, range_all);
 

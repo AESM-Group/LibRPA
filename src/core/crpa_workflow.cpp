@@ -356,6 +356,9 @@ CrpaLocalProjection prepare_crpa_local_projection(CrpaContext &context,
 Chi0QMap build_crpa_total_response(CrpaContext &context)
 {
     auto &chi = context.chi0;
+    // Pd needs time nodes. Reject here, before P0 is built.
+    require_collectively(chi.tfg.has_time_grids(), chi.comm_h,
+                         "cRPA requires a grid with time nodes, such as tfgrids_type = minimax");
     CrpaChi0State response_state(chi);
     global::lib_printf_root("cRPA: building P0 on original KS poles\n");
     chi.clear_band_selection();

@@ -702,6 +702,10 @@ void librpa_int::api::build_gw_sigma_for_task(
 
     // Prepare time-frequency grids
     initialize_ds_tfgrids(*pds, opts);
+    // The self-energy needs W(tau). Reject here, before the response is built.
+    if (!pds->tfg.has_time_grids())
+        throw LIBRPA_RUNTIME_ERROR(
+            "GW self-energy requires a grid with time nodes, such as tfgrids_type = minimax");
     if (opts.replace_w_head == LIBRPA_SWITCH_ON
         && (opts.option_dielect_func == 0 || opts.option_dielect_func == 5)
         && !pds->epsmacs_imagfreq.empty()
