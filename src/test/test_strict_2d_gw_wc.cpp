@@ -155,7 +155,8 @@ void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, boo
     std::map<Vector3_Order<double>, ComplexMatrix> no_shrink;
     const std::vector<atpair_t> local_pairs =
         blacs_h.myid == 0 ? std::vector<atpair_t>{{0, 0}} : std::vector<atpair_t>{};
-    response.build(LIBRPA_ROUTING_LIBRI, coefficients, local_pairs, basis_abf, no_shrink, blacs_h);
+    response.build(LIBRPA_ROUTING_LIBRI, LIBRPA_METHOD_AUTO, coefficients, local_pairs, basis_abf,
+                   no_shrink, blacs_h);
 
     diele_func headwing(mf, velocity, pbc.kfrac_list, basis_wfc, basis_abf, frequencies, 2, 2, 1,
                         naux, pbc, global::mpi_comm_global_h, blacs_h);

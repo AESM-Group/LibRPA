@@ -4,11 +4,16 @@
 
 ### Added
 
-- Added conventional k-space RPA energies on frequency-only grids such as
-  `tfgrids_type = GL`, for all parallel routings and for builds without LibRI.
-  Required replicated scalar or collinear eigenvectors on the full k mesh,
-  `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.
-- Rejected frequency-only grids at the start of GW and cRPA calculations.
+- Added conventional k-space RPA energies, for all parallel routings and for
+  builds without LibRI. Required replicated scalar or collinear eigenvectors on
+  the full k mesh, `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.
+- Added the option `chi0_method` (`auto`, `space_time`, `conventional`) and the
+  enum `LibrpaMethod`. `auto` selected the conventional method on frequency-only
+  grids such as `tfgrids_type = GL`, and the space-time method otherwise.
+  `conventional` also used the frequency nodes of grids with time nodes, such as
+  `minimax`.
+- Rejected frequency-only grids and `chi0_method = conventional` at the start
+  of GW and cRPA calculations.
 
 ### Fixed
 

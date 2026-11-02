@@ -969,6 +969,10 @@ LibrpaParallelRouting get_parallel_routing(const std::string& routing_str_low);
 
 std::string get_routing_string(LibrpaParallelRouting routing);
 
+LibrpaMethod get_method(const std::string& method_str_low);
+
+std::string get_method_string(LibrpaMethod method);
+
 LibrpaVerbose get_verbose(const std::string& verbose_str_low);
 
 std::string get_verbose_string(LibrpaVerbose verbose);

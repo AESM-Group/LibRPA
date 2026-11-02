@@ -967,12 +967,25 @@ void Chi0::replace_chi0_q_by_difference(const Chi0QMap &full)
     chi0_q.swap(difference);
 }
 
-void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
+void Chi0::build(LibrpaParallelRouting routing, LibrpaMethod method, const Cs_LRI &Cs,
                  const std::vector<atpair_t> &atpairs_ABF, const AtomicBasis &abf_Cs,
                  std::map<Vector3_Order<double>, ComplexMatrix> &sinvS,
                  const BlacsCtxtHandler &blacs_ctxt_h)
 {
     using librpa_int::global::lib_printf;
+
+    std::string method_error;
+    bool use_space_time = tfg.has_time_grids();
+    if (method == LIBRPA_METHOD_SPACE_TIME)
+    {
+        if (!use_space_time)
+            method_error = "chi0_method = space_time requires a grid with time nodes";
+    }
+    else if (method == LIBRPA_METHOD_CONVENTIONAL)
+        use_space_time = false;
+    else if (method != LIBRPA_METHOD_AUTO && method != LIBRPA_METHOD_UNSET)
+        method_error = "Unknown chi0_method";
+    check_chi0_collective_error(comm_h, method_error);
 
     // Selected responses use the same replicated scalar/spinor LIBRI kernel as P0.
     // Other routes must not silently ignore an attached selection.
@@ -982,7 +995,7 @@ void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
             routing == LIBRPA_ROUTING_LIBRI && !is_mf_eigvec_k_distributed_ &&
             (!use_symmetry_context || qstar_only_symmetry) &&
             (mf.get_n_spinor() == 1 || (mf.get_n_spinor() == 2 && mf.get_n_spins() == 1)) &&
-            tfg.has_time_grids();
+            use_space_time;
         check_chi0_collective_error(
             comm_h, supported ? ""
                               : "Chi0 selected bands require scalar/spinor full-grid LIBRI with "
@@ -1005,22 +1018,18 @@ void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
     chi0_q.clear();
     Rlist_gf.clear();
 
-    bool use_space_time = false;
-
     // If not using shrinking (sinvS is empty), abf_Cs must be the same as the initial atbasis_abf
     if (sinvS.size() == 0)
     {
         if (abf_Cs != atbasis_abf)
             throw LIBRPA_RUNTIME_ERROR("abf_Cs != atbasis_abf for non-shrinking chi0");
     }
-    // Switch on space-time method when time grids and weights are available
-    if (tfg.has_time_grids())
-    {
-        use_space_time = true;
-    }
 
     if (comm_h.is_root())
+    {
         tfg.show();
+        lib_printf("Chi0 method: %s\n", use_space_time ? "space-time" : "conventional");
+    }
     comm_h.barrier();
 
     const int natom = atbasis_abf.n_atoms;

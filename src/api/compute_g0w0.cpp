@@ -706,6 +706,8 @@ void librpa_int::api::build_gw_sigma_for_task(
     if (!pds->tfg.has_time_grids())
         throw LIBRPA_RUNTIME_ERROR(
             "GW self-energy requires a grid with time nodes, such as tfgrids_type = minimax");
+    if (opts.chi0_method == LIBRPA_METHOD_CONVENTIONAL)
+        throw LIBRPA_RUNTIME_ERROR("GW does not support chi0_method = conventional");
     if (opts.replace_w_head == LIBRPA_SWITCH_ON
         && (opts.option_dielect_func == 0 || opts.option_dielect_func == 5)
         && !pds->epsmacs_imagfreq.empty()
@@ -797,8 +799,8 @@ void librpa_int::api::build_gw_sigma_for_task(
         use_shrink_abfs && !shrink_chi_from_full_abfs ? pds->basis_aux_shrink : pds->basis_aux;
     std::map<Vector3_Order<double>, ComplexMatrix> empty_sinvS;
     auto &sinvS_chi0 = shrink_chi_from_full_abfs ? pds->sinvS : empty_sinvS;
-    chi0.build(routing, cs_data_chi0, pds->atpairs_local, basis_aux_chi0, sinvS_chi0,
-               pds->blacs_h);
+    chi0.build(routing, LIBRPA_METHOD_SPACE_TIME, cs_data_chi0, pds->atpairs_local,
+               basis_aux_chi0, sinvS_chi0, pds->blacs_h);
     profiler.stop("chi0_build");
     pds->comm_h.barrier();
     if (on_response) on_response(chi0.get_chi0_q());

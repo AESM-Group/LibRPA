@@ -116,8 +116,8 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
     // std::cout << "n_abf * " << pds->p_chi0->atbasis_abf.nb_total;
 
     profiler.start("chi0_build", "Build response function chi0");
-    chi0.build(routing, pds->cs_data, pds->atpairs_local, pds->basis_aux, pds->sinvS,
-               pds->blacs_h);
+    chi0.build(routing, opts.chi0_method, pds->cs_data, pds->atpairs_local, pds->basis_aux,
+               pds->sinvS, pds->blacs_h);
     profiler.stop("chi0_build");
 
     if (debug)

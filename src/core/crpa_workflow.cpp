@@ -362,7 +362,8 @@ Chi0QMap build_crpa_total_response(CrpaContext &context)
     CrpaChi0State response_state(chi);
     global::lib_printf_root("cRPA: building P0 on original KS poles\n");
     chi.clear_band_selection();
-    chi.build(LIBRPA_ROUTING_LIBRI, context.coefficients, context.local_atom_pairs,
+    chi.build(LIBRPA_ROUTING_LIBRI, LIBRPA_METHOD_SPACE_TIME, context.coefficients,
+              context.local_atom_pairs,
               context.parent_auxiliary_basis, context.auxiliary_transform, context.blacs);
     return chi.take_chi0_q();
 }
@@ -375,7 +376,8 @@ Chi0QMap build_crpa_excluded_response(CrpaContext &context, const Chi0::BandSele
                          "cRPA requires an explicit band-selection table");
     global::lib_printf_root("cRPA: building Pd with selected occupied and empty branches\n");
     chi.set_band_selection(selection);
-    chi.build(LIBRPA_ROUTING_LIBRI, context.coefficients, context.local_atom_pairs,
+    chi.build(LIBRPA_ROUTING_LIBRI, LIBRPA_METHOD_SPACE_TIME, context.coefficients,
+              context.local_atom_pairs,
               context.parent_auxiliary_basis, context.auxiliary_transform, context.blacs);
     return chi.take_chi0_q();
 }

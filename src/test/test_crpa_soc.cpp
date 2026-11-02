@@ -642,7 +642,8 @@ struct Fixture
             chi->set_band_selection(selection());
         else
             chi->clear_band_selection();
-        chi->build(LIBRPA_ROUTING_LIBRI, ds.cs_data, pairs, ds.basis_aux, no_shrink, ds.blacs_h);
+        chi->build(LIBRPA_ROUTING_LIBRI, LIBRPA_METHOD_AUTO, ds.cs_data, pairs, ds.basis_aux,
+                   no_shrink, ds.blacs_h);
         for (double frequency : ds.tfg.get_freq_nodes())
             for (int iq = 0; iq < 4; ++iq)
             {
@@ -1024,8 +1025,8 @@ void test_magnetic_qstar_screening()
             f.chi->set_band_selection(f.selection());
         else
             f.chi->clear_band_selection();
-        f.chi->build(LIBRPA_ROUTING_LIBRI, f.ds.cs_data, f.pairs, f.ds.basis_aux, f.no_shrink,
-                     f.ds.blacs_h);
+        f.chi->build(LIBRPA_ROUTING_LIBRI, LIBRPA_METHOD_AUTO, f.ds.cs_data, f.pairs,
+                     f.ds.basis_aux, f.no_shrink, f.ds.blacs_h);
         for (double frequency : f.ds.tfg.get_freq_nodes())
             for (const auto& q : f.chi->active_qpoints())
             {

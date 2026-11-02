@@ -79,11 +79,8 @@ typedef struct
     /*!
      * Available driver values: `GL`, `GC-I`, `GL-II`, `minimax`, `evenspaced`, `evenspaced_tf`.
      * The driver maps the unset API value to `minimax`.
-     * Frequency-only grids select the conventional k-space response for RPA energies.
-     * This method requires replicated scalar or collinear eigenvectors on the full k mesh,
-     * `use_symmetry_rpa = false`, and
-     * `use_shrink_abfs = false`. GW and cRPA require a grid with time nodes.
-     * Grids with time nodes use the space-time method.
+     * Only `minimax` and `evenspaced_tf` have time nodes.
+     * The other grids have frequency nodes only. See `chi0_method`.
      *
      * @par Default
      * LIBRPA_TFGRID_UNSET
@@ -254,6 +251,27 @@ typedef struct
 
     /* ============================================================================= */
     /* RPA specific */
+
+    //! Method to compute the response function chi0.
+    /*!
+     * Available driver values: `auto`, `space_time`, `conventional`.
+     * `auto` selects `space_time` for grids with time nodes, and `conventional` for
+     * frequency-only grids. The unset value is the same as `auto`.
+     *
+     * `space_time` uses the real-space Green's function at the time nodes, and needs a grid
+     * with time nodes.
+     *
+     * `conventional` sums over band transitions at the frequency nodes of any grid.
+     * It is available for RPA energies only. It requires replicated scalar or collinear
+     * eigenvectors on the full k mesh, `use_symmetry_rpa = false`, and
+     * `use_shrink_abfs = false`.
+     *
+     * GW and cRPA use `space_time`, and stop on a frequency-only grid or with `conventional`.
+     *
+     * @par Default
+     * LIBRPA_METHOD_AUTO
+     */
+    LibrpaMethod chi0_method;
 
     //! Threshold for real-space Green's function in response function calculation.
     //! @par Default

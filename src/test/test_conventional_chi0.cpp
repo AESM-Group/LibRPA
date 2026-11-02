@@ -47,6 +47,7 @@ struct Fixture
 {
     Dataset ds{MPI_COMM_WORLD};
     LibrpaParallelRouting routing;
+    LibrpaMethod method = LIBRPA_METHOD_AUTO;
     std::unique_ptr<Chi0> chi;
     std::vector<atpair_t> pairs;
     std::map<Vector3_Order<double>, ComplexMatrix> no_shrink;
@@ -141,7 +142,7 @@ struct Fixture
 
     void build()
     {
-        chi->build(routing, ds.cs_data, pairs, ds.basis_aux, no_shrink, ds.blacs_h);
+        chi->build(routing, method, ds.cs_data, pairs, ds.basis_aux, no_shrink, ds.blacs_h);
     }
 
     ComplexMatrix oracle(double omega, const Vector3_Order<double> &q) const
@@ -258,30 +259,31 @@ void test_cs_inputs()
         }
 }
 
-void test_space_time(int spins, int n_bands)
+// The conventional method on a minimax grid uses only its frequency nodes. With LibRI, the
+// space-time method on the same grid must agree within the time-to-frequency transform error.
+void test_minimax(int spins, int n_bands)
 {
     Fixture f(spins);
     f.chi->nbands_G = n_bands;
     f.ds.tfg.reset(16);
     f.ds.tfg.generate_minimax(0.8, 3.0);
+    f.method = LIBRPA_METHOD_CONVENTIONAL;
+    f.build();
+    f.compare();
+#ifdef LIBRPA_USE_LIBRI
+    const auto conventional = f.chi->take_chi0_q();
+    f.method = LIBRPA_METHOD_AUTO;
     f.build();
     f.compare(2.e-5);
-    const auto st = f.chi->take_chi0_q();
-    const auto frequencies = f.ds.tfg.get_freq_nodes();
-    for (double w : frequencies)
-    {
-        f.ds.tfg.reset(1);
-        f.ds.tfg.generate_evenspaced(w, 0);
-        f.build();
-        f.compare();
+    for (double w : f.ds.tfg.get_freq_nodes())
         for (const auto &q : f.chi->active_qpoints())
             for (const auto &[I, J] : f.pairs)
             {
-                const auto &a = f.chi->get_chi0_q().at(w).at(q).at(I).at(J);
-                const auto &b = st.at(w).at(q).at(I).at(J);
+                const auto &a = conventional.at(w).at(q).at(I).at(J);
+                const auto &b = f.chi->get_chi0_q().at(w).at(q).at(I).at(J);
                 for (int i = 0; i < a.size; ++i) close(a.c[i], b.c[i], 2.e-5);
             }
-    }
+#endif
 }
 
 void test_energy(LibrpaParallelRouting routing, bool use_blacs)
@@ -343,6 +345,9 @@ void test_rejections()
     f.ds.tfg.generate_evenspaced(std::numeric_limits<double>::infinity(), 0);
     rejected("strictly positive imaginary frequencies");
     f.ds.tfg.generate_evenspaced(0.4, 0);
+    f.method = LIBRPA_METHOD_SPACE_TIME;
+    rejected("chi0_method = space_time requires a grid with time nodes");
+    f.method = LIBRPA_METHOD_AUTO;
     // A spectrum that breaks k <-> -k symmetry has a non-Hermitian response.
     f.ds.mf.get_eigenvals()[0](3, 1) += 0.137;
     rejected("non-Hermitian imaginary-frequency response");
@@ -388,10 +393,10 @@ int main(int argc, char **argv)
     global::init_global_io();
     test_response();
     test_cs_inputs();
+    test_minimax(1, -1);
+    test_minimax(2, -1);
+    test_minimax(1, 2);
 #ifdef LIBRPA_USE_LIBRI
-    test_space_time(1, -1);
-    test_space_time(2, -1);
-    test_space_time(1, 2);
     test_energy(LIBRPA_ROUTING_LIBRI, true);
 #endif
     test_energy(LIBRPA_ROUTING_RTAU, false);

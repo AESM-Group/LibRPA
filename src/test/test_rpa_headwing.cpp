@@ -3120,7 +3120,8 @@ void test_complex_soc_bubble_matches_lindhard()
     Chi0 chi(ds.mf, ds.basis_wfc, ds.basis_aux, ds.pbc, ds.symmetry_context, ds.tfg,
              ds.scfk_blacs_ctxt, ds.desc_wfc_kb_full, false, false);
     chi.gf_threshold = chi.libri_threshold_C = chi.libri_threshold_G = 0;
-    chi.build(LIBRPA_ROUTING_LIBRI, ds.cs_data, pairs, ds.basis_aux, no_shrink, ds.blacs_h);
+    chi.build(LIBRPA_ROUTING_LIBRI, LIBRPA_METHOD_AUTO, ds.cs_data, pairs, ds.basis_aux, no_shrink,
+              ds.blacs_h);
     double maximum = 0;
     for (const double frequency : ds.tfg.get_freq_nodes())
         for (int iq = 0; iq < 4; ++iq)

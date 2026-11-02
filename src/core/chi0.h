@@ -146,7 +146,10 @@ public:
          bool use_symmetry_context_in = true);
     ~Chi0() {};
     //! Build the independent response function in q-omega domain for ABFs on the atom pairs atpair_ABF and q-vectors in qlist
+    //! The unset and auto methods select the space-time method for grids with time nodes,
+    //! and the conventional method otherwise.
     void build(LibrpaParallelRouting routing,
+               LibrpaMethod method,
                const Cs_LRI &Cs,
                const std::vector<atpair_t> &atpair_ABF,
                const AtomicBasis &abf_Cs,
