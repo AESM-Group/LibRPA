@@ -774,7 +774,12 @@ static abf_rspace_complex_block_map_t accumulate_symmetry_full_wr_from_ibz_q(
         }
     }
 
-
+    if (full_grid_kpoints)
+    {
+        librpa_int::global::lib_printf_root(
+            "Full-BZ k-star restore matched %zu / %zu representative q-points\n",
+            star_entries.size(), ctx.kstars.size());
+    }
 
     return convert_dense_rspace_blocks_to_row_major(blocks_by_R_full);
 }
