@@ -59,12 +59,13 @@ function(_librpa_thirdparty_patch name tree temporary)
   if(NOT _PATCHES)
     return()
   endif()
+  get_filename_component(_ceiling "${temporary}" REALPATH)
   find_program(_LIBRPA_GIT git)
   find_program(_LIBRPA_PATCH patch)
   foreach(_patch IN LISTS _PATCHES)
     set(_patch "${LIBRPA_SOURCE_DIR}/thirdparty/patches/${_patch}")
     if(_LIBRPA_GIT)
-      execute_process(COMMAND "${CMAKE_COMMAND}" -E env "GIT_CEILING_DIRECTORIES=${temporary}"
+      execute_process(COMMAND "${CMAKE_COMMAND}" -E env "GIT_CEILING_DIRECTORIES=${_ceiling}"
         "${_LIBRPA_GIT}" apply -p1 --whitespace=nowarn "${_patch}"
         WORKING_DIRECTORY "${tree}" RESULT_VARIABLE _result ERROR_VARIABLE _error)
     elseif(_LIBRPA_PATCH)
