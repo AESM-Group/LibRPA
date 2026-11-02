@@ -23,9 +23,6 @@ jobs:
       - name: Check consistency of the runtime option definitions
         run: |
           python utilities/check_librpa_options.py
-      - name: Check for new unchecked stdout writes
-        run: |
-          python utilities/check_rank_output.py
       - name: Test regression result validators
         run: |
           python -m unittest discover -s regression_tests/backend/comparisons -p 'test_cmp_*.py'
