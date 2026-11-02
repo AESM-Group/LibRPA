@@ -29,6 +29,9 @@ jobs:
           python ../../utilities/convert_fortran_module_to_stub.py librpa_f03.f90 "$RUNNER_TEMP/librpa_f03_stubs.f90"
           diff -u librpa_f03_stubs.f90 "$RUNNER_TEMP/librpa_f03_stubs.f90"
           popd
+      - name: Test the risk tier script
+        run: |
+          python -m unittest discover -s utilities -p 'test_*.py'
       - name: Test regression result validators
         run: |
           python -m unittest discover -s regression_tests/backend/comparisons -p 'test_cmp_*.py'

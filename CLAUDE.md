@@ -33,6 +33,7 @@ Run these checks in the repository root:
 cmake --build build --target test
 ctest --test-dir build -R <test name>
 python utilities/check_librpa_options.py
+python -m unittest discover -s utilities -p 'test_*.py'
 python -m unittest discover -s regression_tests/backend/comparisons -p 'test_cmp_*.py'
 PYTHONPATH="$PWD/regression_tests:$PWD" python -m unittest discover -s regression_tests/backend -p 'test_*.py'
 ```
@@ -73,4 +74,5 @@ run, or add `-f`.
 
 - Use a Conventional Commits title, such as `fix(gw): restore occupations`.
 - Keep one topic in each pull request.
-- Complete `.github/pull_request_template.md`.
+- Complete `.github/pull_request_template.md`. Give at least the tier from
+  `python utilities/check_risk_tier.py --base <base branch>`.

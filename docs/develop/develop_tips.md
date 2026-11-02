@@ -56,6 +56,17 @@ group:
 - A change to a convention: basis, matrix order, transpose or conjugate,
   normalization, units, k or q mapping, or parallel data ownership.
 
+`utilities/check_risk_tier.py` applies the first group and gives the minimum
+tier. Run it before you open a pull request, with the base branch as `--base`:
+
+```bash
+python utilities/check_risk_tier.py --base upstream/master
+```
+
+The `Risk tier` workflow runs the script on each pull request and writes the
+result to the job summary. If the description gives a lower tier, the workflow
+gives a warning, but it does not fail.
+
 A maintainer can merge an M pull request without a reviewer if all these
 conditions are true:
 
