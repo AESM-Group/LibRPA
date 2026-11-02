@@ -29,7 +29,7 @@ LibRPA requires:
 - a C++17 compiler with `std::filesystem` support and a Fortran compiler
 - compatible MPI and OpenMP development libraries
 - BLAS, LAPACK and ScaLAPACK libraries
-- CMake 3.15 or newer for the default CPU build, and a supported build tool
+- CMake 3.18 or newer, and a supported build tool
 - Git or `patch` for source preparation when patches are needed
 
 CMake prepares pinned source dependencies from the [manifest](thirdparty/manifest.cmake).
@@ -40,7 +40,7 @@ use LibDDLA. ELPA is optional. Compatible external dependencies can be supplied.
 Dependency source trees are downloaded during configuration and are not included
 in the repository. A first build needs network access or a prepared cache.
 See [Installation](docs/user_guide/install.md) for external dependencies,
-offline builds and the additional CMake requirements for GPU backends.
+offline builds and dependency configuration.
 
 ## Download
 

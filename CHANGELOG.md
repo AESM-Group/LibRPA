@@ -4,6 +4,7 @@
 
 ### Breaking changes
 
+- Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone source-preparation script remains compatible with 3.13.
 - Stopped shipping third-party sources. Default configuration now needs network access or dependencies prepared with `cmake/LibRPAPrepareThirdparty.cmake`.
 - Restored unmodified upstream LibComm by removing the local `.wait()` patch.
 - Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.

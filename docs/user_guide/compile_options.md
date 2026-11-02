@@ -112,7 +112,6 @@ cmake -S . -B build \
 
 Enables the NVIDIA CUDA backend. CUDA and HIP backends are mutually exclusive.
 The CUDA toolkit, NCCL, and LibDDLA must be discoverable by the build.
-This path requires CMake 3.18 or newer. The selected toolkit can require a newer version.
 
 If `CMAKE_CUDA_ARCHITECTURES` is not specified, LibRPA uses `70;75;80`.
 Set this standard CMake variable explicitly when building for other GPU
@@ -131,7 +130,6 @@ cmake -S . -B build \
 
 Enables the AMD HIP/ROCm backend. HIP and CUDA backends are mutually exclusive.
 The HIP/ROCm libraries, RCCL, and LibDDLA must be discoverable by the build.
-A LibDDLA source build requires CMake 3.21 or newer for HIP language support.
 
 Set `CMAKE_HIP_ARCHITECTURES` for the target GPU when necessary. `ROCM_PATH`
 can be used when the ROCm installation cannot be inferred from the

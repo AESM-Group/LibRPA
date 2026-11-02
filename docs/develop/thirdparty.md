@@ -53,7 +53,7 @@ Each preparation uses a separate temporary directory. Only a verified tree is re
 A parent can let LibRPA prepare dependencies while keeping its checkout free of generated source trees. Set the cache directory before adding LibRPA:
 
 ```cmake
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.18)
 project(HostCode LANGUAGES CXX Fortran)
 
 set(LIBRPA_THIRDPARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/librpa"

@@ -16,14 +16,11 @@ The CPU build requires:
 
 ### CMake version
 
-| Build path | CMake requirement from the current build files |
-| --- | --- |
-| LibRPA top-level project and preparation script | 3.13 or newer |
-| Default build with managed GreenX | **3.15 or newer**, as required by the pinned GreenX source |
-| CUDA backend | At least 3.18, including policy `CMP0104` |
-| HIP with a source build of LibDDLA | At least 3.21 for CMake's HIP language support |
+LibRPA requires CMake **3.18 or newer**. Its own top-level build code uses `FindCUDAToolkit` (introduced in 3.17) and policy `CMP0104` (introduced in 3.18). These calls determine LibRPA's minimum version independently of third-party requirements.
 
-Compiler and GPU toolkit versions can require a newer CMake. An external GreenX target avoids configuring GreenX inside LibRPA, but its own build requirements still apply. The top-level minimum of 3.13 alone does not describe the requirements of a complete default build.
+Dependencies and compiler toolchains can have additional requirements. Their build configurations check those requirements separately. A subdirectory's minimum-version declaration checks the running CMake and sets policies in that directory. It does not raise the parent's policy version.
+
+The standalone source-preparation script requires only CMake 3.13. It downloads, patches and verifies sources without configuring or compiling the dependency projects.
 
 ### Source dependencies
 
