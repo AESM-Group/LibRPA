@@ -67,16 +67,23 @@ jobs:
           key: install-${{ env.LINUX_CPP_COMPONENTS }}-${{ hashFiles('**/depends.txt') }}
       - name: Install build-essential and cmake
         run: sudo apt-get install -y build-essential cmake
+      - name: Cache third-party archives
+        uses: actions/cache@v3
+        with:
+          path: thirdparty/downloads
+          key: thirdparty-${{ hashFiles('thirdparty/manifest.cmake') }}
+      - name: Prepare verified third-party sources
+        run: cmake -P cmake/LibRPAPrepareThirdparty.cmake
       - name: Install python dependency
         run: |
           pip install --user pytest scipy
-          cd thirdparty/greenX/python && python setup.py install --verbose --user
+          greenx_python=$(mktemp -d)
+          cp -R thirdparty/src/greenX-*/python/. "$greenx_python/"
+          cd "$greenx_python" && python setup.py install --verbose --user
       - name: Install tools including oneAPI
         if: steps.cache-install.outputs.cache-hit != 'true'
         run: |
           sudo apt-get install -y $(echo "$LINUX_CPP_COMPONENTS" | sed "s/_/ /g")
-      - name: Initialize and update submodules recursively
-        run: git submodule update --init --recursive
       - name: Check environment
         run: |
           echo -n "Size of /opt/intel/oneapi/: " && du -csh /opt/intel/oneapi
