@@ -11,7 +11,6 @@ this risk.
   - Data ownership or double counting.
   - A root-only failure that blocks other ranks.
   - `int` overflow in descriptors.
-  - Stdout output from several ranks without `lib_printf_coll`.
   - A `lib_printf_coll` call that some ranks do not reach.
 - Numerical failures: overflow or NaN for valid input, empty blocks.
 - Tests that do not protect the claim: a test of a separate reference
