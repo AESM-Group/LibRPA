@@ -7,11 +7,6 @@ endif()
 if(LIBRPA_USE_CUDA AND LIBRPA_USE_HIP)
   message(FATAL_ERROR "Bundled LibDDLA cannot enable CUDA and HIP together")
 endif()
-if(TARGET LibDDLA::ddla)
-  message(FATAL_ERROR "The LibDDLA::ddla target already exists")
-endif()
-
-set(_libddla_source_dir "${CMAKE_CURRENT_LIST_DIR}/../thirdparty/LibDDLA")
 if(NOT EXISTS "${_libddla_source_dir}/include/ddla/ddla.h")
   message(FATAL_ERROR "Bundled LibDDLA source is incomplete: ${_libddla_source_dir}")
 endif()
@@ -122,7 +117,7 @@ set(LIBRPA_BUNDLED_DDLA_PROJECT_TARGET librpa_bundled_libddla)
 set(LIBRPA_BUNDLED_DDLA_INSTALL_DIR "${_libddla_install_dir}")
 
 message(STATUS
-  "Use bundled LibDDLA             : ${_BUNDLED_LIBDDLA_COMMIT_HASH}")
+  "Use bundled LibDDLA             : ${_libddla_source_dir}")
 message(STATUS
   "Bundled LibDDLA backend         : ${_libddla_backend}")
 message(STATUS

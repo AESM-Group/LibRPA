@@ -16,7 +16,6 @@ if(TARGET elpa)
   message(FATAL_ERROR "Cannot build bundled ELPA because target 'elpa' already exists")
 endif()
 
-set(_elpa_source_dir "${CMAKE_CURRENT_SOURCE_DIR}/elpa-${LIBRPA_BUNDLED_ELPA_VERSION}")
 if(NOT EXISTS "${_elpa_source_dir}/configure")
   message(FATAL_ERROR "Bundled ELPA source directory is incomplete: ${_elpa_source_dir}")
 endif()
