@@ -1067,6 +1067,10 @@ void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
     }
     else
     {
+        check_chi0_collective_error(comm_h,
+            routing != LIBRPA_ROUTING_LIBRI || !sinvS.empty() || abf_Cs != atbasis_abf
+                ? "Conventional chi0 requires parallel_routing=libri and no auxiliary shrinking"
+                : "");
         // conventional method does not need to build Green's function explicitly
         build_chi0_q_conventional(Cs, atpairs_ABF);
     }
@@ -3310,13 +3314,6 @@ matrix Chi0::compute_chi0_s_munu_tau_R(const atpair_R_mat_t &Cs_IJR,
     // }
     global::profiler.stop("cal_chi0_element");
     return O_sum;
-}
-
-void Chi0::build_chi0_q_conventional(const Cs_LRI &Cs,
-                                     const vector<atpair_t> &atpair_ABF)
-{
-    // TODO: low implementation priority
-    throw std::logic_error("Not implemented");
 }
 
 //! Compute the real-space independent reponse function in space-time method on a particular time

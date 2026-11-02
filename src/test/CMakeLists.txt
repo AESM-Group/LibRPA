@@ -194,3 +194,11 @@ if(LIBRPA_LIBRI_HAS_HARTREE)
   set_tests_properties(test_hartree test_hartree_mpi2 test_hartree_mpi4
     PROPERTIES ENVIRONMENT "OMP_NUM_THREADS=1;MKL_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 180)
 endif()
+
+if(LIBRPA_USE_LIBRI)
+  config_test(test_conventional_chi0 1)
+  add_test(NAME test_conventional_chi0_mpi2 COMMAND mpirun -np 2 $<TARGET_FILE:test_conventional_chi0>)
+  add_test(NAME test_conventional_chi0_mpi4 COMMAND mpirun -np 4 $<TARGET_FILE:test_conventional_chi0>)
+  set_tests_properties(test_conventional_chi0 test_conventional_chi0_mpi2 test_conventional_chi0_mpi4
+    PROPERTIES ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1" TIMEOUT 120)
+endif()

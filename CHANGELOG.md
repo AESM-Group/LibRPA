@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added conventional k-space RPA through frequency-only grids such as `tfgrids_type = GL`. The direct band sum supports full-mesh scalar and collinear inputs with LibRI routing and replicated eigenvectors, and reuses the existing RPA energy routines. Symmetry restoration, spinor inputs, and auxiliary-basis shrinking are not supported by this route.
+
 ## [0.9.0] - 2026-10-31
 
 ### Breaking changes

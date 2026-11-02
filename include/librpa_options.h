@@ -79,6 +79,9 @@ typedef struct
     /*!
      * Available driver values: `GL`, `GC-I`, `GL-II`, `minimax`, `evenspaced`, `evenspaced_tf`.
      * The driver maps the unset API value to `minimax`.
+     * Frequency-only grids select direct k-space chi0. This route requires LibRI routing,
+     * replicated scalar/collinear full-mesh eigenvectors, no symmetry restore, and no ABF shrinking.
+     * Grids with time nodes retain the space-time algorithm.
      *
      * @par Default
      * LIBRPA_TFGRID_UNSET

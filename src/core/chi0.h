@@ -93,7 +93,6 @@ private:
                                                const BlacsCtxtHandler &blacs_ctxt_h);
 
     //! Internal procedure to compute chi0_q in the conventional method, i.e. in frequency domain and reciprocal space
-    // TODO: implement the conventional method
     void build_chi0_q_conventional(const Cs_LRI &Cs,
                                    const std::vector<atpair_t> &atpairs_ABF);
     /*!
