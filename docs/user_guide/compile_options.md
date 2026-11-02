@@ -138,10 +138,10 @@ The option name is retained for compatibility with existing build scripts.
 This option is mutually exclusive with
 [`LIBRPA_USE_EXTERNAL_ELPA`](#librpa-use-external-elpa).
 
-The bundled ELPA build is managed through CMake's `ExternalProject` mechanism.
+The managed ELPA build is managed through CMake's `ExternalProject` mechanism.
 After ELPA has been built in an existing build directory, changing compiler
 flags or `CMAKE_BUILD_TYPE` may not automatically reconfigure and rebuild ELPA.
-Use a fresh build directory, or clean the bundled ELPA sub-build, when those
+Use a fresh build directory, or clean the managed ELPA sub-build, when those
 settings need to be applied to ELPA itself.
 
 Example:
@@ -152,7 +152,7 @@ cmake -DLIBRPA_USE_BUNDLED_ELPA=ON
 (librpa-bundled-elpa-version)=
 ## `LIBRPA_BUNDLED_ELPA_VERSION`
 
-Selects which bundled ELPA release is built when
+Selects which managed ELPA release is built when
 [`LIBRPA_USE_BUNDLED_ELPA`](#librpa-use-bundled-elpa) is enabled.
 
 Supported values are:
@@ -162,7 +162,7 @@ Supported values are:
 (librpa-bundled-elpa-kernel)=
 ## `LIBRPA_BUNDLED_ELPA_KERNEL`
 
-Selects an x86 SIMD kernel family for the bundled ELPA build.
+Selects an x86 SIMD kernel family for the managed ELPA build.
 
 By default, this option is empty. In that case, LibRPA disables ELPA's
 x86-specific SIMD kernels and lets ELPA build portable generic kernels. Set this
@@ -186,7 +186,7 @@ cmake -DLIBRPA_USE_BUNDLED_ELPA=ON \
 (librpa-bundled-elpa-openmp)=
 ## `LIBRPA_BUNDLED_ELPA_OPENMP`
 
-Controls whether the bundled ELPA library is built with ELPA's own OpenMP
+Controls whether the managed ELPA library is built with ELPA's own OpenMP
 support.
 
 The default is `OFF`. In that case, ELPA is built as an MPI-only static library,
@@ -210,7 +210,7 @@ cmake -DLIBRPA_USE_BUNDLED_ELPA=ON \
 (librpa-bundled-elpa-configure-args)=
 ## `LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS`
 
-Additional arguments passed to the bundled ELPA `configure` script.
+Additional arguments passed to the managed ELPA `configure` script.
 
 Arguments passed through this option are appended after LibRPA's defaults,
 including [`LIBRPA_BUNDLED_ELPA_KERNEL`](#librpa-bundled-elpa-kernel), so they
@@ -225,16 +225,16 @@ cmake -DLIBRPA_USE_BUNDLED_ELPA=ON \
 (librpa-bundled-elpa-libs)=
 ## `LIBRPA_BUNDLED_ELPA_LIBS`
 
-Linker flags passed to the bundled ELPA `configure` script through its `LIBS`
+Linker flags passed to the managed ELPA `configure` script through its `LIBS`
 environment variable.
 
 By default, LibRPA forwards the detected LAPACK and ScaLAPACK libraries to the
-bundled ELPA build. Set this option only when the autodetected flags are not
+managed ELPA build. Set this option only when the autodetected flags are not
 suitable for a particular compiler or math library setup.
 
 When static math libraries are used, ELPA's libtool build may try to include
 those static archives inside `libelpa.a`. LibRPA removes such nested archive
-members after the bundled ELPA install step and links the math libraries
+members after the managed ELPA install step and links the math libraries
 separately through CMake.
 
 Example:

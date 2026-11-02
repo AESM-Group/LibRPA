@@ -104,7 +104,7 @@ option [`LIBRPA_USE_EXTERNAL_GREENX`](<librpa-use-external-greenx>):
 cmake -DLIBRPA_USE_EXTERNAL_GREENX=ON ..
 ```
 
-In this case, LibRPA does not build the bundled GreenX copy. Instead, the
+In this case, LibRPA does not build the managed GreenX copy. Instead, the
 parent or higher-level CMake project must provide the external GreenX target
 `LibGXMiniMax`.
 

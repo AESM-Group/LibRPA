@@ -1,6 +1,6 @@
 include(ExternalProject)
 
-# Validate the requested bundled source and avoid clashing with an ELPA target
+# Validate the requested managed source and avoid clashing with an ELPA target
 # supplied by a parent project.
 set(_LIBRPA_BUNDLED_ELPA_SUPPORTED_VERSIONS
   2026.02.001
@@ -13,27 +13,27 @@ if(NOT LIBRPA_BUNDLED_ELPA_VERSION IN_LIST _LIBRPA_BUNDLED_ELPA_SUPPORTED_VERSIO
 endif()
 
 if(TARGET elpa)
-  message(FATAL_ERROR "Cannot build bundled ELPA because target 'elpa' already exists")
+  message(FATAL_ERROR "Cannot build managed ELPA because target 'elpa' already exists")
 endif()
 
 if(NOT EXISTS "${_elpa_source_dir}/configure")
-  message(FATAL_ERROR "Bundled ELPA source directory is incomplete: ${_elpa_source_dir}")
+  message(FATAL_ERROR "Managed ELPA source directory is incomplete: ${_elpa_source_dir}")
 endif()
 
 # Find the tools needed by ELPA's autotools build.
 find_program(LIBRPA_BUNDLED_ELPA_MAKE_EXECUTABLE NAMES gmake make)
 if(NOT LIBRPA_BUNDLED_ELPA_MAKE_EXECUTABLE)
-  message(FATAL_ERROR "Bundled ELPA requires a make executable")
+  message(FATAL_ERROR "Managed ELPA requires a make executable")
 endif()
 
 find_program(LIBRPA_BUNDLED_ELPA_BASH_EXECUTABLE NAMES bash)
 if(NOT LIBRPA_BUNDLED_ELPA_BASH_EXECUTABLE)
-  message(FATAL_ERROR "Bundled ELPA requires bash for its Fortran dependency preprocessor wrapper")
+  message(FATAL_ERROR "Managed ELPA requires bash for its Fortran dependency preprocessor wrapper")
 endif()
 
 find_program(LIBRPA_BUNDLED_ELPA_CPP_EXECUTABLE NAMES cpp-13 cpp)
 if(NOT LIBRPA_BUNDLED_ELPA_CPP_EXECUTABLE)
-  message(FATAL_ERROR "Bundled ELPA requires a C preprocessor executable named cpp")
+  message(FATAL_ERROR "Managed ELPA requires a C preprocessor executable named cpp")
 endif()
 
 # Keep the ELPA install private to this build tree and mirror the installed
@@ -105,10 +105,10 @@ if(LIBRPA_BUNDLED_ELPA_OPENMP)
   string(APPEND _elpa_c_flags " ${OpenMP_C_FLAGS}")
   string(APPEND _elpa_cxx_flags " ${OpenMP_CXX_FLAGS}")
   string(APPEND _elpa_fortran_flags " ${OpenMP_Fortran_FLAGS}")
-  message(STATUS "Use bundled ELPA OpenMP         : ON")
+  message(STATUS "Use managed ELPA OpenMP         : ON")
 else()
   list(APPEND _elpa_configure_args "--disable-openmp")
-  message(STATUS "Use bundled ELPA OpenMP         : OFF")
+  message(STATUS "Use managed ELPA OpenMP         : OFF")
 endif()
 
 # Select x86-specific ELPA kernels only when explicitly requested. By default,
@@ -150,9 +150,9 @@ if(_elpa_x86_kernel)
   else()
     list(APPEND _elpa_configure_args "--enable-${_elpa_x86_kernel_flag}-kernels")
   endif()
-  message(STATUS "Use bundled ELPA x86 kernel     : ${_elpa_x86_kernel}")
+  message(STATUS "Use managed ELPA x86 kernel     : ${_elpa_x86_kernel}")
 else()
-  message(STATUS "Use bundled ELPA x86 kernel     : none")
+  message(STATUS "Use managed ELPA x86 kernel     : none")
 endif()
 
 # Let advanced users pass additional configure arguments after LibRPA's
@@ -247,7 +247,7 @@ set(_elpa_ar "@CMAKE_AR@")
 set(_elpa_ranlib "@CMAKE_RANLIB@")
 
 if(NOT EXISTS "${_elpa_library}")
-  message(FATAL_ERROR "Bundled ELPA library was not found: ${_elpa_library}")
+  message(FATAL_ERROR "Managed ELPA library was not found: ${_elpa_library}")
 endif()
 
 execute_process(
@@ -258,7 +258,7 @@ execute_process(
 )
 if(NOT _elpa_archive_list_result EQUAL 0)
   message(FATAL_ERROR
-    "Failed to inspect bundled ELPA archive '${_elpa_library}': "
+    "Failed to inspect managed ELPA archive '${_elpa_library}': "
     "${_elpa_archive_list_error}")
 endif()
 
@@ -273,7 +273,7 @@ endforeach()
 
 if(_elpa_nested_archives)
   message(STATUS
-    "Removing nested archives from bundled ELPA library: "
+    "Removing nested archives from managed ELPA library: "
     "${_elpa_nested_archives}")
   execute_process(
     COMMAND "${_elpa_ar}" -d "${_elpa_library}" ${_elpa_nested_archives}
@@ -282,7 +282,7 @@ if(_elpa_nested_archives)
   )
   if(NOT _elpa_archive_prune_result EQUAL 0)
     message(FATAL_ERROR
-      "Failed to prune bundled ELPA archive '${_elpa_library}': "
+      "Failed to prune managed ELPA archive '${_elpa_library}': "
       "${_elpa_archive_prune_error}")
   endif()
 
@@ -294,7 +294,7 @@ if(_elpa_nested_archives)
     )
     if(NOT _elpa_ranlib_result EQUAL 0)
       message(FATAL_ERROR
-        "Failed to index bundled ELPA archive '${_elpa_library}': "
+        "Failed to index managed ELPA archive '${_elpa_library}': "
         "${_elpa_ranlib_error}")
     endif()
   endif()
@@ -319,7 +319,7 @@ add_custom_command(
 )
 add_custom_target(librpa_bundled_elpa_pruned DEPENDS "${_elpa_prune_stamp}")
 
-# Present the bundled install as a normal imported CMake target. This hides the
+# Present the managed install as a normal imported CMake target. This hides the
 # ExternalProject details from the rest of LibRPA.
 add_library(elpa STATIC IMPORTED GLOBAL)
 add_dependencies(elpa librpa_bundled_elpa_pruned)

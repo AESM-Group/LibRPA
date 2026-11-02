@@ -2,13 +2,13 @@ include_guard(GLOBAL)
 include(ExternalProject)
 
 if(NOT (LIBRPA_USE_CUDA OR LIBRPA_USE_HIP))
-  message(FATAL_ERROR "Bundled LibDDLA requires a CUDA or HIP backend")
+  message(FATAL_ERROR "Managed LibDDLA requires a CUDA or HIP backend")
 endif()
 if(LIBRPA_USE_CUDA AND LIBRPA_USE_HIP)
-  message(FATAL_ERROR "Bundled LibDDLA cannot enable CUDA and HIP together")
+  message(FATAL_ERROR "Managed LibDDLA cannot enable CUDA and HIP together")
 endif()
 if(NOT EXISTS "${_libddla_source_dir}/include/ddla/ddla.h")
-  message(FATAL_ERROR "Bundled LibDDLA source is incomplete: ${_libddla_source_dir}")
+  message(FATAL_ERROR "Managed LibDDLA source is incomplete: ${_libddla_source_dir}")
 endif()
 
 set(_libddla_binary_dir "${CMAKE_BINARY_DIR}/_deps/libddla-build")
@@ -117,8 +117,8 @@ set(LIBRPA_BUNDLED_DDLA_PROJECT_TARGET librpa_bundled_libddla)
 set(LIBRPA_BUNDLED_DDLA_INSTALL_DIR "${_libddla_install_dir}")
 
 message(STATUS
-  "Use bundled LibDDLA             : ${_libddla_source_dir}")
+  "Use managed LibDDLA             : ${_libddla_source_dir}")
 message(STATUS
-  "Bundled LibDDLA backend         : ${_libddla_backend}")
+  "Managed LibDDLA backend         : ${_libddla_backend}")
 message(STATUS
-  "Bundled LibDDLA build directory : ${_libddla_binary_dir}")
+  "Managed LibDDLA build directory : ${_libddla_binary_dir}")

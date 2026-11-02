@@ -25,7 +25,7 @@ option(LIBRPA_USE_LIBRI            "Use LibRI for tensor contraction in LibRPA" 
 option(LIBRPA_USE_LIBRI_GPU        "Use GPU tensor contractions in LibRI" OFF)
 option(LIBRPA_USE_EXTERNAL_ELPA    "Use an external ELPA eigensolver library from an installation prefix" OFF)
 option(LIBRPA_USE_BUNDLED_ELPA     "Build and use the managed ELPA eigensolver library" OFF)
-option(LIBRPA_BUNDLED_ELPA_OPENMP  "Build bundled ELPA with OpenMP support" OFF)
+option(LIBRPA_BUNDLED_ELPA_OPENMP  "Build managed ELPA with OpenMP support" OFF)
 option(LIBRPA_USE_CMAKE_INC        "Use cmake.inc for configure (deprecated)" OFF)
 option(LIBRPA_USE_EXTERNAL_GREENX  "Use an external GreenX target provided by the parent project instead of the managed source" OFF)
 option(LIBRPA_ENABLE_TEST          "Flag to build LibRPA tests" ON)
@@ -44,12 +44,12 @@ set(LIBRPA_FORTRAN_DP "c_double" CACHE STRING "Kind of double precision that the
 set(LIBRPA_MPI_THREAD_LEVEL "${LIBRPA_MPI_THREAD_LEVEL}" CACHE STRING "MPI thread level requested by LibRPA executables; empty selects automatically")
 set_property(CACHE LIBRPA_MPI_THREAD_LEVEL PROPERTY STRINGS "" MPI_THREAD_SINGLE MPI_THREAD_FUNNELED MPI_THREAD_SERIALIZED MPI_THREAD_MULTIPLE)
 set(EXTERNAL_ELPA_DIR "" CACHE PATH "External ELPA installation prefix")
-set(LIBRPA_BUNDLED_ELPA_VERSION "2026.02.001" CACHE STRING "Bundled ELPA version")
+set(LIBRPA_BUNDLED_ELPA_VERSION "2026.02.001" CACHE STRING "Managed ELPA version")
 set_property(CACHE LIBRPA_BUNDLED_ELPA_VERSION PROPERTY STRINGS "2026.02.001")
-set(LIBRPA_BUNDLED_ELPA_KERNEL "" CACHE STRING "Bundled ELPA x86 SIMD kernel family")
+set(LIBRPA_BUNDLED_ELPA_KERNEL "" CACHE STRING "Managed ELPA x86 SIMD kernel family")
 set_property(CACHE LIBRPA_BUNDLED_ELPA_KERNEL PROPERTY STRINGS "" "SSE" "SSE_ASSEMBLY" "AVX" "AVX2" "AVX512")
-set(LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS "" CACHE STRING "Extra configure arguments for bundled ELPA")
-set(LIBRPA_BUNDLED_ELPA_LIBS "" CACHE STRING "Libraries passed to bundled ELPA configure through LIBS")
+set(LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS "" CACHE STRING "Extra configure arguments for managed ELPA")
+set(LIBRPA_BUNDLED_ELPA_LIBS "" CACHE STRING "Libraries passed to managed ELPA configure through LIBS")
 
 # Deprecation stops
 if (DEFINED USE_GREENX_MINIMAX)
@@ -90,7 +90,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # enable_language later than cmake.inc to take the variables therein into accout
 # require Fortran for GreenX library and Fortran binding
 if(LIBRPA_USE_BUNDLED_ELPA)
-  # require C for bundled ELPA
+  # require C for managed ELPA
   enable_language(CXX C Fortran)
 else()
   enable_language(CXX Fortran)
@@ -262,7 +262,7 @@ elseif(LIBRPA_USE_BUNDLED_ELPA)
     endforeach()
     string(REPLACE ";" " " LIBRPA_BUNDLED_ELPA_LIBS "${_librpa_elpa_configure_lib_flags}")
   endif()
-  message(STATUS "Use bundled ELPA version        : ${LIBRPA_BUNDLED_ELPA_VERSION}")
+  message(STATUS "Use managed ELPA version        : ${LIBRPA_BUNDLED_ELPA_VERSION}")
   add_compile_definitions("LIBRPA_USE_ELPA")
   librpa_thirdparty_prepare(ELPA _elpa_source_dir)
   add_subdirectory(thirdparty/ELPA)
@@ -421,7 +421,7 @@ if(LIBRPA_USE_CUDA)
 endif()
 
 # Check LibDDLA. LIBRPA_USE_CUDA/HIP select the public DDLA headers used by
-# LibRPA, while a bundled LibDDLA enables its GPU language in a child build.
+# LibRPA, while a managed LibDDLA enables its GPU language in a child build.
 set(LIBRPA_DDLA_TARGET "")
 set(LIBRPA_BUNDLED_DDLA_PROJECT_TARGET "")
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
