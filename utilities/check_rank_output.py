@@ -32,7 +32,16 @@ without external dependencies.
 
 SCAN_DIRS = ("src", "driver")
 SUFFIXES = {".cpp", ".h", ".hpp"}
-EXCLUDED_PREFIXES = ("src/test/", "src/io/global_io.")
+EXCLUDED_PREFIXES = (
+    "src/test/",
+    "src/io/global_io.",
+    # Not in driver/CMakeLists.txt
+    "driver/task_qsgw.cpp",
+    "driver/task_qsgwA.cpp",
+    "driver/task_hf_band.cpp",
+    "driver/task_scRPA.cpp",
+    "driver/task_scRPA_band.cpp",
+)
 
 WRITE = re.compile(
     r"(?<![\w.>:])"
@@ -46,9 +55,6 @@ CRITICAL = re.compile(r"\s*LIBRPA_VERBOSE_CRITICAL\b")
 # Number of writes that the scan reports and that are known, for each file.
 KNOWN_WRITES: Dict[str, int] = {
     "driver/inputfile.cpp": 2,
-    "driver/task_hf_band.cpp": 34,
-    "driver/task_qsgwA.cpp": 33,
-    "driver/task_scRPA_band.cpp": 2,
     "driver/tasks/qsgw.cpp": 1,
     "driver/tasks/sternheimer_rpa.cpp": 2,
     "driver/tasks/task_helper.cpp": 11,
