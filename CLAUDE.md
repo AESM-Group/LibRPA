@@ -37,6 +37,13 @@ python -m unittest discover -s regression_tests/backend/comparisons -p 'test_cmp
 PYTHONPATH="$PWD/regression_tests:$PWD" python -m unittest discover -s regression_tests/backend -p 'test_*.py'
 ```
 
+After a change to `binding/fortran/librpa_f03.f90`, generate the stub module
+again:
+
+```bash
+(cd binding/fortran && ../../utilities/convert_fortran_module_to_stub.py librpa_f03.f90 librpa_f03_stubs.f90)
+```
+
 Run the regression tests in `regression_tests/`. Use a new workspace for each
 run, or add `-f`.
 

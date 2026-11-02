@@ -36,15 +36,22 @@ tier, but cannot lower it.
 | M | Code changes with no H condition | One reviewer other than the author examines the intent, the evidence, and the agent findings |
 | H | At least one H condition | One area owner other than the author examines the change and its numerical evidence |
 
-The H conditions are:
+The H conditions are in two groups. The paths and the lines of the diff show
+the conditions in the first group:
 
 - A change to an existing file in `regression_tests/refs/`.
 - A removed or changed line in `regression_tests/testsuite.xml`.
 - A change to a comparator in `regression_tests/backend/comparisons/`.
 - A removed or changed line in `include/` or `binding/fortran/`.
-- A change to the installed files or targets.
-- A change to an input, output, or restart file format.
 - A change to `.github/`, `REVIEW.md`, `CLAUDE.md`, `thirdparty/`, or `src/mpi/`.
+- An added, removed, or changed `install(` command in a CMake file.
+
+A person or an agent must examine the change for the conditions in the second
+group:
+
+- A change to an installed file outside `include/`, such as a CMake package
+  file.
+- A change to an input, output, or restart file format.
 - A change to a default value.
 - A change to a convention: basis, matrix order, transpose or conjugate,
   normalization, units, k or q mapping, or parallel data ownership.
@@ -80,7 +87,12 @@ The standard depends on the type of change:
 
 ### Agent review
 
-Record the status of each agent review: completed, failed, or not run. A failed
+The author runs the agent review before asking for a review, for example with
+`/code-review high <pull request number>` in Claude Code. `CLAUDE.md` tells the
+agent to use `REVIEW.md`. The agent review is advisory and is not a CI check.
+
+Record the status of each agent review in the template: completed, failed, or
+not run. A failed
 review with no findings does not show that the change is correct. If the review
 did not complete, the reviewer examines the full change.
 
