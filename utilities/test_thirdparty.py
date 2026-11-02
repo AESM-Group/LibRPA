@@ -67,6 +67,14 @@ librpa_thirdparty_declare(Fixture VERSION 1 URL "file:///nonexistent/fixture.tar
         self.assertEqual(result.returncode == 0, success, output)
         return output
 
+    def test_directory_symlink_hash(self):
+        (self.upstream / "include/alias").symlink_to("vendor", target_is_directory=True)
+        self.run_cmake(f'''librpa_thirdparty_tree_sha256(hash "{self.upstream}/include")
+if(NOT hash STREQUAL "{self.pristine}")
+  message(FATAL_ERROR "Directory symlink changed the file tree hash: ${{hash}}")
+endif()
+''')
+
     def test_prepare_repeat_and_tamper(self):
         body = "librpa_thirdparty_prepare(Fixture source)\n"
         self.run_cmake(body)

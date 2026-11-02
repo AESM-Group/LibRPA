@@ -38,8 +38,8 @@ librpa_thirdparty_declare(greenX
   URL "https://github.com/nomad-coe/greenX/archive/c90d131873eeec68406c335dc22ae8ad4b445dd8.tar.gz"
   ARCHIVE "greenX-c90d131.tar.gz"
   PATCHES greenX/0001-librpa-build-integration.patch
-  PRISTINE_SHA256 9975452bce92db67a387815d077e41f3fe43e1b9d5bcb249799d86b373d95dca
-  TREE_SHA256 992f57ee0d1a42992400aefce5e0d36bc59d759ee59bf75722e57931db82be73
+  PRISTINE_SHA256 2e62f2a2869deb2e084aab49965f9398dacacb05f7fd0e4975898c4f486de930
+  TREE_SHA256 9edacf36b8fc53b131c7f0651e3986e969d7638b17df3ad05309333ad44f104a
   LICENSE Apache-2.0)
 
 librpa_thirdparty_declare(ELPA

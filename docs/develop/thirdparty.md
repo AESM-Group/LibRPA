@@ -10,7 +10,7 @@ The tracked `thirdparty/manifest.cmake` declares the version, URL, archive filen
 <lowercase file SHA256><two spaces><relative path><newline>
 ```
 
-Directory names, file modes and timestamps are not included. Preserve upstream symbolic links when extracting or copying archives; expanding directory links changes the file list. The equivalent shell check for a tree without symbolic links is:
+Directory names, file modes and timestamps are not included. Directory symlinks are explicitly excluded because GLOB_RECURSE can list them even with `LIST_DIRECTORIES false`. Preserve upstream symbolic links when extracting or copying archives; expanding directory links changes the file list. The equivalent shell check for a tree without symbolic links is:
 
 ```sh
 (cd ROOT && find . -type f | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r f; do

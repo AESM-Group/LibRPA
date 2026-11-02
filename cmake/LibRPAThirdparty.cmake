@@ -10,6 +10,11 @@ function(librpa_thirdparty_tree_sha256 out root)
   list(SORT _files)
   set(_lines "")
   foreach(_file IN LISTS _files)
+    # GLOB_RECURSE can list directory symlinks even with
+    # LIST_DIRECTORIES false. Hashing directories is not portable.
+    if(IS_DIRECTORY "${root}/${_file}")
+      continue()
+    endif()
     file(SHA256 "${root}/${_file}" _sha)
     string(APPEND _lines "${_sha}  ${_file}\n")
   endforeach()
