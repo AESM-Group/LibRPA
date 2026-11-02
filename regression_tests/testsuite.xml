@@ -827,6 +827,33 @@
       />
     </testcase>
 
+    <testcase name="LiH, k333 with symmetry and auxiliary-basis shrink (aims input)"
+              directory="g0w0_aims_LiH_k333_sym_shrink_libri">
+      <build require_libri="true"
+      />
+      <run ntasks_disable="none"
+           nthreads_disable="none"
+           ntasks_enable="none"
+           nthreads_enable="none"
+      />
+      <validate name="Quasi-particle energies on k-grid (shrink, symmetry)"
+                file_test="librpa/librpa.out"
+                file_refr="librpa/sym_np4/librpa.out"
+                regex="State\s+occ\s+e_mf\s+v_xc\s+v_exx\s+ReSigc\s+ImSigc\s+e_qp"
+                headers="2"
+                rows="6"
+                comparison="cmp_table.abs_diff(1e-4)"
+      />
+      <validate name="Quasi-particle energies on k-grid (shrink, no symmetry)"
+                file_test="librpa/librpa.out"
+                file_refr="librpa/nosym_np4/librpa.out"
+                regex="State\s+occ\s+e_mf\s+v_xc\s+v_exx\s+ReSigc\s+ImSigc\s+e_qp"
+                headers="2"
+                rows="6"
+                comparison="cmp_table.abs_diff(1e-4)"
+      />
+    </testcase>
+
     <testcase name="Bulk MgO, with symmetry on (aims input)" directory="g0w0_aims_MgO_sym_libri">
       <labels refhash="a56500a434d0f57e06eb8cfed2dacd3f66833f78"
       />
