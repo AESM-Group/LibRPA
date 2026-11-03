@@ -228,5 +228,76 @@ endif()
         self.assertFalse(list((self.storage / "src").glob(".tmp-*")))
 
 
+class GreenXResolutionTest(unittest.TestCase):
+    """Exercise target and package resolution without a compiler or network."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="librpa greenx ")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.prefix = self.root / "installation"
+        self.modules = self.prefix / "include/greenX/GNU-13.4.0"
+        for component, module in (("TimeFrequency", "gx_minimax"), ("common", "kinds")):
+            directory = self.modules / component / "modules"
+            directory.mkdir(parents=True)
+            (directory / (module + ".mod")).touch()
+        config = self.prefix / "lib/cmake/greenX/greenXConfig.cmake"
+        config.parent.mkdir(parents=True)
+        config.write_text(f'''add_library(greenX::GXCommon INTERFACE IMPORTED)
+set_target_properties(greenX::GXCommon PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES "{self.modules}/common/modules")
+add_library(greenX::LibGXMiniMax INTERFACE IMPORTED)
+set_target_properties(greenX::LibGXMiniMax PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES "{self.modules}/TimeFrequency/modules"
+  INTERFACE_LINK_LIBRARIES greenX::GXCommon)
+''')
+
+    def configure(self, body, success=True):
+        (self.root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
+project(Resolution NONE)
+include("{MODULE}")
+set(CMAKE_Fortran_COMPILER_ID GNU)
+set(CMAKE_Fortran_COMPILER_VERSION 13.4.0)
+{body}
+include("{MODULE.parent}/ResolveGreenX.cmake")
+message(STATUS "Summary: ${{LIBRPA_THIRDPARTY_SUMMARY}}")
+''')
+        result = subprocess.run(["cmake", "-S", str(self.root), "-B", str(self.root / "build")],
+                                capture_output=True, text=True)
+        output = " ".join((result.stdout + result.stderr).split())
+        self.assertEqual(result.returncode == 0, success, output)
+        return output
+
+    def test_parent_target_with_external_option_off(self):
+        for target in ("LibGXMiniMax", "greenX::LibGXMiniMax"):
+            with self.subTest(target=target):
+                output = self.configure(f'''set(LIBRPA_USE_EXTERNAL_GREENX OFF)
+add_library({target} INTERFACE IMPORTED)
+''')
+                self.assertIn("greenX=target", output)
+                self.assertNotIn("Downloading", output)
+                self.assertNotIn("prebuilt installation", output)
+
+    def test_installed_transitive_modules_and_compiler_warning(self):
+        body = f'set(EXTERNAL_GREENX_DIR "{self.prefix}")'
+        output = self.configure(body)
+        self.assertIn(f"greenX=installed({self.prefix})", output)
+        self.assertIn("using a prebuilt installation", output)
+        self.assertNotIn("installed Fortran modules were built", output)
+        output = self.configure(body + '\nset(CMAKE_Fortran_COMPILER_VERSION 14.1.0)')
+        self.assertIn("installed Fortran modules were built with GNU-13.4.0", output)
+        self.assertIn("LibRPA uses GNU-14.1.0", output)
+        (self.modules / "common/modules/kinds.mod").unlink()
+        output = self.configure(body, success=False)
+        self.assertIn("missing kinds.mod", output)
+
+    def test_ambiguous_or_missing_external_source(self):
+        output = self.configure('set(GREENX_SOURCE_DIR /source)\nset(EXTERNAL_GREENX_DIR /prefix)',
+                                success=False)
+        self.assertIn("mutually exclusive", output)
+        output = self.configure('set(LIBRPA_USE_EXTERNAL_GREENX ON)', success=False)
+        self.assertIn("LIBRPA_USE_EXTERNAL_GREENX requires", output)
+
+
 if __name__ == "__main__":
     unittest.main()
