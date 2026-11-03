@@ -113,6 +113,31 @@ endif()
 ''')
         self.assertIn("differs from the pinned version", " ".join(output.split()))
 
+    def test_whole_tree_overlay_preserves_symlink(self):
+        (self.upstream / "alias").symlink_to("include", target_is_directory=True)
+        pristine = tree_hash(self.upstream)
+        self.header.write_text("// patched\n")
+        patched = tree_hash(self.upstream)
+        self.header.write_text("// upstream\n")
+        body = f'''set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_HASH_SUBDIR "")
+set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_PRISTINE_SHA256 "{pristine}")
+set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_TREE_SHA256 "{patched}")
+librpa_thirdparty_use_path(Fixture "{self.upstream}" result status)
+if(NOT status STREQUAL "overlay" OR NOT IS_SYMLINK "${{result}}/alias")
+  message(FATAL_ERROR "Whole-tree overlay did not preserve the symlink")
+endif()
+librpa_thirdparty_use_path(Fixture "${{result}}" pinned status)
+if(NOT status STREQUAL "pinned" OR NOT pinned STREQUAL result)
+  message(FATAL_ERROR "Expected pinned whole-tree source")
+endif()
+'''
+        self.run_cmake(body)
+        self.assertEqual(tree_hash(self.upstream), pristine)
+        result = self.storage / f"src/Fixture-{patched[:12]}"
+        self.assertTrue((result / "alias").is_symlink())
+        self.assertEqual(os.readlink(result / "alias"), "include")
+        self.assertEqual(tree_hash(result), patched)
+
     def test_offline_archive_and_failed_patch(self):
         body = "set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\nlibrpa_thirdparty_prepare(Fixture source)\n"
         output = self.run_cmake(body, success=False)

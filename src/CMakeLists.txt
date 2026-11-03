@@ -12,7 +12,12 @@ else()
   add_library(rpa_lib STATIC)
 endif()
 
-add_dependencies(rpa_lib LibGXMiniMax)
+get_target_property(_greenx_imported ${LIBRPA_GREENX_TARGET} IMPORTED)
+if(NOT _greenx_imported)
+  add_dependencies(rpa_lib ${LIBRPA_GREENX_TARGET})
+  target_include_directories(rpa_lib PRIVATE
+    $<TARGET_PROPERTY:${LIBRPA_GREENX_TARGET},Fortran_MODULE_DIRECTORY>)
+endif()
 
 set_target_properties(rpa_lib PROPERTIES
   OUTPUT_NAME rpa
@@ -20,10 +25,7 @@ set_target_properties(rpa_lib PROPERTIES
   SOVERSION ${CMAKE_PROJECT_VERSION}
 )
 
-target_link_libraries(rpa_lib PRIVATE LibGXMiniMax)
-target_include_directories(rpa_lib PRIVATE
-  $<TARGET_PROPERTY:LibGXMiniMax,Fortran_MODULE_DIRECTORY>
-)
+target_link_libraries(rpa_lib PRIVATE ${LIBRPA_GREENX_TARGET})
 
 if(LIBRPA_ELPA_TARGET)
   # Public LibRPA headers include ELPA declarations, so consumers need the
