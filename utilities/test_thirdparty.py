@@ -166,6 +166,15 @@ endif()
         self.run_cmake(body, env=environment)
         self.assertTrue(self.final.is_dir())
 
+    def test_nonempty_relative_archive_path(self):
+        environment = dict(os.environ, LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.mirror))
+        self.run_cmake('''librpa_thirdparty_archive_dir(resolved)
+get_filename_component(expected "OFF" ABSOLUTE)
+if(NOT resolved STREQUAL expected)
+  message(FATAL_ERROR "A nonempty path was treated as a boolean: ${resolved}")
+endif()
+''', definitions=["-DLIBRPA_THIRDPARTY_ARCHIVE_DIR:PATH=OFF"], env=environment)
+
     def test_shared_archive_reuse(self):
         archives = self.root / "shared archives"
         body = f'set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "{archives}")\nlibrpa_thirdparty_prepare(Fixture source)\n'
