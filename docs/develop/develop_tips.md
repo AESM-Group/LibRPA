@@ -152,8 +152,8 @@ change to a script is an H condition.
 ### Agent review
 
 The author runs the agent review before asking for a review, for example with
-`/code-review high <pull request number>` in Claude Code. `CLAUDE.md` tells the
-agent to use `REVIEW.md`. The agent review is advisory and is not a CI check.
+`/code-review high <pull request number>` in Claude Code. `AGENTS.md` tells the
+agent to use `REVIEW.md`, and `CLAUDE.md` imports `AGENTS.md`. The agent review is advisory and is not a CI check.
 
 Record the status of each agent review in the template: completed, failed, or
 not run. A failed
