@@ -433,7 +433,7 @@ int main(int argc, char** argv)
                 require(matrix_error(zero_result.at(k), zero[k]) < 1e-15,
                         "Zero Hartree feedback changed the reference");
         }
-        for (const auto& spins : {std::pair<int, int>{1, 1}, {2, 1}, {1, 2}})
+        for (const auto& spins : std::initializer_list<std::pair<int, int>>{{1, 1}, {2, 1}, {1, 2}})
         {
             check_density(spins.first, spins.second, true, false);
             check_density(spins.first, spins.second, false, false);
