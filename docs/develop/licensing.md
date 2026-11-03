@@ -3,7 +3,7 @@
 LibRPA is distributed under the GNU Lesser General Public License v3.0
 (LGPL-3.0).
 
-LibRPA downloads and builds the following third-party components, which retain their own licenses:
+LibRPA uses the following third-party components as selected by the build configuration. It can reuse supplied dependencies or cached sources, and download or build components when necessary. These components retain their own licenses:
 
 - [greenX (`c90d131`)](https://github.com/nomad-coe/greenX/tree/c90d131873eeec68406c335dc22ae8ad4b445dd8): Apache-2.0
 - [cereal (`d81e2f7`)](https://github.com/USCiLab/cereal/tree/d81e2f7df7b334fee057e53017388d02e555a836): BSD-3-Clause
