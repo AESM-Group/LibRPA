@@ -1,0 +1,38 @@
+name: Checks
+
+# Checks that need only Python and no build. This workflow runs for each change,
+# including changes to documentation only, which ci.yml skips.
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check consistency of the runtime option definitions
+        run: |
+          python utilities/check_librpa_options.py
+      - name: Check that the Fortran stub module is synchronized
+        run: |
+          pushd binding/fortran
+          python ../../utilities/convert_fortran_module_to_stub.py librpa_f03.f90 "$RUNNER_TEMP/librpa_f03_stubs.f90"
+          diff -u librpa_f03_stubs.f90 "$RUNNER_TEMP/librpa_f03_stubs.f90"
+          popd
+      - name: Test the risk tier script
+        run: |
+          python -m unittest discover -s utilities -p 'test_*.py'
+      - name: Test regression result validators
+        run: |
+          python -m unittest discover -s regression_tests/backend/comparisons -p 'test_cmp_*.py'
+          PYTHONPATH="$PWD/regression_tests:$PWD" python -m unittest discover -s regression_tests/backend -p 'test_*.py'

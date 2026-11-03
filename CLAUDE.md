@@ -23,19 +23,26 @@ cmake --build build -j 8
 ```
 
 `.github/workflows/ci.yml` has the compiler settings and the other build
-configurations.
+configurations. It does not run when a change has only files in `docs/` and
+`.md` files.
 
 ## Test
 
-Run these checks in the repository root:
+Run these checks in the repository root. They need no build, and
+`.github/workflows/checks.yml` runs them for each change:
 
 ```bash
-cmake --build build --target test
-ctest --test-dir build -R <test name>
 python utilities/check_librpa_options.py
 python -m unittest discover -s utilities -p 'test_*.py'
 python -m unittest discover -s regression_tests/backend/comparisons -p 'test_cmp_*.py'
 PYTHONPATH="$PWD/regression_tests:$PWD" python -m unittest discover -s regression_tests/backend -p 'test_*.py'
+```
+
+Run the unit tests after a build:
+
+```bash
+cmake --build build --target test
+ctest --test-dir build -R <test name>
 ```
 
 After a change to `binding/fortran/librpa_f03.f90`, generate the stub module

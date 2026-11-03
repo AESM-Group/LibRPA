@@ -25,6 +25,20 @@ If the complete work adds more than 3000 lines, open a design issue first. The
 issue gives the physical definition, the inputs, the file formats, and the
 validation plan.
 
+### Continuous integration
+
+These workflows in `.github/workflows/` run on each pull request:
+
+| Workflow | What it does |
+| :------- | :----------- |
+| `checks.yml` | Checks that need no build: the runtime option definitions, the Fortran stub module, and the tests of the Python scripts |
+| `ci.yml` | Builds LibRPA and runs the unit tests and the regression tests |
+| `deploy-ghpages-doc.yml` | Builds the documentation |
+| `risk-tier.yml` | Gives the minimum risk tier. See "Risk tiers" |
+
+`ci.yml` does not run when a change has only files in `docs/` and `.md` files.
+The other workflows run for each change.
+
 ### Risk tiers
 
 The change sets the tier, not the author. A reviewer or an agent can raise the
