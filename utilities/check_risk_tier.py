@@ -19,8 +19,9 @@ other H conditions and can raise the tier.
 
 Without an H condition, the tier is L if the change has only documentation and
 new tests, and M otherwise. A new test is an added test file, or added lines
-with no removed lines in an existing test file. New reference values in
-regression_tests/refs/ are not new tests, and make the tier M.
+with no removed lines in an existing test file. A file added to
+regression_tests/refs/ makes the tier M, because the reference values of a new
+regression test need a review.
 
 The script also counts the added lines of production code, and gives a warning
 above the limit in "Git collaborative workflow".

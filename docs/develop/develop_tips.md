@@ -61,7 +61,7 @@ tier, but cannot lower it.
 
 | Tier | Change | Review |
 | :--- | :----- | :----- |
-| L | Documentation or new tests with no new reference values, and no H condition | The author can merge after CI passes |
+| L | Documentation, or new tests that add no files to `regression_tests/refs/`, with no H condition | The author can merge after CI passes |
 | M | Other changes with no H condition | One reviewer other than the author examines the intent, the evidence, and the agent findings |
 | H | At least one H condition | One area owner other than the author examines the change and its numerical evidence |
 
