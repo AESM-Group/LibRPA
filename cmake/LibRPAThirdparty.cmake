@@ -265,8 +265,8 @@ function(librpa_thirdparty_target_include_dirs target out)
   set(${out} "${_includes}" PARENT_SCOPE)
 endfunction()
 
-function(librpa_thirdparty_warn_installed name prefix source_variable)
-  message(WARNING "${name}: using a prebuilt installation (${prefix}). Prebuilt libraries may be incompatible with the compilers and flags used for LibRPA. Prefer a parent-project target or ${source_variable}.")
+function(librpa_thirdparty_warn_installed name prefix managed_hint source_variable)
+  message(WARNING "${name}: using a prebuilt installation (${prefix}). Prebuilt libraries may be incompatible with the compilers and flags used for LibRPA. Prefer the managed source (${managed_hint}), then a parent-project target, then ${source_variable}.")
 endfunction()
 
 # Resolve header-only dependencies without searching unrelated system paths.

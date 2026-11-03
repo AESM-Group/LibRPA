@@ -1,4 +1,4 @@
-# Prefer a parent target, then source, installation, and managed source.
+# Select a parent target, then source, installation, and managed source.
 librpa_thirdparty_path(GREENX_SOURCE_DIR _greenx_user_source)
 librpa_thirdparty_path(EXTERNAL_GREENX_DIR _greenx_prefix)
 if(_greenx_user_source AND _greenx_prefix)
@@ -25,7 +25,8 @@ elseif(_greenx_prefix)
   if(NOT TARGET ${LIBRPA_GREENX_TARGET})
     message(FATAL_ERROR "greenX: installation ${_greenx_prefix} does not provide greenX::LibGXMiniMax")
   endif()
-  librpa_thirdparty_warn_installed(greenX "${_greenx_prefix}" GREENX_SOURCE_DIR)
+  librpa_thirdparty_warn_installed(greenX "${_greenx_prefix}"
+    "leave EXTERNAL_GREENX_DIR empty" GREENX_SOURCE_DIR)
   set(_greenx_status installed)
 
   # Installed modules come from MiniMax and its transitive GXCommon target.

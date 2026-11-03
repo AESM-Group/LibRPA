@@ -183,14 +183,16 @@ A nonempty CMake value overrides this environment variable. Local archives in th
 (install-dependency-sources)=
 ## Choosing dependency sources
 
-For compiled dependencies (greenX, ELPA and LibDDLA), use this order:
+For compiled dependencies (greenX, ELPA and LibDDLA), choose a source in this order of preference:
 
-1. A parent project's CMake target. This keeps the toolchain and link dependencies under the parent's control.
-2. An external source path. LibRPA builds it with its own compilers and build settings.
-3. A prebuilt installation prefix, when required. Each configuration warns about compatibility risks.
-4. Managed sources, when no external source is supplied.
+1. Managed sources. Do not set a target, source path or installation prefix. LibRPA uses the pinned version and patches, verifies the tree hash, and builds it with its own compilers and build settings. This is the recommended choice for standalone builds.
+2. A parent project's CMake target. Use this when LibRPA is part of a larger project. The parent controls the toolchain and link dependencies.
+3. An external source path. Use this to develop or test a dependency. LibRPA builds it with its own compilers and build settings.
+4. A prebuilt installation prefix, only when the other choices are not possible. Prebuilt libraries can have incompatible compilers, flags, C++ ABIs, BLAS/LAPACK libraries or Fortran modules. Each configuration warns about these risks.
 
-Targets and source paths are recommended. Prebuilt libraries can have incompatible compilers, flags, C++ ABIs or Fortran modules.
+For ELPA, managed sources require `LIBRPA_USE_BUNDLED_ELPA=ON`, because ELPA is disabled by default.
+
+When several sources are supplied, LibRPA selects the first available one in this order: parent target, source path, installation prefix, managed sources. Managed sources are used only when nothing else is supplied. This selection order is not a recommendation.
 
 | Dependency | Parent target | Source path | Installation prefix |
 | --- | --- | --- | --- |

@@ -148,7 +148,7 @@ cmake -S . -B build -DLIBRPA_USE_HIP=ON
 (librpa-use-external-elpa)=
 ## `LIBRPA_USE_EXTERNAL_ELPA`
 
-Enable an external ELPA library. An existing `ELPA::ELPA` target takes precedence over installation discovery. Otherwise, LibRPA uses its ELPA finder with `EXTERNAL_ELPA_DIR` and other supported search hints. Each configuration warns about prebuilt library compatibility. Prefer a parent target or an `ELPA_SOURCE_DIR` build.
+Enable an external ELPA library. An existing `ELPA::ELPA` target takes precedence over installation discovery. Otherwise, LibRPA uses its ELPA finder with `EXTERNAL_ELPA_DIR` and other supported search hints. Each configuration warns about prebuilt library compatibility. Prefer the managed source with `LIBRPA_USE_BUNDLED_ELPA=ON`, then a parent target, then an `ELPA_SOURCE_DIR` build.
 
 This option does not prepare a managed ELPA source tree. It is mutually exclusive with `LIBRPA_USE_BUNDLED_ELPA`.
 
@@ -302,7 +302,7 @@ Prebuilt greenX installation prefix. A nonempty CMake value takes precedence ove
 
 LibRPA loads `greenXConfig.cmake` only from this prefix and uses `greenX::LibGXMiniMax`. Its link interface must provide `gx_minimax.mod` and `kinds.mod`. Missing modules stop configuration. If the module path identifies a different Fortran compiler or version, LibRPA warns.
 
-Each configuration warns about compatibility with LibRPA's compilers and flags. Prefer a parent target or `GREENX_SOURCE_DIR`. The installation must also provide compatible BLAS/LAPACK dependencies. Supply `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` when necessary.
+Each configuration warns about compatibility with LibRPA's compilers and flags. Prefer the managed source (leave this variable empty), then a parent target, then `GREENX_SOURCE_DIR`. The installation must also provide compatible BLAS/LAPACK dependencies. Supply `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` when necessary.
 
 (elpa-source-dir)=
 ## `ELPA_SOURCE_DIR`
@@ -459,7 +459,7 @@ The resolution order is:
 3. `LIBDDLA_PATH` installation.
 4. Managed source from the manifest.
 
-`LIBDDLA_PATH` and `LIBDDLA_SOURCE_DIR` are mutually exclusive. Each installation-mode configuration warns about compiler and flag compatibility. Prefer a parent target or a source build.
+`LIBDDLA_PATH` and `LIBDDLA_SOURCE_DIR` are mutually exclusive. Each installation-mode configuration warns about compiler and flag compatibility. Prefer the managed source (leave both variables empty), then a parent target, then a source build.
 
 The installation must contain `include/ddla/ddla.h` and a `ddla` library under `lib/` or `lib64/`. Missing headers or a missing library cause an error. Installed libraries are not checked against the manifest's source-tree hash. The installation must match the selected backend, compiler and MPI environment.
 
@@ -504,7 +504,7 @@ The finder looks for ELPA headers and a library. It also adds the Fortran module
 - `include/elpa-*/modules/elpa.mod`
 - `lib/libelpa.so` or `lib/libelpa_openmp.so`, also under `lib64/`
 
-`ELPA_ROOT`, including its environment variable, is used when `EXTERNAL_ELPA_DIR` is absent. An explicit prefix restricts the search to that installation. Missing headers or libraries stop configuration. With no prefix, standard search paths remain available. Installation mode emits a compatibility warning on every configuration. Prefer a parent target or `ELPA_SOURCE_DIR`.
+`ELPA_ROOT`, including its environment variable, is used when `EXTERNAL_ELPA_DIR` is absent. An explicit prefix restricts the search to that installation. Missing headers or libraries stop configuration. With no prefix, standard search paths remain available. Installation mode emits a compatibility warning on every configuration. Prefer the managed source with `LIBRPA_USE_BUNDLED_ELPA=ON`, then a parent target, then `ELPA_SOURCE_DIR`.
 
 ```sh
 cmake -S . -B build -DLIBRPA_USE_EXTERNAL_ELPA=ON -DEXTERNAL_ELPA_DIR=/path/to/elpa
