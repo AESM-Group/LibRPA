@@ -142,11 +142,13 @@ Put the input in `regression_tests/testcases/<case>`, the reference values in
 `regression_tests/refs/<case>`, and the test in `regression_tests/testsuite.xml`.
 Use a comparator in `regression_tests/backend/comparisons/`, or add one.
 
-A script in `regression_tests/verification/` compares LibRPA results with each
-other, for example a continuous run with a restarted run, two MPI layouts, or a
-value with the same value calculated again from other output. The script does
-not keep reference values. If a check needs reference values, make it a
-regression test. The tolerances in these scripts are numerical gates, so a
+A script in `regression_tests/verification/` runs several calculations in one
+job and compares the results with each other, for example a continuous run with
+a restarted run, two MPI layouts, or a value with the same value calculated
+again from other output. The script uses the inputs in
+`regression_tests/testcases/`, which the regression tests also use, so a change
+to these inputs affects both. The script does not keep reference values. If a
+check needs reference values, make it a regression test. The tolerances in these scripts are numerical gates, so a
 change to a script is an H condition.
 
 ### Agent review
