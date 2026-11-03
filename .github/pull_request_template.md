@@ -16,6 +16,8 @@ Reason:
 - Existing references or tolerances:
 - Defaults, public interfaces, or file formats:
 - Conventions (basis, matrix order, normalization, units, k or q mapping, data ownership):
+- Existing computed results (energies, self-energies, screening, densities): changed or unchanged
+- If changed, the equation that the code implements (paper or `docs/theory/`):
 - Numerical error corrected (affected versions, input conditions, size):
 
 ## Evidence that CI does not show

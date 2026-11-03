@@ -18,6 +18,9 @@ this risk.
   part of a number.
 - Changes to existing references, tolerances, or comparators without a physical
   reason.
+- A change to an existing computed result that does not give the equation that
+  the code implements. Compare the code with this equation, not with the old
+  code.
 - A refactor that changes existing references, or a method change whose only
   evidence is agreement with the old results.
 - Code in `src/` that depends on `driver/`, and other breaks of the rules in

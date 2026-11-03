@@ -89,6 +89,14 @@ group:
 - A change to a default value.
 - A change to a convention: basis, matrix order, transpose or conjugate,
   normalization, units, k or q mapping, or parallel data ownership.
+- A change to the value of an existing computed result, such as an energy, a
+  self-energy, a screened interaction, or a density. A new quantity that does
+  not change the existing results does not meet this condition.
+
+If a change alters an existing computed result, the description gives the
+equation that the code implements: an equation in a paper, or a derivation in
+`docs/theory/`. If no paper gives the derivation, write it in `docs/theory/`.
+The reviewer compares the code with this equation, not with the old code.
 
 `utilities/check_risk_tier.py` applies the first group and gives the minimum
 tier. If you change the first group, change the script and this list together.

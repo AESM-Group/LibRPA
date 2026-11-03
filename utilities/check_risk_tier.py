@@ -45,6 +45,7 @@ UNCHECKED_CONDITIONS = (
     "a change to an input, output, or restart file format",
     "a change to a default value",
     "a change to a convention",
+    "a change to the value of an existing computed result",
 )
 
 TEST_DIRS = (
