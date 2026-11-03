@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline integration checks for managed dependency preparation (no compilers needed)."""
 import hashlib
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -61,8 +62,10 @@ librpa_thirdparty_declare(Fixture VERSION 1 URL "file:///nonexistent/fixture.tar
         path.write_text(self.preamble + body)
         return ["cmake", "-P", str(path)]
 
-    def run_cmake(self, body, success=True):
-        result = subprocess.run(self.script(body), capture_output=True, text=True)
+    def run_cmake(self, body, success=True, definitions=(), env=None):
+        command = self.script(body)
+        command[1:1] = list(definitions)
+        result = subprocess.run(command, capture_output=True, text=True, env=env)
         output = result.stdout + result.stderr
         self.assertEqual(result.returncode == 0, success, output)
         return output
@@ -116,12 +119,78 @@ endif()
         self.assertIn("Missing third-party component Fixture", output)
         self.assertIn("LibRPAPrepareThirdparty.cmake", output)
         self.assertIn("Alternatively", output)
+        (self.storage / "downloads").mkdir()
         shutil.copy2(self.mirror / "fixture.tar.gz", self.storage / "downloads")
         self.patch.write_text(self.patch.read_text().replace("-// upstream", "-// bad context"))
         output = self.run_cmake(body, success=False)
         self.assertIn("patch failed", output)
         self.assertFalse(list((self.storage / "src").glob(".tmp-*")))
         self.assertFalse(self.final.exists())
+
+    def test_separate_archive_directory_and_precedence(self):
+        # Only the selected directory has the archive, and downloads are disabled.
+        body = "set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\nlibrpa_thirdparty_prepare(Fixture source)\n"
+        environment = dict(os.environ, LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.root / "wrong"))
+        output = self.run_cmake(body, definitions=[f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={self.mirror}"],
+                                env=environment)
+        self.assertIn(str(self.mirror), output)
+        self.assertTrue(self.final.is_dir())
+        self.assertFalse((self.storage / "downloads").exists())
+        shutil.rmtree(self.storage)
+        environment["LIBRPA_THIRDPARTY_ARCHIVE_DIR"] = str(self.mirror)
+        self.run_cmake(body, env=environment)
+        self.assertTrue(self.final.is_dir())
+
+    def test_shared_archive_reuse(self):
+        archives = self.root / "shared archives"
+        body = f'set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "{archives}")\nlibrpa_thirdparty_prepare(Fixture source)\n'
+        self.run_cmake(body)
+        archive = archives / "fixture.tar.gz"
+        timestamp = archive.stat().st_mtime_ns
+        self.storage = self.root / "second managed"
+        output = self.run_cmake(f'set(LIBRPA_THIRDPARTY_DIR "{self.storage}")\n' + body)
+        self.assertNotIn("Downloading", output)
+        self.assertEqual(archive.stat().st_mtime_ns, timestamp)
+        self.assertTrue((self.storage / self.final.relative_to(self.final.parents[1])).is_dir())
+
+    def test_archive_default_tracks_managed_directory(self):
+        self.run_cmake(f'''librpa_thirdparty_archive_dir(first)
+set(LIBRPA_THIRDPARTY_DIR "{self.root}/changed")
+librpa_thirdparty_archive_dir(second)
+if(NOT second STREQUAL "{self.root}/changed/downloads" OR first STREQUAL second)
+  message(FATAL_ERROR "Archive default did not follow the managed directory")
+endif()
+''')
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root can write read-only directories")
+    def test_unwritable_archive_directory(self):
+        archives = self.root / "read only"
+        archives.mkdir()
+        archives.chmod(0o555)
+        self.addCleanup(archives.chmod, 0o755)
+        output = self.run_cmake(f'set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "{archives}")\nlibrpa_thirdparty_prepare(Fixture source)\n',
+                                success=False)
+        self.assertIn(str(archives), " ".join(output.split()))
+        self.assertIn("Use a writable", output)
+        self.assertIn("prefetch", output)
+
+    def test_corrupt_shared_archive_preserved(self):
+        archive = self.mirror / "fixture.tar.gz"
+        archive.write_text("not a tarball")
+        body = f'set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "{self.mirror}")\nlibrpa_thirdparty_prepare(Fixture source)\n'
+        output = self.run_cmake(body, success=False)
+        self.assertIn(str(archive), " ".join(output.split()))
+        self.assertIn("delete it and configure again", " ".join(output.split()))
+        self.assertEqual(archive.read_text(), "not a tarball")
+        self.assertFalse(list((self.storage / "src").glob(".tmp-*")))
+        # An extractable archive with incorrect content must also name the archive.
+        self.header.write_text("// upstream\n// unexpected content\n")
+        with tarfile.open(archive, "w:gz") as tar:
+            tar.add(self.upstream, arcname="fixture")
+        output = self.run_cmake(body.replace("librpa_thirdparty_prepare", 'set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_PATCHES "")\nlibrpa_thirdparty_prepare'), success=False)
+        self.assertIn("prepared tree hash mismatch", output)
+        self.assertIn(str(archive), " ".join(output.split()))
+        self.assertTrue(archive.is_file())
 
     def test_concurrent_preparation(self):
         command = self.script("librpa_thirdparty_prepare(Fixture source)\n")
