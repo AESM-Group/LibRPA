@@ -13,6 +13,13 @@ import unittest
 MODULE = Path(__file__).resolve().parents[1] / "cmake/LibRPAThirdparty.cmake"
 
 
+def fixture_environment():
+    environment = os.environ.copy()
+    for variable in ("LIBRPA_THIRDPARTY_ARCHIVE_DIR", "GREENX_SOURCE_DIR", "EXTERNAL_GREENX_DIR"):
+        environment.pop(variable, None)
+    return environment
+
+
 def tree_hash(root):
     lines = "".join(
         f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root).as_posix()}\n"
@@ -65,7 +72,7 @@ librpa_thirdparty_declare(Fixture VERSION 1 URL "file:///nonexistent/fixture.tar
     def run_cmake(self, body, success=True, definitions=(), env=None):
         command = self.script(body)
         command[1:1] = list(definitions)
-        result = subprocess.run(command, capture_output=True, text=True, env=env)
+        result = subprocess.run(command, capture_output=True, text=True, env=fixture_environment() if env is None else env)
         output = result.stdout + result.stderr
         self.assertEqual(result.returncode == 0, success, output)
         return output
@@ -155,7 +162,7 @@ endif()
     def test_separate_archive_directory_and_precedence(self):
         # Only the selected directory has the archive, and downloads are disabled.
         body = "set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\nlibrpa_thirdparty_prepare(Fixture source)\n"
-        environment = dict(os.environ, LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.root / "wrong"))
+        environment = dict(fixture_environment(), LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.root / "wrong"))
         output = self.run_cmake(body, definitions=[f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={self.mirror}"],
                                 env=environment)
         self.assertIn(str(self.mirror), output)
@@ -167,7 +174,7 @@ endif()
         self.assertTrue(self.final.is_dir())
 
     def test_nonempty_relative_archive_path(self):
-        environment = dict(os.environ, LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.mirror))
+        environment = dict(fixture_environment(), LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.mirror))
         self.run_cmake('''librpa_thirdparty_archive_dir(resolved)
 get_filename_component(expected "OFF" ABSOLUTE)
 if(NOT resolved STREQUAL expected)
@@ -229,7 +236,7 @@ endif()
     def test_concurrent_preparation(self):
         command = self.script("librpa_thirdparty_prepare(Fixture source)\n")
         children = [subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                     text=True) for _ in range(2)]
+                                     text=True, env=fixture_environment()) for _ in range(2)]
         for child in children:
             output, error = child.communicate(timeout=30)
             self.assertEqual(child.returncode, 0, output + error)
@@ -272,7 +279,7 @@ include("{MODULE.parent}/ResolveGreenX.cmake")
 message(STATUS "Summary: ${{LIBRPA_THIRDPARTY_SUMMARY}}")
 ''')
         result = subprocess.run(["cmake", "-S", str(self.root), "-B", str(self.root / "build")],
-                                capture_output=True, text=True)
+                                capture_output=True, text=True, env=fixture_environment())
         output = " ".join((result.stdout + result.stderr).split())
         self.assertEqual(result.returncode == 0, success, output)
         return output
