@@ -10,7 +10,7 @@ cmake -S . -B build -DLIBRPA_USE_LIBRI=ON
 
 CMake cache values persist in that build directory. Use a separate directory when changing compilers or MPI installations. To remove a path override, remove its cache entry and unset its environment variable. An empty header-path cache value still permits a nonempty environment variable to supply the path.
 
-The three `LIBRPA_THIRDPARTY_*` options are CMake cache settings. They are not automatically read from same-named environment variables. They also work with `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. Header paths, `LIBDDLA_PATH` and `LIBDDLA_SOURCE_DIR` accept environment fallbacks, as described below.
+The `LIBRPA_THIRDPARTY_*` settings also work with `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. Of these settings, only `LIBRPA_THIRDPARTY_ARCHIVE_DIR` accepts an environment fallback. Header paths and compiled-dependency source and installation paths also accept environment fallbacks.
 
 For a complete build procedure and CMake version requirements, see {ref}`Installation <install-build-requirements>`.
 
@@ -64,6 +64,10 @@ Use `cmake --build build --parallel N` to set build concurrency. This is a build
 | [`LIBRPA_THIRDPARTY_DIR`](#librpa-thirdparty-dir) | path | source `thirdparty/` |
 | [`LIBRPA_THIRDPARTY_DOWNLOAD`](#librpa-thirdparty-download) | bool | `ON` |
 | [`LIBRPA_THIRDPARTY_MIRRORS`](#librpa-thirdparty-mirrors) | string | empty |
+| [`LIBRPA_THIRDPARTY_ARCHIVE_DIR`](#librpa-thirdparty-archive-dir) | path | empty |
+| [`GREENX_SOURCE_DIR`](#greenx-source-dir) | path | empty |
+| [`EXTERNAL_GREENX_DIR`](#external-greenx-dir) | path | empty |
+| [`ELPA_SOURCE_DIR`](#elpa-source-dir) | path | empty |
 | [`LIBDDLA_SOURCE_DIR`](#libddla-source-dir) | path | empty |
 | [`BUILD_SHARED_LIBS`](#build-shared-libs) | bool | `OFF` in a standalone build |
 | [`CMAKE_BUILD_TYPE`](#cmake-build-type) | string | empty |
@@ -144,7 +148,7 @@ cmake -S . -B build -DLIBRPA_USE_HIP=ON
 (librpa-use-external-elpa)=
 ## `LIBRPA_USE_EXTERNAL_ELPA`
 
-Enable an external ELPA library. An existing `ELPA::ELPA` target takes precedence over installation discovery. Otherwise, LibRPA uses its ELPA finder with `EXTERNAL_ELPA_DIR` and other supported search hints.
+Enable an external ELPA library. An existing `ELPA::ELPA` target takes precedence over installation discovery. Otherwise, LibRPA uses its ELPA finder with `EXTERNAL_ELPA_DIR` and other supported search hints. Each configuration warns about prebuilt library compatibility. Prefer a parent target or an `ELPA_SOURCE_DIR` build.
 
 This option does not prepare a managed ELPA source tree. It is mutually exclusive with `LIBRPA_USE_BUNDLED_ELPA`.
 
@@ -155,7 +159,7 @@ cmake -S . -B build -DLIBRPA_USE_EXTERNAL_ELPA=ON -DEXTERNAL_ELPA_DIR=/path/to/e
 (librpa-use-bundled-elpa)=
 ## `LIBRPA_USE_BUNDLED_ELPA`
 
-When enabled, LibRPA downloads, verifies, builds and links the pinned ELPA release.
+When enabled, LibRPA builds `ELPA_SOURCE_DIR` if supplied. Otherwise, it downloads, verifies and builds the pinned ELPA release.
 The option name is retained for compatibility with existing build scripts. It no longer means that ELPA source is included in the repository. The wrapper uses an out-of-source autotools build and a private installation inside the build directory.
 
 This option is mutually exclusive with
@@ -274,13 +278,40 @@ When enabled, the `cmake.inc` file is used to initialize compilers and other bui
 (librpa-use-external-greenx)=
 ## `LIBRPA_USE_EXTERNAL_GREENX`
 
-Select a GreenX target supplied by the parent project. Default: `OFF`.
+Require an external greenX source. Default: `OFF`.
 
-With `OFF`, LibRPA prepares and builds the manifest's GreenX source. This happens even with `LIBRPA_USE_LIBRI=OFF`.
+LibRPA first uses an existing `LibGXMiniMax` or `greenX::LibGXMiniMax` target, regardless of this option. Otherwise, it uses `GREENX_SOURCE_DIR`, then `EXTERNAL_GREENX_DIR`. Supplying both paths is an error.
 
-With `ON`, the parent must define `LibGXMiniMax` before adding LibRPA. The target must provide its link dependencies and the `Fortran_MODULE_DIRECTORY` property containing the module files used by LibRPA. Use compatible Fortran compilers for both libraries.
+With `ON`, configuration fails if none of these external sources is supplied. With `OFF`, LibRPA falls back to the managed source. GreenX is required even with `LIBRPA_USE_LIBRI=OFF`.
 
-This option does not find an installed GreenX package or build a supplied source path. A pre-existing `LibGXMiniMax` target alone does not select external mode. See {ref}`Parent-project integration <thirdparty-parent-projects>`.
+A source-built target must provide its link dependencies and `Fortran_MODULE_DIRECTORY`. Imported targets must expose compatible module directories through their link interface. See {ref}`Parent-project integration <thirdparty-parent-projects>`.
+
+(greenx-source-dir)=
+## `GREENX_SOURCE_DIR`
+
+External greenX source directory containing `GX-TimeFrequency/CMakeLists.txt`. A nonempty CMake value takes precedence over the environment variable. A parent target takes precedence over this path.
+
+LibRPA hashes the whole tree. Matching patched sources are `pinned`. Matching pristine sources become a patched copy in managed storage (`overlay`). Other sources produce an `unpinned` warning and are used directly. The supplied tree remains unchanged. LibRPA builds the selected tree with its own compilers.
+
+`GREENX_SOURCE_DIR` and `EXTERNAL_GREENX_DIR` are mutually exclusive. An invalid explicit path stops configuration without a download fallback.
+
+(external-greenx-dir)=
+## `EXTERNAL_GREENX_DIR`
+
+Prebuilt greenX installation prefix. A nonempty CMake value takes precedence over the environment variable. A parent target takes precedence over installation discovery.
+
+LibRPA loads `greenXConfig.cmake` only from this prefix and uses `greenX::LibGXMiniMax`. Its link interface must provide `gx_minimax.mod` and `kinds.mod`. Missing modules stop configuration. If the module path identifies a different Fortran compiler or version, LibRPA warns.
+
+Each configuration warns about compatibility with LibRPA's compilers and flags. Prefer a parent target or `GREENX_SOURCE_DIR`. The installation must also provide compatible BLAS/LAPACK dependencies. Supply `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` when necessary.
+
+(elpa-source-dir)=
+## `ELPA_SOURCE_DIR`
+
+External ELPA source directory containing `configure` and `src/elpa_impl.F90`. A nonempty CMake value takes precedence over the environment variable.
+
+Use with `LIBRPA_USE_BUNDLED_ELPA=ON`. Otherwise, LibRPA ignores this path with a warning. With source builds enabled, `ELPA_SOURCE_DIR` and `EXTERNAL_ELPA_DIR` are mutually exclusive.
+
+LibRPA hashes the whole tree. Matching patched sources are `pinned`. Matching pristine sources become a patched copy in managed storage (`overlay`). Other sources produce an `unpinned` warning. The out-of-source build preserves the user tree and overlay. An invalid path stops configuration without a download fallback.
 
 (librpa-enable-fortran-bind)=
 ## `LIBRPA_ENABLE_FORTRAN_BIND`
@@ -424,9 +455,11 @@ Installation prefix of LibDDLA. Used only with a CUDA or HIP backend. A nonempty
 The resolution order is:
 
 1. Existing `LibDDLA::ddla` target.
-2. `LIBDDLA_PATH` installation.
-3. `LIBDDLA_SOURCE_DIR` source tree.
+2. `LIBDDLA_SOURCE_DIR` source tree.
+3. `LIBDDLA_PATH` installation.
 4. Managed source from the manifest.
+
+`LIBDDLA_PATH` and `LIBDDLA_SOURCE_DIR` are mutually exclusive. Each installation-mode configuration warns about compiler and flag compatibility. Prefer a parent target or a source build.
 
 The installation must contain `include/ddla/ddla.h` and a `ddla` library under `lib/` or `lib64/`. Missing headers or a missing library cause an error. Installed libraries are not checked against the manifest's source-tree hash. The installation must match the selected backend, compiler and MPI environment.
 
@@ -471,7 +504,7 @@ The finder looks for ELPA headers and a library. It also adds the Fortran module
 - `include/elpa-*/modules/elpa.mod`
 - `lib/libelpa.so` or `lib/libelpa_openmp.so`, also under `lib64/`
 
-`ELPA_ROOT`, including its environment variable, is another finder hint. These are CMake search hints, not strict source-path checks. The finder can also search standard paths. This differs from the explicit LibRI, LibComm, cereal and LibDDLA path rules.
+`ELPA_ROOT`, including its environment variable, is used when `EXTERNAL_ELPA_DIR` is absent. An explicit prefix restricts the search to that installation. Missing headers or libraries stop configuration. With no prefix, standard search paths remain available. Installation mode emits a compatibility warning on every configuration. Prefer a parent target or `ELPA_SOURCE_DIR`.
 
 ```sh
 cmake -S . -B build -DLIBRPA_USE_EXTERNAL_ELPA=ON -DEXTERNAL_ELPA_DIR=/path/to/elpa
@@ -480,11 +513,11 @@ cmake -S . -B build -DLIBRPA_USE_EXTERNAL_ELPA=ON -DEXTERNAL_ELPA_DIR=/path/to/e
 (librpa-thirdparty-dir)=
 ## `LIBRPA_THIRDPARTY_DIR`
 
-Shared directory for downloaded archives and verified source trees. The default is `thirdparty/` under the LibRPA source directory, including when LibRPA is a subdirectory of a parent project.
+Shared directory for verified source trees and, by default, downloaded archives. The default is `thirdparty/` under the LibRPA source directory, including when LibRPA is a subdirectory of a parent project.
 
 | Subdirectory | Contents |
 | --- | --- |
-| `downloads/` | Archives with the manifest's exact `ARCHIVE` filenames |
+| `downloads/` | Default archive location, overridden by `LIBRPA_THIRDPARTY_ARCHIVE_DIR` |
 | `src/<Name>-<hash12>/` | Prepared trees, named using the first 12 characters of `TREE_SHA256` |
 
 Use an absolute path. Preparation needs write access when an archive or tree is missing. Completed trees can be shared across build directories. Compilation outputs remain in the build directories.
@@ -497,12 +530,26 @@ cmake -S . -B build -DLIBRPA_THIRDPARTY_DIR=/path/to/deps
 
 Set this cache option before `add_subdirectory(LibRPA)` in a parent project. Ignore `downloads/` and `src/` in the parent's chosen directory. A change to a tree hash selects a new source directory without removing the old one.
 
+(librpa-thirdparty-archive-dir)=
+## `LIBRPA_THIRDPARTY_ARCHIVE_DIR`
+
+Shared archive directory. The cache default is empty. Resolution uses a nonempty CMake value, then the environment variable, then `${LIBRPA_THIRDPARTY_DIR}/downloads`. Relative paths are converted to absolute paths. The expanded default is not stored in the cache.
+
+Different LibRPA checkouts can share these versioned archives while keeping separate source directories. Local archives work with `LIBRPA_THIRDPARTY_DOWNLOAD=OFF`. Downloads use temporary files inside the archive directory and rename them after success.
+
+If a download is needed, the directory must be writable. Select a writable directory or prefetch the archives elsewhere. Corrupt archives remain in place. Check the full path in the error before deleting and replacing a shared archive.
+
+```sh
+export LIBRPA_THIRDPARTY_ARCHIVE_DIR=~/downloads/LibRPA_tarballs
+cmake -P cmake/LibRPAPrepareThirdparty.cmake
+```
+
 (librpa-thirdparty-download)=
 ## `LIBRPA_THIRDPARTY_DOWNLOAD`
 
 Allow downloads of missing archives. Default: `ON`.
 
-With `OFF`, LibRPA can still use an existing verified tree or extract and patch a local archive. LibRI path overlays also remain available. Missing inputs cause an error with instructions for connected preparation and manual archive placement.
+With `OFF`, LibRPA can still use an existing verified tree or extract and patch a local archive. Source-path overlays also remain available. Missing inputs cause an error with instructions for connected preparation and manual archive placement.
 
 The option controls archive downloads by the managed-source helper, including `file://` mirror transfers. It does not disable tree verification and is not a general network restriction for other build tools.
 
@@ -531,7 +578,7 @@ An upstream URL remains the final fallback. To prevent that fallback, prepare th
 (libddla-source-dir)=
 ## `LIBDDLA_SOURCE_DIR`
 
-LibDDLA source directory for CUDA or HIP builds. A nonempty CMake value takes precedence over the environment variable. An existing `LibDDLA::ddla` target or `LIBDDLA_PATH` installation takes precedence over this source path.
+LibDDLA source directory for CUDA or HIP builds. A nonempty CMake value takes precedence over the environment variable. An existing `LibDDLA::ddla` target takes precedence. Supplying both `LIBDDLA_SOURCE_DIR` and `LIBDDLA_PATH` is an error.
 
 The directory must contain `include/ddla/ddla.h` and `CMakeLists.txt`. An invalid directory causes an error. LibRPA hashes the whole source tree. A match has status `pinned`, and a different hash produces an `unpinned` warning. Extra files, including Git metadata, can change this comparison.
 

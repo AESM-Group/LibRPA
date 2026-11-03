@@ -1,6 +1,6 @@
 # Managed third-party dependencies
 
-LibRPA stores dependency versions, upstream URLs, patch lists, tree hashes and licenses in `manifest.cmake`. Third-party source code is downloaded during configuration and is not tracked in this repository. The default build needs greenX and, with `LIBRPA_USE_LIBRI=ON`, LibRI, LibComm and cereal. GPU builds also need LibDDLA; `LIBRPA_USE_BUNDLED_ELPA=ON` selects managed ELPA.
+LibRPA stores dependency versions, upstream URLs, patch lists, tree hashes and licenses in `manifest.cmake`. Third-party source code is downloaded during configuration and is not tracked in this repository. The default build needs greenX and, with `LIBRPA_USE_LIBRI=ON`, LibRI, LibComm and cereal. GPU builds also need LibDDLA; `LIBRPA_USE_BUNDLED_ELPA=ON` builds ELPA from `ELPA_SOURCE_DIR` or managed sources.
 
 ## Resolution and configuration
 
@@ -9,12 +9,13 @@ Header libraries resolve in this order: an existing `LibRI::LibRI`, `LibComm::Li
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `LIBRPA_THIRDPARTY_DIR` | LibRPA source `thirdparty/` | Shared archive and source storage, independent of build directories |
+| `LIBRPA_THIRDPARTY_ARCHIVE_DIR` | empty | CMake value, then environment, then `${LIBRPA_THIRDPARTY_DIR}/downloads` |
 | `LIBRPA_THIRDPARTY_DOWNLOAD` | `ON` | Allow downloads of missing archives |
 | `LIBRPA_THIRDPARTY_MIRRORS` | empty | Semicolon-separated URL prefixes, tried before upstream URLs; supports `https://` and `file://` |
 
-LibDDLA resolves an existing `LibDDLA::ddla` target, `LIBDDLA_PATH` installation, `LIBDDLA_SOURCE_DIR` source tree, then managed sources. Source builds use a separate ExternalProject. External ELPA and greenX retain their existing options.
+Compiled dependencies prefer parent targets, then source paths, installation prefixes, and managed sources. Source paths and installation prefixes for the same enabled source build are mutually exclusive. Prebuilt installations emit a compiler-compatibility warning on every configuration. Prefer targets or source paths. GreenX recognizes parent targets automatically. ELPA keeps its external and source-build switches. LibDDLA source builds use a separate ExternalProject.
 
-Sources are prepared under `src/<Name>-<TREE_SHA256 first 12 characters>/`. Archives are cached under `downloads/`. Both directories are ignored by Git. Every configuration verifies each selected managed tree; there is no option to skip this check. A mismatch stops configuration without deleting the modified tree. Preserve any edits, then delete that tree to prepare it again. Use path mode for dependency development.
+Sources are prepared under `src/<Name>-<TREE_SHA256 first 12 characters>/`. Archives default to `downloads/`, or use the separate `LIBRPA_THIRDPARTY_ARCHIVE_DIR`. Multiple checkouts can share that archive directory. Local archives work with downloads disabled. Downloads use a temporary file in the archive directory followed by a rename. Corrupt shared archives are not deleted automatically. The default `downloads/` and `src/` directories are ignored by Git. Every configuration verifies each selected managed tree; there is no option to skip this check. A mismatch stops configuration without deleting the modified tree. Preserve any edits, then delete that tree to prepare it again. Use path mode for dependency development.
 
 ## Offline preparation
 
@@ -30,15 +31,19 @@ Copy `/path/to/deps` to the offline machine, preserving symbolic links (for exam
 cmake -S . -B build -DLIBRPA_THIRDPARTY_DIR=/path/to/deps -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF
 ```
 
-The preparation script defaults to all six components. To prepare a subset, add `-DCOMPONENTS="LibRI;LibComm;cereal;greenX"`. Alternatively, place the exact archive filenames listed in the manifest in `/path/to/deps/downloads/`; configuration can extract, patch and verify these with downloads disabled. Mirrors serve those same filenames.
+To share archives, set `export LIBRPA_THIRDPARTY_ARCHIVE_DIR=~/downloads/LibRPA_tarballs` before preparation or configuration. A nonempty CMake value takes precedence.
+
+The preparation script defaults to all six components. To prepare a subset, add `-DCOMPONENTS="LibRI;LibComm;cereal;greenX"`. Alternatively, place the exact archive filenames listed in the manifest in the effective archive directory (default `/path/to/deps/downloads/`); configuration can extract, patch and verify these with downloads disabled. Mirrors serve those same filenames.
 
 ## Local paths and parent projects
 
 Set `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR` or `CEREAL_INCLUDE_DIR` to the directory containing `RI`, `Comm` or `cereal`, respectively. Matching patched headers are used directly (`pinned`). Pristine pinned LibRI headers are copied and patched in managed storage (`overlay`); the supplied directory is never modified. Other revisions are used with a warning (`unpinned`). A required compile probe checks the three libraries together. Parent targets have status `target` and are not patched; the parent must provide compatible headers.
 
+Whole-tree paths (`GREENX_SOURCE_DIR`, `ELPA_SOURCE_DIR`, `LIBDDLA_SOURCE_DIR`) use the same hash rules. Matching pristine greenX or ELPA trees receive an overlay. `file(COPY)` preserves symbolic links, and the copied tree is verified before patching. The supplied source tree is unchanged.
+
 For a complete example, see [Parent-project integration](../docs/develop/thirdparty.md#parent-project-integration). Set `LIBRPA_THIRDPARTY_DIR` to the parent's dependency directory before `add_subdirectory`, and ignore its `downloads/` and `src/` directories. The LibRPA source directory then needs no generated dependency files.
 
-For compiler requirements, build/install commands and troubleshooting, see [Installation](../docs/user_guide/install.md). See [Compile Options](../docs/user_guide/compile_options.md) for defaults and all path rules. The three cache settings above are not read from environment variables.
+For compiler requirements, build/install commands and troubleshooting, see [Installation](../docs/user_guide/install.md). See [Compile Options](../docs/user_guide/compile_options.md) for defaults and all path rules. Only `LIBRPA_THIRDPARTY_ARCHIVE_DIR` among the four cache settings above accepts an environment fallback.
 
 ## Updates
 

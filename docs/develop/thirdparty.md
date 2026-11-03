@@ -26,7 +26,7 @@ Use the CMake helper as the authoritative definition for all trees, including th
 3. Generate `-p1` patches with `a/` and `b/` paths relative to the archive root. Record the source, reason, upstream submission status and license in the patch header and `thirdparty/patches/README.md`.
 4. Apply the patches to a fresh upstream tree. Compute pristine and patched hashes with `cmake/LibRPAThirdparty.cmake`, and independently cross-check a header tree with the shell command above.
 5. Update the declaration's full version, URL, archive name, patch list and hashes. Update the license list in `docs/develop/licensing.md`, then run `python3 utilities/update_readme_licensing_list.py`.
-6. Prepare sources into an empty dependency directory. Test online download, local mirrors, cached archives with downloads disabled, repeated configuration, and rejection of modified managed trees. For LibRI, also check pristine-path overlays and verify that the original include tree is unchanged.
+6. Prepare sources into an empty dependency directory. Test online download, local mirrors, cached archives with downloads disabled, repeated configuration, and rejection of modified managed trees. For LibRI, greenX and ELPA, also check pristine-path overlays and verify that the original tree is unchanged.
 7. Run `python3 utilities/test_thirdparty.py` to check helper failure paths, overlays, concurrent preparation and directory-symlink handling.
 8. Build with and without LibRI, run unit and numerical regression tests, and run the QSGW, Hartree and cRPA verification scripts used in CI. Check parent targets and explicit paths. For ELPA and greenX, verify the source hashes again after building.
 
@@ -43,7 +43,11 @@ Run it with `cmake -P hash.cmake`. Do not edit a managed tree to update a depend
 
 ## Preparation and concurrent builds
 
-Run `cmake -P cmake/LibRPAPrepareThirdparty.cmake` on a connected machine to prepare every component, or select `-DCOMPONENTS="LibRI;LibComm;cereal;greenX"`. The `LIBRPA_THIRDPARTY_DIR`, `LIBRPA_THIRDPARTY_DOWNLOAD` and `LIBRPA_THIRDPARTY_MIRRORS` settings also work in script mode. Copy the prepared directory to offline machines and disable downloads there.
+Run `cmake -P cmake/LibRPAPrepareThirdparty.cmake` on a connected machine to prepare every component, or select `-DCOMPONENTS="LibRI;LibComm;cereal;greenX"`. The `LIBRPA_THIRDPARTY_DIR`, `LIBRPA_THIRDPARTY_ARCHIVE_DIR`, `LIBRPA_THIRDPARTY_DOWNLOAD` and `LIBRPA_THIRDPARTY_MIRRORS` settings also work in script mode. Copy the prepared directory to offline machines and disable downloads there.
+
+The source directory and archive directory can be separate. `LIBRPA_THIRDPARTY_ARCHIVE_DIR` uses a nonempty CMake value, then its environment variable, then `${LIBRPA_THIRDPARTY_DIR}/downloads`. Its cache default stays empty. Downloads use temporary files in that directory before renaming, so other configurations cannot read partial downloads. Shared archives are preserved when extraction or hash verification fails.
+
+Whole-tree path overlays use `file(COPY)` without `FOLLOW_SYMLINK_CHAIN`. This preserves directory symbolic links on macOS and Linux. The copied tree must match the original hash before patches are applied. The user tree remains unchanged. Keep Git metadata outside a tree that should match the manifest; `.git` is not excluded from the hash.
 
 Each preparation uses a separate temporary directory. Only a verified tree is renamed into its content-addressed final location. Concurrent configurations verify a tree published by another process; no filesystem lock is required. Build outputs must stay in build directories. In particular, copy greenX's Python directory to scratch space before installing it, because Python packaging writes build files into its source directory.
 
@@ -99,9 +103,11 @@ The header combination must compile before configuration can continue. This chec
 | --- | --- | --- |
 | `LibDDLA::ddla` | Enable CUDA or HIP | Supply a library, public include paths and link dependencies compatible with that backend |
 | `ELPA::ELPA` | Set `LIBRPA_USE_EXTERNAL_ELPA=ON` | Supply the library, headers and required link dependencies |
-| `LibGXMiniMax` | Set `LIBRPA_USE_EXTERNAL_GREENX=ON` | Supply the library, link dependencies and `Fortran_MODULE_DIRECTORY` pointing to compatible Fortran modules |
+| `LibGXMiniMax` or `greenX::LibGXMiniMax` | Detected automatically | Supply link dependencies and compatible modules: `Fortran_MODULE_DIRECTORY` for source builds, interface include directories for imported targets |
 
-Define these targets before adding LibRPA. A target alone does not enable external ELPA or GreenX. Neither external-mode switch downloads or builds a source directory. LibRPA's default GreenX build and a parent-defined target of the same name cannot coexist.
+Define these targets before adding LibRPA. ELPA still requires `LIBRPA_USE_EXTERNAL_ELPA=ON`. GreenX targets are detected even with `LIBRPA_USE_EXTERNAL_GREENX=OFF`, so LibRPA does not create a second target. Setting this option to ON requires a target, source path or installation.
+
+For compiled dependencies, prefer parent targets or source paths. Installations are supported with a warning about compiler and flag compatibility. Source and installation paths for the same enabled source build are mutually exclusive. ELPA source paths outside source-build mode are ignored with a warning.
 
 Use `rpa_lib` to link a C or C++ consumer. With `LIBRPA_ENABLE_FORTRAN_BIND=ON`, the Fortran target is `rpa_f03_lib`, which also exposes its build-time module directory. LibRPA does not currently install a package configuration or target export for `find_package(librpa)`.
 
@@ -111,4 +117,4 @@ Existing `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR`, `CEREAL_INCLUDE_DIR` and `L
 
 The old `thirdparty/LibRI`, `thirdparty/LibComm`, `thirdparty/cereal`, `thirdparty/LibDDLA` and `thirdparty/greenX` source paths no longer exist. Replace scripts that copy those directories with the preparation script or explicit external paths. Do not hard-code `src/<Name>-<hash12>` paths: a manifest update changes them. Preserve symbolic links when transferring a prepared cache.
 
-`LIBRPA_USE_BUNDLED_ELPA` and its related option names remain supported, but now select downloaded managed sources. The tracked `thirdparty/ELPA` directory contains only LibRPA's build wrapper. A dependency cache contains sources and archives, not compiler-specific installed libraries. Each build directory creates its own compiled dependencies.
+`LIBRPA_USE_BUNDLED_ELPA` and its related option names remain supported, but now build supplied source paths or downloaded managed sources. The tracked `thirdparty/ELPA` directory contains only LibRPA's build wrapper. A dependency cache contains sources and archives, not compiler-specific installed libraries. Each build directory creates its own compiled dependencies.

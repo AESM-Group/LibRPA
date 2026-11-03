@@ -26,10 +26,10 @@ The standalone source-preparation script requires only CMake 3.13. It downloads,
 
 | Component | When LibRPA needs it | Default source |
 | --- | --- | --- |
-| GreenX | Every build | Managed source, unless `LIBRPA_USE_EXTERNAL_GREENX=ON` |
+| GreenX | Every build | Parent target, source path, installation, then managed source |
 | LibRI, LibComm, cereal | `LIBRPA_USE_LIBRI=ON`, the default | Managed headers, unless the parent provides targets or the user supplies include paths |
 | LibDDLA | `LIBRPA_USE_CUDA=ON` or `LIBRPA_USE_HIP=ON` | Managed source, unless a target, installation or local source tree is supplied |
-| ELPA | Either ELPA option is enabled | Managed source with `LIBRPA_USE_BUNDLED_ELPA=ON`, or an external target/installation with `LIBRPA_USE_EXTERNAL_ELPA=ON` |
+| ELPA | Either ELPA option is enabled | Source path or managed source with `LIBRPA_USE_BUNDLED_ELPA=ON`, or a target/installation with `LIBRPA_USE_EXTERNAL_ELPA=ON` |
 
 *GW* and EXX require LibRI. RPA correlation energies can also be computed with `LIBRPA_USE_LIBRI=OFF`. GreenX remains required in that configuration.
 
@@ -157,7 +157,7 @@ cmake --build build --parallel 2
 
 Add your compiler, math-library and installation options to this configuration command. Disabling downloads does not disable extraction, patch application or hash verification.
 
-Alternatively, copy only the manifest's archives into `/path/to/deps/downloads/`. Use the exact `ARCHIVE` filenames from `thirdparty/manifest.cmake`. CMake then prepares missing trees locally. This method also needs Git or `patch` for components with patches.
+Alternatively, copy only the manifest's archives into `LIBRPA_THIRDPARTY_ARCHIVE_DIR` (default `/path/to/deps/downloads/`). Use the exact `ARCHIVE` filenames from `thirdparty/manifest.cmake`. CMake then prepares missing trees locally. This method also needs Git or `patch` for components with patches.
 
 ### Mirrors and shared storage
 
@@ -171,7 +171,36 @@ cmake -S . -B build \
 
 Each mirror serves the archive filenames from the manifest. CMake tries the prefixes in order, then the upstream URL. Mirrors are used only when an archive is missing and downloads are enabled. Existing archives are not replaced by a change to the mirror setting.
 
-`LIBRPA_THIRDPARTY_DIR` stores archives in `downloads/` and verified trees in `src/<Name>-<hash12>/`. Build outputs remain in the build directory. Multiple build directories can share this source cache. A hash change selects a new directory and leaves earlier trees in place.
+`LIBRPA_THIRDPARTY_DIR` stores verified trees in `src/<Name>-<hash12>/`. Archives default to `downloads/` within that directory. Use a shared archive directory to avoid downloads across LibRPA checkouts:
+
+```sh
+export LIBRPA_THIRDPARTY_ARCHIVE_DIR=~/downloads/LibRPA_tarballs
+cmake -P cmake/LibRPAPrepareThirdparty.cmake
+```
+
+A nonempty CMake value overrides this environment variable. Local archives in the selected directory also work with downloads disabled. Build outputs remain in the build directory. Multiple build directories can share this source cache. A hash change selects a new directory and leaves earlier trees in place.
+
+(install-dependency-sources)=
+## Choosing dependency sources
+
+For compiled dependencies (greenX, ELPA and LibDDLA), use this order:
+
+1. A parent project's CMake target. This keeps the toolchain and link dependencies under the parent's control.
+2. An external source path. LibRPA builds it with its own compilers and build settings.
+3. A prebuilt installation prefix, when required. Each configuration warns about compatibility risks.
+4. Managed sources, when no external source is supplied.
+
+Targets and source paths are recommended. Prebuilt libraries can have incompatible compilers, flags, C++ ABIs or Fortran modules.
+
+| Dependency | Parent target | Source path | Installation prefix |
+| --- | --- | --- | --- |
+| greenX | `LibGXMiniMax` or `greenX::LibGXMiniMax` | `GREENX_SOURCE_DIR` | `EXTERNAL_GREENX_DIR` |
+| ELPA | `ELPA::ELPA` | `ELPA_SOURCE_DIR` | `EXTERNAL_ELPA_DIR` |
+| LibDDLA | `LibDDLA::ddla` | `LIBDDLA_SOURCE_DIR` | `LIBDDLA_PATH` |
+
+Do not supply both a source path and an installation prefix for the same enabled source build. Invalid explicit paths cause an error. For ELPA, enable `LIBRPA_USE_EXTERNAL_ELPA` for a target or installation, or `LIBRPA_USE_BUNDLED_ELPA` for a source build. ELPA is disabled by default. An `ELPA_SOURCE_DIR` outside source-build mode is ignored with a warning.
+
+Whole-tree source paths follow the same hash rules as header paths: `pinned`, `overlay` for a matching pristine tree with patches, or `unpinned`. Overlays preserve the original source tree and symbolic links. LibDDLA has no patches.
 
 (install-local-dependencies)=
 ## Local dependencies and parent projects
@@ -197,9 +226,9 @@ The user directory is never patched in place. LibComm and cereal currently have 
 
 Parent projects can provide `LibRI::LibRI`, `LibComm::LibComm` and `cereal::cereal` before adding LibRPA. See {ref}`Parent-project integration <thirdparty-parent-projects>` for a complete example.
 
-For GPU builds, LibDDLA resolves `LibDDLA::ddla`, `LIBDDLA_PATH`, `LIBDDLA_SOURCE_DIR`, then managed sources. Source builds use a separate CMake build. LibRPA does not patch a user-supplied LibDDLA source tree.
+For GPU builds, LibDDLA resolves `LibDDLA::ddla`, `LIBDDLA_SOURCE_DIR`, `LIBDDLA_PATH`, then managed sources. The two paths are mutually exclusive. Source builds use a separate CMake build. LibRPA does not patch a user-supplied LibDDLA source tree.
 
-ELPA and GreenX have explicit external-mode switches. `LIBRPA_USE_EXTERNAL_ELPA=ON` selects `ELPA::ELPA` or installation discovery. `LIBRPA_USE_EXTERNAL_GREENX=ON` requires a parent-provided `LibGXMiniMax` target. Those flags do not specify a source directory to download or build.
+`LIBRPA_USE_EXTERNAL_GREENX=ON` requires a parent target, `GREENX_SOURCE_DIR` or `EXTERNAL_GREENX_DIR`. Parent greenX targets are also selected when this option is OFF.
 
 See [Compile Options](compile_options.md) for defaults, accepted values and precedence rules.
 
@@ -207,7 +236,7 @@ See [Compile Options](compile_options.md) for defaults, accepted values and prec
 
 ### A dependency is missing or a download fails
 
-The error identifies the component, archive filename and upstream URL. Prepare the dependencies on a connected machine, or place the required archive in `downloads/`. A local `file://` mirror still requires `LIBRPA_THIRDPARTY_DOWNLOAD=ON`. With downloads disabled, place the archive directly in `downloads/` instead.
+The error identifies the component, archive filename and upstream URL. Prepare the dependencies on a connected machine, or place the required archive in the effective archive directory. A local `file://` mirror still requires `LIBRPA_THIRDPARTY_DOWNLOAD=ON`. With downloads disabled, place the archive directly in that directory instead.
 
 ### A managed tree fails verification
 
