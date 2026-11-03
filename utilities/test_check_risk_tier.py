@@ -29,6 +29,7 @@ BASE_FILES = {
     "regression_tests/refs/case/out.txt": "1.0\n",
     "regression_tests/testsuite.xml": "<test a/>\n",
     "regression_tests/backend/comparisons/cmp_float.py": "tol = 1e-8\n",
+    "regression_tests/verification/verify_restart.py": "atol = 1e-9\n",
     "src/CMakeLists.txt": CMAKE,
     ".github/workflows/ci.yml": "on: push\n",
 }
@@ -84,11 +85,20 @@ class TierTest(unittest.TestCase):
     def test_new_test_is_l(self):
         self.write("src/test/test_new.cpp", "check\n")
         self.write("src/test/test_chi0.cpp", "check 1\ncheck 2\ncheck 3\n")
-        self.write("regression_tests/refs/new_case/out.txt", "2.0\n")
         self.write("regression_tests/testsuite.xml", "<test a/>\n<test b/>\n")
         self.write("regression_tests/backend/comparisons/test_cmp_float.py", "check\n")
         self.commit()
         self.assertEqual(self.tier()[0], "L")
+
+    def test_new_reference_is_m(self):
+        self.write("regression_tests/refs/new_case/out.txt", "2.0\n")
+        self.commit()
+        self.assertEqual(self.tier()[0], "M")
+
+    def test_script_in_docs_is_m(self):
+        self.write("docs/conf.py", "project = 'LibRPA'\n")
+        self.commit()
+        self.assertEqual(self.tier()[0], "M")
 
     def test_changed_test_is_m(self):
         self.write("src/test/test_chi0.cpp", "check 1\n")
@@ -123,6 +133,13 @@ class TierTest(unittest.TestCase):
     def test_comparator_is_h(self):
         self.check_h("regression_tests/backend/comparisons/cmp_float.py", "tol = 1e-8\n# note\n")
 
+    def test_verification_script_is_h(self):
+        self.check_h("regression_tests/verification/verify_restart.py", "atol = 1e-9\natol = 1e-6\n")
+
+    def test_process_files_are_h(self):
+        for path in ("AGENTS.md", "CONTRIBUTING.md"):
+            self.check_h(path, "rules\n")
+
     def test_changed_public_header_is_h(self):
         self.check_h("include/librpa.h", "void f(int);\n")
 
@@ -153,13 +170,22 @@ class TierTest(unittest.TestCase):
         self.commit()
         self.check_h("include/my header.h", "void h(int);\n")
 
-    def test_declared_tier_warning(self):
+    def test_declared_tier(self):
         self.write("include/librpa.h", "void f(int);\n")
         self.commit()
-        out = self.run_script("--body-env", "BODY", "--github",
-                              env={"BODY": "## Risk tier\n\nTier: M\n", "GITHUB_STEP_SUMMARY": ""})
-        self.assertIn("lower than the minimum tier", out.stdout)
-        self.assertIn("::warning title=Risk tier::", out.stdout)
+        for body, returncode in (("Tier: H\n", 0), ("Tier: M\n", 1), ("Tier:\nReason:\n", 1)):
+            out = self.run_script("--body-env", "BODY", "--github",
+                                  env={"BODY": body, "GITHUB_STEP_SUMMARY": ""})
+            self.assertEqual(out.returncode, returncode, body)
+            self.assertEqual("::error title=Risk tier::" in out.stdout, returncode == 1, body)
+
+    def test_size_warning(self):
+        self.write("src/core/big.cpp", "int x;\n" * 1001)
+        self.write("regression_tests/testcases/big/input.txt", "1\n" * 5000)
+        self.commit()
+        out = self.run_script("--github", env={"GITHUB_STEP_SUMMARY": ""})
+        self.assertIn("Added lines of production code: 1001", out.stdout)
+        self.assertIn("::warning title=Pull request size::", out.stdout)
 
     def test_later_base_commit_is_not_in_diff(self):
         self.git("branch", "-M", "main")
@@ -184,12 +210,20 @@ class TierTest(unittest.TestCase):
 class ParserTest(unittest.TestCase):
     def test_install_lines(self):
         self.assertEqual(install_lines(CMAKE), {3, 4, 5, 6})
+        # install and ( on two lines, and an install() in a bracket comment
+        self.assertEqual(install_lines("a\ninstall\n(FILES\n x\n y\n)\n"), {2, 3, 4, 5, 6})
+        self.assertEqual(install_lines("a\n#[[\ninstall(FILES bad.h\n]]\ninstall(FILES real.h)\n"), {5})
 
     def test_declared_tier(self):
         template = "<!-- L, M, or H. Tier: H -->\n\nTier:\nReason:\n"
         self.assertIsNone(declared_tier(template))
         self.assertEqual(declared_tier("Tier: m\nReason: x\n"), "M")
         self.assertEqual(declared_tier("**Risk tier:** H. This changes `.github/`.\n"), "H")
+        # The highest tier, other marks around the tier, and no tier from a code block
+        self.assertEqual(declared_tier("Tier: M\nTier: H\n"), "H")
+        for body in ("Tier:\u00a0H\n", "Tier: `H`\n", "Tier: (H)\n"):
+            self.assertEqual(declared_tier(body), "H", body)
+        self.assertEqual(declared_tier("Tier: M\n```\nTier: H\n```\n"), "M")
 
 
 if __name__ == "__main__":

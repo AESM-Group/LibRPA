@@ -21,9 +21,13 @@ production code, split it or give the reason in the description. Do not count
 dependency snapshots, data, or generated files. Keep each test in the pull
 request whose behavior it protects.
 
-If the complete work adds more than 3000 lines, open a design issue first. The
-issue gives the physical definition, the inputs, the file formats, and the
-validation plan.
+If the complete work adds more than 3000 lines, open a design issue first with
+the Design issue template. The issue gives the physical definition, the inputs,
+the file formats, the validation plan, and the planned pull requests.
+
+The `Risk tier` workflow counts the added lines of production code and gives a
+warning above these limits. It does not count `thirdparty/`, `regression_tests/`,
+documentation, tests, and the generated Fortran stub module.
 
 ### Continuous integration
 
@@ -34,7 +38,7 @@ These workflows in `.github/workflows/` run on each pull request:
 | `checks.yml` | Checks that need no build: the runtime option definitions, the Fortran stub module, and the tests of the Python scripts |
 | `ci.yml` | Builds LibRPA and runs the unit tests and the regression tests |
 | `deploy-ghpages-doc.yml` | Builds the documentation |
-| `risk-tier.yml` | Gives the minimum risk tier. See "Risk tiers" |
+| `risk-tier.yml` | Gives the minimum risk tier and the size of the change. See "Risk tiers" |
 
 `ci.yml` does not run when a change has only these files:
 
@@ -57,9 +61,12 @@ tier, but cannot lower it.
 
 | Tier | Change | Review |
 | :--- | :----- | :----- |
-| L | Documentation or new tests, with no H condition | The author can merge after CI passes |
-| M | Code changes with no H condition | One reviewer other than the author examines the intent, the evidence, and the agent findings |
+| L | Documentation or new tests with no new reference values, and no H condition | The author can merge after CI passes |
+| M | Other changes with no H condition | One reviewer other than the author examines the intent, the evidence, and the agent findings |
 | H | At least one H condition | One area owner other than the author examines the change and its numerical evidence |
+
+`.github/CODEOWNERS` gives the area owners. GitHub requests a review from the
+owners of the changed files.
 
 The H conditions are in two groups. The paths and the lines of the diff show
 the conditions in the first group:
@@ -67,8 +74,10 @@ the conditions in the first group:
 - A change to an existing file in `regression_tests/refs/`.
 - A removed or changed line in `regression_tests/testsuite.xml`.
 - A change to a comparator in `regression_tests/backend/comparisons/`.
+- A change to a script in `regression_tests/verification/`.
 - A removed or changed line in `include/` or `binding/fortran/`.
-- A change to `.github/`, `REVIEW.md`, `CLAUDE.md`, `thirdparty/`, or `src/mpi/`.
+- A change to `.github/`, `thirdparty/`, or `src/mpi/`.
+- A change to `REVIEW.md`, `CLAUDE.md`, `AGENTS.md`, or `CONTRIBUTING.md`.
 - An added, removed, or changed `install(` command in a CMake file.
 
 A person or an agent must examine the change for the conditions in the second
@@ -82,15 +91,20 @@ group:
   normalization, units, k or q mapping, or parallel data ownership.
 
 `utilities/check_risk_tier.py` applies the first group and gives the minimum
-tier. Run it before you open a pull request, with the base branch as `--base`:
+tier. If you change the first group, change the script and this list together.
+Run the script before you open a pull request, with the base branch as `--base`:
 
 ```bash
 python utilities/check_risk_tier.py --base upstream/master
 ```
 
 The `Risk tier` workflow runs the script on each pull request and writes the
-result to the job summary. If the description gives a lower tier, the workflow
-gives a warning, but it does not fail.
+result to the job summary. The workflow fails if the description has no tier, or
+gives a tier lower than the minimum tier. Correct the `Tier:` line, and the
+workflow runs again. Do not merge a pull request while this check fails.
+
+The reviewer examines the change for the second group. If the change meets a
+condition in this group, the author changes the tier to H.
 
 A maintainer can merge an M pull request without a reviewer if all these
 conditions are true:
@@ -120,6 +134,20 @@ The standard depends on the type of change:
   allows.
 - A method change needs independent evidence. Agreement with the old results
   does not show that the new method is correct.
+
+### Regression tests and verification scripts
+
+A regression test compares the output of a case with stored reference values.
+Put the input in `regression_tests/testcases/<case>`, the reference values in
+`regression_tests/refs/<case>`, and the test in `regression_tests/testsuite.xml`.
+Use a comparator in `regression_tests/backend/comparisons/`, or add one.
+
+A script in `regression_tests/verification/` compares LibRPA results with each
+other, for example a continuous run with a restarted run, two MPI layouts, or a
+value with the same value calculated again from other output. The script does
+not keep reference values. If a check needs reference values, make it a
+regression test. The tolerances in these scripts are numerical gates, so a
+change to a script is an H condition.
 
 ### Agent review
 

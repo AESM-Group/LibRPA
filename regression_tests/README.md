@@ -1,6 +1,8 @@
 # Regression tests
 
 This folder contains regression test cases used to verify LibRPA features.
+"Regression tests and verification scripts" in `docs/develop/develop_tips.md`
+gives what goes in `testcases/` and `refs/`, and what goes in `verification/`.
 
 The LibRI suite includes two ABACUS H2 cases: standalone Hartree compares the
 complete complex AO matrix on the k-grid, and QSGW Hartree feedback compares

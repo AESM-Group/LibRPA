@@ -19,14 +19,21 @@ other H conditions and can raise the tier.
 
 Without an H condition, the tier is L if the change has only documentation and
 new tests, and M otherwise. A new test is an added test file, or added lines
-with no removed lines in an existing test file.
+with no removed lines in an existing test file. New reference values in
+regression_tests/refs/ are not new tests, and make the tier M.
+
+The script also counts the added lines of production code, and gives a warning
+above the limit in "Git collaborative workflow".
 
 Usage:
   python utilities/check_risk_tier.py --base origin/master
   python utilities/check_risk_tier.py --base HEAD^1 --body-env PR_BODY --github
 
-The script always exits with 0 after a successful comparison. It exits with
-another value if git fails, for example when the base revision does not exist.
+Exit status:
+  0  the comparison is complete, and the description gives a tier that is not
+     lower than the minimum tier, or no description is given
+  1  the description has no tier, or gives a tier lower than the minimum tier
+  2  git fails, for example when the base revision does not exist
 """
 
 TIERS = ("L", "M", "H")
@@ -44,16 +51,34 @@ TEST_DIRS = (
     "driver/test/",
     "regression_tests/testcases/",
     "regression_tests/refs/",
-    "regression_tests/verification/",
     "regression_tests/testsuite.xml",
+)
+
+# Files of the review process. docs/develop/develop_tips.md gives the same list.
+PROCESS_FILES = frozenset({"REVIEW.md", "CLAUDE.md", "AGENTS.md", "CONTRIBUTING.md"})
+
+# Added lines of production code above which a pull request is split, or a
+# design issue is opened first
+SPLIT_LINES = 1000
+DESIGN_LINES = 3000
+# Paths that do not count as production code: dependency snapshots, test data,
+# and generated files
+NOT_PRODUCTION = (
+    "thirdparty/",
+    "regression_tests/",
+    "binding/fortran/librpa_f03_stubs.f90",
 )
 
 MAX_ROWS = 20
 
 _INSTALL_PAT = re.compile(r"(?<![A-Za-z0-9_])install\s*\(", re.IGNORECASE)
 _HUNK_PAT = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
-_TIER_PAT = re.compile(r"^[ \t*_]*(?:risk[ \t]+)?tier[ \t*_]*:[ \t*_]*([LMH])\b",
+# Space other than a line break, and Markdown marks around the label and the tier
+_MARK = r"(?:[^\S\r\n]|[*_`\"'(\[])*"
+_TIER_PAT = re.compile(rf"^{_MARK}(?:risk[^\S\r\n]+)?tier{_MARK}:{_MARK}([LMH])\b",
                        re.IGNORECASE | re.MULTILINE)
+# Start of a bracket argument or a bracket comment in CMake, such as [[ or [==[
+_BRACKET_PAT = re.compile(r"\[(=*)\[")
 
 
 @dataclass
@@ -83,6 +108,8 @@ class Result:
     h_conditions: List[Tuple[str, str]]
     # Files that make the tier M when there is no H condition
     code_files: List[str]
+    # Added lines of production code
+    production_lines: int = 0
 
 
 def parse_diff(name_status: str, unified: str) -> List[FileChange]:
@@ -141,10 +168,19 @@ def install_lines(text: str) -> Set[int]:
                 i += 1
             elif c == '"':
                 in_string = False
-        elif c == "#":
-            j = text.find("\n", i)
-            i = n if j < 0 else j
-            continue
+        elif c == "#" or c == "[":
+            bracket = _BRACKET_PAT.match(text, i + 1 if c == "#" else i)
+            if bracket:
+                # A bracket comment or a bracket argument ends at ]], or ]==] for [==[
+                close = text.find("]" + bracket.group(1) + "]", bracket.end())
+                end = n if close < 0 else close + len(bracket.group(0))
+                line += text.count("\n", i, end)
+                i = end
+                continue
+            if c == "#":
+                j = text.find("\n", i)
+                i = n if j < 0 else j
+                continue
         elif c == '"':
             in_string = True
         elif start is None:
@@ -152,6 +188,7 @@ def install_lines(text: str) -> Set[int]:
             if m:
                 start = line
                 depth = 1
+                line += text.count("\n", i, m.end())
                 i = m.end()
                 continue
         elif c == "(":
@@ -178,15 +215,23 @@ def is_test(path: str) -> bool:
 
 
 def is_doc(path: str) -> bool:
-    return path.startswith("docs/") or path.endswith(".md")
+    # Scripts in docs/, such as conf.py and the generator of the parameter table, are code
+    if path.startswith("docs/"):
+        return not path.endswith(".py")
+    return path.endswith((".md", ".rst"))
+
+
+def is_production(change: FileChange) -> bool:
+    path = change.path
+    return not (change.binary or is_doc(path) or is_test(path) or path.startswith(NOT_PRODUCTION))
 
 
 def h_condition(change: FileChange, read_old: Callable[[str], str],
                 read_new: Callable[[str], str]) -> Optional[str]:
     """Give the H condition that the change meets, or None."""
     path = change.path
-    if path.startswith(".github/") or path in ("REVIEW.md", "CLAUDE.md"):
-        return "change to `.github/`, `REVIEW.md`, or `CLAUDE.md`"
+    if path.startswith(".github/") or path in PROCESS_FILES:
+        return "change to `.github/` or to a file of the review process"
     if path.startswith(("thirdparty/", "src/mpi/")):
         return "change to `thirdparty/` or `src/mpi/`"
     if path.startswith("regression_tests/refs/") and change.status != "A":
@@ -195,6 +240,8 @@ def h_condition(change: FileChange, read_old: Callable[[str], str],
         return "removed or changed line in `testsuite.xml`"
     if path.startswith("regression_tests/backend/comparisons/") and not is_test(path):
         return "change to a comparator"
+    if path.startswith("regression_tests/verification/"):
+        return "change to a verification script"
     if path.startswith(("include/", "binding/fortran/")) and change.removes_lines:
         return "removed or changed line in `include/` or `binding/fortran/`"
     if is_cmake(path):
@@ -215,7 +262,8 @@ def classify(changes: Sequence[FileChange], read_old: Callable[[str], str],
             h_conditions.append((change.path, condition))
         elif is_doc(change.path):
             pass
-        elif is_test(change.path) and not change.removes_lines:
+        elif (is_test(change.path) and not change.removes_lines
+              and not change.path.startswith("regression_tests/refs/")):
             pass
         else:
             code_files.append(change.path)
@@ -225,15 +273,39 @@ def classify(changes: Sequence[FileChange], read_old: Callable[[str], str],
         tier = "M"
     else:
         tier = "L"
-    return Result(tier, h_conditions, code_files)
+    production_lines = sum(len(change.added) for change in changes if is_production(change))
+    return Result(tier, h_conditions, code_files, production_lines)
 
 
 def declared_tier(body: str) -> Optional[str]:
-    """Give the tier in the `Tier:` line of a pull request description."""
-    # Do not read the tier from the comments of the template
+    """Give the highest tier in the `Tier:` lines of a pull request description."""
+    # Do not read the tier from the comments of the template or from code blocks
     body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
-    m = _TIER_PAT.search(body)
-    return m.group(1).upper() if m else None
+    body = re.sub(r"^[ \t]*(```|~~~).*?^[ \t]*\1", "", body, flags=re.DOTALL | re.MULTILINE)
+    tiers = [t.upper() for t in _TIER_PAT.findall(body)]
+    return max(tiers, key=TIERS.index) if tiers else None
+
+
+def tier_problem(result: Result, declared: Optional[str]) -> Optional[str]:
+    """Give the problem with the declared tier, or None."""
+    if declared is None:
+        return f"The description has no `Tier:` line. The diff needs at least tier {result.tier}."
+    if TIERS.index(declared) < TIERS.index(result.tier):
+        return (f"The description gives tier {declared}, "
+                f"but the diff needs at least tier {result.tier}.")
+    return None
+
+
+def size_problem(result: Result) -> Optional[str]:
+    """Give the size limit that the change exceeds, or None."""
+    n = result.production_lines
+    if n > DESIGN_LINES:
+        return (f"The change adds {n} lines of production code. Above {DESIGN_LINES} lines, "
+                "open a design issue first, and give its link in the description.")
+    if n > SPLIT_LINES:
+        return (f"The change adds {n} lines of production code. Above {SPLIT_LINES} lines, "
+                "split the pull request or give the reason in the description.")
+    return None
 
 
 def report(result: Result, declared: Optional[str], body_given: bool) -> str:
@@ -250,15 +322,16 @@ def report(result: Result, declared: Optional[str], body_given: bool) -> str:
         more = len(result.code_files) - MAX_ROWS
         if more > 0:
             shown += f", and {more} more files"
-        lines += [f"Files other than documentation and new tests: {shown}", ""]
+        lines += [f"Files that need tier M: {shown}", ""]
+
+    lines += [f"Added lines of production code: {result.production_lines}", ""]
+    size = size_problem(result)
+    if size is not None:
+        lines += [size, ""]
 
     if body_given:
-        if declared is None:
-            lines += ["The description has no `Tier:` line.", ""]
-        elif TIERS.index(declared) < TIERS.index(result.tier):
-            lines += [f"The description gives tier {declared}, which is lower than the minimum tier.", ""]
-        else:
-            lines += [f"The description gives tier {declared}.", ""]
+        problem = tier_problem(result, declared)
+        lines += [problem if problem is not None else f"The description gives tier {declared}.", ""]
 
     lines.append("The diff does not show these H conditions. Examine the change for them: "
                  + "; ".join(UNCHECKED_CONDITIONS) + ".")
@@ -279,7 +352,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--head", default="HEAD", help="revision to compare with the base")
     parser.add_argument("--body-env", help="environment variable with the pull request description")
     parser.add_argument("--github", action="store_true",
-                        help="write the report to the job summary and give a warning annotation")
+                        help="write the report to the job summary and give annotations")
     args = parser.parse_args(argv)
 
     for rev in (args.base, args.head):
@@ -309,18 +382,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     text = report(result, declared, body is not None)
     print(text, end="")
 
+    problem = tier_problem(result, declared) if body is not None else None
     if args.github:
         summary = os.environ.get("GITHUB_STEP_SUMMARY")
         if summary:
             with open(summary, "a", encoding="utf-8") as f:
                 f.write(text)
-        if declared is not None and TIERS.index(declared) < TIERS.index(result.tier):
-            print(f"::warning title=Risk tier::The description gives tier {declared}, "
-                  f"but the diff needs at least tier {result.tier}. See the job summary.")
-        elif body is not None and declared is None:
-            print(f"::notice title=Risk tier::The description has no Tier line. "
-                  f"The diff needs at least tier {result.tier}.")
-    return 0
+        size = size_problem(result)
+        if size is not None:
+            print(f"::warning title=Pull request size::{size}")
+        if problem is not None:
+            print(f"::error title=Risk tier::{problem} Correct the Tier line in the description.")
+    return 1 if problem is not None else 0
 
 
 if __name__ == "__main__":

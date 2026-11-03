@@ -4,7 +4,7 @@
 
 ## Risk tier
 
-<!-- L, M, or H. See "Risk tiers" in docs/develop/develop_tips.md. -->
+<!-- L, M, or H. See "Risk tiers" in docs/develop/develop_tips.md. The Risk tier check fails if this line is empty or gives a tier lower than the minimum tier. -->
 
 Tier:
 Reason:

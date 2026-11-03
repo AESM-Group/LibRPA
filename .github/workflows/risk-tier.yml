@@ -1,7 +1,7 @@
 name: Risk tier
 
-# Advisory check: it gives the minimum risk tier from the diff and does not fail
-# when the description gives a lower tier.
+# Give the minimum risk tier from the diff. Fail if the description has no tier
+# or gives a lower tier. The check runs again when the description changes.
 on:
   pull_request:
     types: [opened, synchronize, reopened, edited]

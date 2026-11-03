@@ -1,0 +1,50 @@
+# The last matching pattern sets the owner of a file.
+
+# Default, including the files in the repository root
+*                       @minyez @userchba
+
+# Review process
+/.github/               @minyez @AroundPeking
+/REVIEW.md              @minyez @AroundPeking
+/CONTRIBUTING.md        @minyez @AroundPeking
+
+# Instructions for AI agents
+/CLAUDE.md              @bhjia-phys @AroundPeking
+/AGENTS.md              @bhjia-phys @AroundPeking
+
+# Build and dependencies
+/CMakeLists.txt         @minyez @userchba
+/src/CMakeLists.txt     @minyez @userchba
+/cmake/                 @minyez @userchba
+/cmake.inc              @minyez @userchba
+/.gitmodules            @minyez @userchba
+/thirdparty/            @minyez @userchba
+
+# Library
+/src/core/              @AroundPeking @minyez
+/src/io/                @minyez @bhjia-phys
+/src/utils/             @minyez @userchba
+/src/interface/         @userchba @minyez
+/src/gpu/               @userchba @minyez
+/src/test/              @minyez @bhjia-phys
+
+# Public interfaces
+/include/               @minyez @AroundPeking
+/binding/fortran/       @minyez @AroundPeking
+/src/api/               @minyez @AroundPeking
+
+# Driver
+/driver/                @bhjia-phys @minyez
+
+# Parallel and linear algebra
+/src/mpi/               @userchba @minyez
+/src/math/              @userchba @bhjia-phys
+/src/elpa/              @userchba @bhjia-phys
+
+# Tests, documentation, and tools
+/regression_tests/      @minyez @bhjia-phys
+/docs/                  @minyez @bhjia-phys
+/utilities/             @bhjia-phys @userchba
+# The risk tier script is part of the review process
+/utilities/*risk_tier*  @minyez @AroundPeking
+/examples/              @userchba @minyez
