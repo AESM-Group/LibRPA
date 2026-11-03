@@ -1,7 +1,7 @@
 name: Build and run unittest with Intel oneAPI
 
-# Changes to documentation only skip this workflow. checks.yml runs the checks
-# that need no build for each change.
+# Changes to documentation and to the scripts of checks.yml only skip this
+# workflow. checks.yml runs the checks that need no build for each change.
 on:
   push:
     branches:
@@ -9,16 +9,30 @@ on:
     paths-ignore:
       - 'docs/**'
       - '**.md'
+      # Scripts that only checks.yml uses
+      - 'utilities/check_*.py'
+      - 'utilities/test_*.py'
+      - 'utilities/convert_fortran_module_to_stub.py'
   pull_request:
     paths-ignore:
       - 'docs/**'
       - '**.md'
+      # Scripts that only checks.yml uses
+      - 'utilities/check_*.py'
+      - 'utilities/test_*.py'
+      - 'utilities/convert_fortran_module_to_stub.py'
 
 # oneapi install adapted from the build_linux_apt_cpp of
 # https://github.com/oneapi-src/oneapi-ci/blob/master/.github/workflows/build_all.yml
 
 env:
   LINUX_CPP_COMPONENTS: intel-oneapi-dpcpp-cpp-compiler_intel-oneapi-compiler-fortran_intel-oneapi-mkl_intel-oneapi-mkl-devel_intel-oneapi-mpi_intel-oneapi-mpi-devel
+
+# Cancel a pull request run when a new commit arrives. On master, a run that
+# started does not stop, and the next run waits in a queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ONEAPI:

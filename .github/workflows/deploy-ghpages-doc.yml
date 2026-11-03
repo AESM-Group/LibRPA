@@ -5,6 +5,12 @@ on:
       - master
   pull_request:
 
+# Cancel a pull request run when a new commit arrives. On master, a run that
+# started does not stop, and the next run waits in a queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest

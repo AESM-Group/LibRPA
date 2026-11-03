@@ -23,8 +23,9 @@ cmake --build build -j 8
 ```
 
 `.github/workflows/ci.yml` has the compiler settings and the other build
-configurations. It does not run when a change has only files in `docs/` and
-`.md` files.
+configurations. It does not run when a change has only documentation and the
+scripts that `.github/workflows/checks.yml` uses. The `paths-ignore` lists in
+`ci.yml` give these files.
 
 ## Test
 

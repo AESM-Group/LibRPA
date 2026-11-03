@@ -36,8 +36,19 @@ These workflows in `.github/workflows/` run on each pull request:
 | `deploy-ghpages-doc.yml` | Builds the documentation |
 | `risk-tier.yml` | Gives the minimum risk tier. See "Risk tiers" |
 
-`ci.yml` does not run when a change has only files in `docs/` and `.md` files.
-The other workflows run for each change.
+`ci.yml` does not run when a change has only these files:
+
+- Files in `docs/` and `.md` files.
+- The scripts in `utilities/` that only `checks.yml` uses:
+  `check_*.py`, `test_*.py`, and `convert_fortran_module_to_stub.py`.
+
+The other workflows run for each change. If a script in `utilities/` becomes
+part of a `ci.yml` test, remove it from the `paths-ignore` lists in `ci.yml`.
+
+When you push a new commit to a pull request, the runs for the earlier commit
+stop. On `master`, a run that started does not stop, and a new run waits in a
+queue until it ends. If more commits arrive during this time, only the latest
+one stays in the queue.
 
 ### Risk tiers
 
