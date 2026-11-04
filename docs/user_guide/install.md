@@ -33,7 +33,7 @@ The standalone source-preparation script requires only CMake 3.13. It downloads,
 
 *GW* and EXX require LibRI. RPA correlation energies can also be computed with `LIBRPA_USE_LIBRI=OFF`. GreenX remains required in that configuration.
 
-Managed ELPA also needs a C compiler, `make`, Bash and a C preprocessor. CUDA and HIP builds need their GPU toolchains and communication libraries, in addition to LibDDLA. Source preparation does not install compilers, MPI, math libraries or GPU toolchains.
+Managed ELPA also needs a C compiler, `make`, Bash and a C preprocessor. ELPA source builds require source and build directory paths without whitespace. Use a `LIBRPA_THIRDPARTY_DIR` without spaces, and check `ELPA_SOURCE_DIR` when supplied. CUDA and HIP builds need their GPU toolchains and communication libraries, in addition to LibDDLA. Source preparation does not install compilers, MPI, math libraries or GPU toolchains.
 
 (install-build)=
 ## Download, build and install

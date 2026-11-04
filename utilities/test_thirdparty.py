@@ -317,6 +317,30 @@ endif()
         self.assertFalse(list((self.storage / "src").glob(".tmp-*")))
 
 
+class ELPAPathTest(unittest.TestCase):
+    def test_source_and_build_whitespace_rejected_at_configure(self):
+        with tempfile.TemporaryDirectory(prefix="librpa-elpa-") as temporary:
+            root = Path(temporary)
+            for kind in ("source", "build"):
+                for whitespace in (" ", "\t"):
+                    with self.subTest(kind=kind, whitespace=repr(whitespace)):
+                        source = root / ("source" + whitespace + "tree" if kind == "source" else "source")
+                        build = root / ("build" + whitespace + "tree" if kind == "build" else "build")
+                        (root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
+project(ELPAPath NONE)
+set(_elpa_source_dir "{source}")
+set(LIBRPA_BUNDLED_ELPA_VERSION 2026.02.001)
+include("{MODULE.parent.parent}/thirdparty/ELPA/CMakeLists.txt")
+''')
+                        result = subprocess.run(["cmake", "-S", str(root), "-B", str(build)],
+                                                capture_output=True, text=True, env=fixture_environment())
+                        self.assertNotEqual(result.returncode, 0)
+                        output = " ".join((result.stdout + result.stderr).split())
+                        self.assertIn("ELPA source builds do not support whitespace", output)
+                        self.assertIn(" ".join(str(source if kind == "source" else build).split()), output)
+                        self.assertIn("LIBRPA_THIRDPARTY_DIR", output)
+
+
 class GreenXResolutionTest(unittest.TestCase):
     """Exercise target and package resolution without a compiler or network."""
 

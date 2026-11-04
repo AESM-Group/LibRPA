@@ -165,6 +165,8 @@ The option name is retained for compatibility with existing build scripts. It no
 This option is mutually exclusive with
 [`LIBRPA_USE_EXTERNAL_ELPA`](#librpa-use-external-elpa).
 
+ELPA source and build directory paths must not contain whitespace. LibRPA checks both paths during configuration. Choose `LIBRPA_THIRDPARTY_DIR`, `ELPA_SOURCE_DIR` and the CMake build directory accordingly.
+
 LibRPA builds managed ELPA through CMake's `ExternalProject` mechanism.
 After ELPA has been built in an existing build directory, changing compiler
 flags or `CMAKE_BUILD_TYPE` may not automatically reconfigure and rebuild ELPA.
