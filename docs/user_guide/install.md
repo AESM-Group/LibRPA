@@ -11,16 +11,8 @@ The CPU build requires:
 - A Fortran compiler, including when the Fortran binding is disabled. GreenX contains Fortran code.
 - MPI and OpenMP development libraries compatible with the selected compilers.
 - BLAS, LAPACK and ScaLAPACK libraries compatible with that MPI installation.
-- CMake and a build tool supported by the selected CMake generator.
+- CMake 3.18 or newer, and a build tool supported by the selected CMake generator.
 - Git or `patch` when source preparation needs to apply patches. Git has precedence when both tools are available.
-
-### CMake version
-
-LibRPA requires CMake **3.18 or newer**. Its own top-level build code uses `FindCUDAToolkit` (introduced in 3.17) and policy `CMP0104` (introduced in 3.18). These calls determine LibRPA's minimum version independently of third-party requirements.
-
-Dependencies and compiler toolchains can have additional requirements. Their build configurations check those requirements separately. A subdirectory's minimum-version declaration checks the running CMake and sets policies in that directory. It does not raise the parent's policy version.
-
-The standalone source-preparation script requires only CMake 3.13. It downloads, patches and verifies sources without configuring or compiling the dependency projects.
 
 ### Source dependencies
 

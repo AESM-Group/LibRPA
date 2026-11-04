@@ -15,7 +15,7 @@ Header include paths, compiled-dependency source and installation paths, and `LI
 
 The four `LIBRPA_THIRDPARTY_*` settings also work with `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. Of these four, only `LIBRPA_THIRDPARTY_ARCHIVE_DIR` reads an environment variable. Separately, header include paths and the source and installation paths of compiled dependencies read environment variables of the same name.
 
-For a complete build procedure and CMake version requirements, see {ref}`Installation <install-build-requirements>`.
+For the build requirements and a complete build procedure, see {ref}`Installation <install-build-requirements>`.
 
 ## Compiler and build-tool settings
 

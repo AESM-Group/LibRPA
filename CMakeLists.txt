@@ -1,5 +1,7 @@
 # main CMake file for LibRPA
-# LibRPA itself uses FindCUDAToolkit (3.17) and CMP0104 (3.18).
+# Minimum version set by LibRPA's own build code: FindCUDAToolkit
+# (introduced in CMake 3.17) and policy CMP0104 (introduced in CMake 3.18).
+# Dependencies check their own requirements in their subdirectories.
 cmake_minimum_required(VERSION 3.18)
 
 project(librpa NONE)
