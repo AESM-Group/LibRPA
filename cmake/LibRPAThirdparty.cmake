@@ -227,9 +227,22 @@ function(librpa_thirdparty_use_path name user_path out status)
       string(RANDOM LENGTH 16 ALPHABET 0123456789abcdef _random)
       set(_temporary "${LIBRPA_THIRDPARTY_DIR}/src/.tmp-${name}-${_random}")
       set(_tree "${_temporary}/${name}")
-      file(MAKE_DIRECTORY "${_tree}/${_HASH_SUBDIR}")
+      execute_process(COMMAND "${CMAKE_COMMAND}" -E make_directory "${_tree}/${_HASH_SUBDIR}"
+        RESULT_VARIABLE _mkdir ERROR_VARIABLE _error)
+      if(NOT _mkdir EQUAL 0)
+        file(REMOVE_RECURSE "${_temporary}")
+        message(FATAL_ERROR "${name}: cannot create an overlay in ${LIBRPA_THIRDPARTY_DIR}/src. An overlay needs a writable LIBRPA_THIRDPARTY_DIR.\n${_error}")
+      endif()
       # COPY preserves symlinks unless FOLLOW_SYMLINK_CHAIN is requested.
       file(COPY "${user_path}/" DESTINATION "${_tree}/${_HASH_SUBDIR}")
+      # COPY retains read-only permissions. Make only the copy owner-writable,
+      # preserving executable scripts and leaving the supplied tree unchanged.
+      execute_process(COMMAND chmod -R u+w "${_tree}"
+        RESULT_VARIABLE _chmod ERROR_VARIABLE _error)
+      if(NOT _chmod EQUAL 0)
+        file(REMOVE_RECURSE "${_temporary}")
+        message(FATAL_ERROR "${name}: cannot make overlay owner-writable: ${_tree}\n${_error}")
+      endif()
       librpa_thirdparty_tree_sha256(_copied "${_tree}/${_HASH_SUBDIR}")
       if(NOT _copied STREQUAL _hash)
         file(REMOVE_RECURSE "${_temporary}")

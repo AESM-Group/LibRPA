@@ -145,6 +145,54 @@ endif()
 ''')
         self.assertIn("differs from the pinned version", " ".join(output.split()))
 
+    def test_read_only_pristine_overlays(self):
+        script = self.upstream / "configure"
+        script.write_text("#!/bin/sh\nexit 0\n")
+        script.chmod(0o755)
+        for whole_tree in (False, True):
+            with self.subTest(whole_tree=whole_tree):
+                source = self.upstream if whole_tree else self.upstream / "include"
+                pristine = tree_hash(source)
+                self.header.write_text("// patched\n")
+                patched = tree_hash(source)
+                self.header.write_text("// upstream\n")
+                subprocess.run(["chmod", "-R", "a-w", str(self.upstream)], check=True)
+                modes = {p: p.stat().st_mode for p in self.upstream.rglob("*")}
+                try:
+                    output = self.run_cmake(f'''set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_HASH_SUBDIR "{'' if whole_tree else 'include'}")
+set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_PRISTINE_SHA256 "{pristine}")
+set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_TREE_SHA256 "{patched}")
+librpa_thirdparty_use_path(Fixture "{source}" result status)
+if(NOT status STREQUAL "overlay")
+  message(FATAL_ERROR "Expected overlay")
+endif()
+''')
+                    self.assertEqual(tree_hash(source), pristine)
+                    self.assertEqual({p: p.stat().st_mode for p in modes}, modes)
+                    result = self.storage / f"src/Fixture-{patched[:12]}"
+                    if whole_tree:
+                        self.assertTrue(os.access(result / "configure", os.X_OK))
+                    else:
+                        result /= "include"
+                    self.assertEqual(tree_hash(result), patched)
+                finally:
+                    subprocess.run(["chmod", "-R", "u+w", str(self.upstream)], check=True)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root can write read-only directories")
+    def test_unwritable_overlay_directory(self):
+        self.storage.mkdir()
+        for blocked in (self.storage, self.storage / "src"):
+            blocked.mkdir(exist_ok=True)
+            blocked.chmod(0o555)
+            try:
+                output = self.run_cmake(
+                    f'librpa_thirdparty_use_path(Fixture "{self.upstream}/include" result status)',
+                    success=False)
+                self.assertIn(str(self.storage / "src"), " ".join(output.split()))
+                self.assertIn("An overlay needs a writable LIBRPA_THIRDPARTY_DIR", " ".join(output.split()))
+            finally:
+                blocked.chmod(0o755)
+
     def test_whole_tree_overlay_preserves_symlink(self):
         (self.upstream / "alias").symlink_to("include", target_is_directory=True)
         pristine = tree_hash(self.upstream)

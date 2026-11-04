@@ -48,3 +48,5 @@ For compiler requirements, build/install commands and troubleshooting, see [Inst
 ## Updates
 
 Update the manifest, regenerate any necessary patches, compute pristine and patched tree hashes, and run build and numerical regressions. See [the developer procedure](../docs/develop/thirdparty.md) for the exact hash definition and validation steps, and [patches/README.md](patches/README.md) for local modifications and licenses.
+
+Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `LIBRPA_THIRDPARTY_DIR/src` directory. The supplied tree keeps its contents and permissions.
