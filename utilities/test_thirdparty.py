@@ -335,7 +335,9 @@ endif()
 class PathResolutionTest(unittest.TestCase):
     def test_relative_paths_share_one_base(self):
         with tempfile.TemporaryDirectory(prefix="librpa-paths-") as temporary:
-            root = Path(temporary)
+            # CMake resolves the invocation directory through symlinks, such
+            # as /var -> /private/var on macOS.
+            root = Path(temporary).resolve()
             project = root / "project"
             project.mkdir()
             invocation = root / "invocation"
