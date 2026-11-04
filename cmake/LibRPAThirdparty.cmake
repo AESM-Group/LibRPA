@@ -4,7 +4,7 @@ get_filename_component(LIBRPA_SOURCE_DIR "${_LIBRPA_THIRDPARTY_MODULE_DIR}/.." A
 # PATH cache entries normalize untyped relative -D values against CMake's
 # invocation directory, before any existence checks or dependency resolution.
 foreach(_path_variable LIBRI_INCLUDE_DIR LIBCOMM_INCLUDE_DIR CEREAL_INCLUDE_DIR
-    GREENX_SOURCE_DIR EXTERNAL_GREENX_DIR ELPA_SOURCE_DIR EXTERNAL_ELPA_DIR
+    GREENX_SOURCE_DIR EXTERNAL_GREENX_DIR ELPA_SOURCE_DIR EXTERNAL_ELPA_DIR ELPA_ROOT
     LIBDDLA_SOURCE_DIR LIBDDLA_PATH)
   set(${_path_variable} "${${_path_variable}}" CACHE PATH "Explicit third-party dependency path")
 endforeach()
@@ -148,11 +148,11 @@ endfunction()
 function(_librpa_thirdparty_missing name detail)
   _librpa_thirdparty_fields("${name}")
   librpa_thirdparty_archive_dir(_archive_dir)
-  message(FATAL_ERROR "Missing third-party component ${name}: ${detail}\nOn a connected machine, run from the same LibRPA source version:\n  cmake -DLIBRPA_THIRDPARTY_ARCHIVE_DIR=<archive-dir> -P cmake/LibRPAPrepareThirdparty.cmake\nCopy the archives to ${_archive_dir}/ on this machine.\nThen configure with -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF and, for a custom archive location, -DLIBRPA_THIRDPARTY_ARCHIVE_DIR=${_archive_dir}.\nAlternatively, obtain archive ${_ARCHIVE}\nfrom ${_URL}\nand place it in ${_archive_dir}/.")
+  message(FATAL_ERROR "Missing third-party component ${name}: ${detail}\nOn a connected machine, run from the same LibRPA source version:\n  cmake -DLIBRPA_THIRDPARTY_ARCHIVE_DIR=<archive-dir> -P cmake/LibRPADownloadThirdparty.cmake\nCopy the archives to ${_archive_dir}/ on this machine.\nThen configure with -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF and, for a custom archive location, -DLIBRPA_THIRDPARTY_ARCHIVE_DIR=${_archive_dir}.\nAlternatively, obtain archive ${_ARCHIVE}\nfrom ${_URL}\nand place it in ${_archive_dir}/.")
 endfunction()
 
 # Ensure that an archive is available for extraction or transfer to another host.
-function(librpa_thirdparty_prepare_archive name out)
+function(librpa_thirdparty_download_archive name out)
   _librpa_thirdparty_fields("${name}")
   librpa_thirdparty_archive_dir(_archive_dir)
   set(_archive "${_archive_dir}/${_ARCHIVE}")
@@ -199,7 +199,7 @@ endfunction()
 function(librpa_thirdparty_prepare name out)
   _librpa_thirdparty_fields("${name}")
   if(NOT EXISTS "${_final}")
-    librpa_thirdparty_prepare_archive("${name}" _archive)
+    librpa_thirdparty_download_archive("${name}" _archive)
     set(_archive_help "Archive: ${_archive}\nIf this archive comes from a shared directory, delete it and configure again.")
     string(RANDOM LENGTH 16 ALPHABET 0123456789abcdef _random)
     file(MAKE_DIRECTORY "${LIBRPA_SOURCE_DIR}/thirdparty/src")

@@ -4,18 +4,19 @@
 
 ### Breaking changes
 
-- Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone source-preparation script remains compatible with 3.13.
-- Stopped shipping third-party sources. Default configuration now needs network access or dependencies prepared with `cmake/LibRPAPrepareThirdparty.cmake`.
+- Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone download and source-preparation scripts remain compatible with 3.13.
+- Stopped shipping third-party sources. Default configuration uses network access, cached archives or prepared sources. For offline builds, download archives with `cmake/LibRPADownloadThirdparty.cmake` on a connected machine and transfer them to the build machine.
 - Restored unmodified upstream LibComm by removing the local `.wait()` patch.
 - Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
 
 ### Added
 
-- Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and an offline preparation script with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
+- Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and separate download and source-preparation scripts with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
 - Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibRI/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `EXTERNAL_GREENX_DIR` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
 
 ### Changed
 
+- Unified ELPA selection under `LIBRPA_USE_ELPA`, which defaults to `OFF`. Setting it to `ON` builds managed sources when no dependency is supplied. A parent ELPA target, source path or installation prefix enables ELPA automatically.
 - Updated cereal to `d81e2f7df7b334fee057e53017388d02e555a836`.
 
 ### Fixed

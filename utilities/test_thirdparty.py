@@ -12,7 +12,7 @@ import unittest
 
 PATH_VARIABLES = ("LIBRI_INCLUDE_DIR", "LIBCOMM_INCLUDE_DIR", "CEREAL_INCLUDE_DIR",
                   "GREENX_SOURCE_DIR", "EXTERNAL_GREENX_DIR", "ELPA_SOURCE_DIR",
-                  "EXTERNAL_ELPA_DIR", "LIBDDLA_SOURCE_DIR", "LIBDDLA_PATH",
+                  "EXTERNAL_ELPA_DIR", "ELPA_ROOT", "LIBDDLA_SOURCE_DIR", "LIBDDLA_PATH",
                   "LIBRPA_THIRDPARTY_ARCHIVE_DIR")
 
 MODULE = Path(__file__).resolve().parents[1] / "cmake/LibRPAThirdparty.cmake"
@@ -88,29 +88,72 @@ librpa_thirdparty_declare(Fixture VERSION 1 URL "{(self.archives / "fixture.tar.
         self.assertEqual(result.returncode == 0, success, output)
         return output
 
-    def test_elpa_mode_and_path_conflicts(self):
-        for external, bundled in ((False, False), (True, False), (False, True), (True, True)):
-            for source, prefix in ((False, False), (True, False), (False, True), (True, True)):
-                for origin in ("cmake", "environment", "mixed"):
-                    with self.subTest(external=external, bundled=bundled,
-                                      source=source, prefix=prefix, origin=origin):
-                        body = (f"set(LIBRPA_USE_EXTERNAL_ELPA {int(external)})\n"
-                                f"set(LIBRPA_USE_BUNDLED_ELPA {int(bundled)})\n")
-                        environment = fixture_environment()
-                        for variable, enabled in (("ELPA_SOURCE_DIR", source), ("EXTERNAL_ELPA_DIR", prefix)):
-                            if enabled:
+    def test_elpa_selection(self):
+        for enabled in (False, True):
+            for source in (False, True):
+                for prefix in (None, "EXTERNAL_ELPA_DIR", "ELPA_ROOT"):
+                    for origin in ("cmake", "environment", "mixed"):
+                        with self.subTest(enabled=enabled, source=source,
+                                          prefix=prefix, origin=origin):
+                            body = f"set(LIBRPA_USE_ELPA {int(enabled)})\n"
+                            environment = fixture_environment()
+                            for variable in (["ELPA_SOURCE_DIR"] if source else []) + ([prefix] if prefix else []):
                                 if origin == "environment" or (origin == "mixed" and variable == "ELPA_SOURCE_DIR"):
                                     environment[variable] = str(self.root)
                                 else:
                                     body += f'set({variable} "{self.root}")\n'
-                        body += f'include("{MODULE.parent}/ValidateELPAOptions.cmake")\n'
-                        conflict = ((external and bundled) or (source and prefix)
-                                    or (bundled and prefix) or (external and source))
-                        output = self.run_cmake(body, success=not conflict, env=environment)
-                        if not external and not bundled and source != prefix:
-                            option = "LIBRPA_USE_BUNDLED_ELPA" if source else "LIBRPA_USE_EXTERNAL_ELPA"
-                            self.assertIn(f"is ignored unless {option}=ON", " ".join(output.split()))
-                        self.assertNotIn("Downloading", output)
+                            body += f'include("{MODULE.parent}/ValidateELPAOptions.cmake")\n'
+                            body += 'message(STATUS "ELPA=${LIBRPA_USE_ELPA}, mode=${_elpa_mode}")\n'
+                            output = self.run_cmake(body, success=not (source and prefix), env=environment)
+                            if not (source and prefix):
+                                mode = "installed" if prefix else "source" if source or enabled else ""
+                                state = "ON" if mode else "0"
+                                self.assertIn(f"ELPA={state}, mode={mode}", output)
+                                self.assertNotRegex(output, r"CMake (Deprecation Warning|Warning \(deprecated\))")
+                            self.assertNotIn("Downloading", output)
+
+    def test_elpa_deprecated_options(self):
+        for option in ("LIBRPA_USE_EXTERNAL_ELPA", "LIBRPA_USE_BUNDLED_ELPA"):
+            for enabled in (False, True):
+                with self.subTest(option=option, enabled=enabled):
+                    output = self.run_cmake(f'''set(LIBRPA_USE_ELPA OFF)
+include("{MODULE.parent}/ValidateELPAOptions.cmake")
+message(STATUS "ELPA=${{LIBRPA_USE_ELPA}}, mode=${{_elpa_mode}}")
+''', definitions=(f"-D{option}={'ON' if enabled else 'OFF'}",))
+                    self.assertRegex(output, r"CMake (Deprecation Warning|Warning \(deprecated\))")
+                    self.assertIn(f"{option} is deprecated", output)
+                    mode = ("installed" if option == "LIBRPA_USE_EXTERNAL_ELPA" else "source") if enabled else ""
+                    self.assertIn(f"ELPA={'ON' if enabled else 'OFF'}, mode={mode}", output)
+
+    def test_elpa_parent_target_and_reconfigure(self):
+        project = self.root / "parent"
+        project.mkdir()
+        (project / "CMakeLists.txt").write_text(f'''
+cmake_minimum_required(VERSION 3.18)
+project(Parent NONE)
+include("{self.module}")
+option(LIBRPA_USE_ELPA "Use ELPA" OFF)
+add_library(ELPA::ELPA INTERFACE IMPORTED)
+include("{MODULE.parent}/ValidateELPAOptions.cmake")
+if(NOT LIBRPA_USE_ELPA OR NOT _elpa_mode STREQUAL "target")
+  message(FATAL_ERROR "Parent target must enable ELPA and take precedence over paths")
+endif()
+''')
+        build = self.root / "parent-build"
+        for path_option in (None, "ELPA_SOURCE_DIR", "EXTERNAL_ELPA_DIR"):
+            with self.subTest(path=path_option):
+                command = ["cmake", "-S", str(project), "-B", str(build), "-DLIBRPA_USE_ELPA=OFF",
+                           "-DELPA_SOURCE_DIR=", "-DEXTERNAL_ELPA_DIR="]
+                if path_option:
+                    command.append(f"-D{path_option}={self.root}")
+                result = subprocess.run(command, capture_output=True, text=True, env=fixture_environment())
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotRegex(result.stderr, r"CMake (Deprecation Warning|Warning \(deprecated\))")
+                self.assertIn("LIBRPA_USE_ELPA:BOOL=ON", (build / "CMakeCache.txt").read_text())
+                result = subprocess.run(["cmake", "-S", str(project), "-B", str(build)],
+                                        capture_output=True, text=True, env=fixture_environment())
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertNotRegex(result.stderr, r"CMake (Deprecation Warning|Warning \(deprecated\))")
 
     def test_directory_symlink_hash(self):
         (self.upstream / "include/alias").symlink_to("vendor", target_is_directory=True)
@@ -298,7 +341,7 @@ librpa_thirdparty_prepare(Fixture source)
         body = "set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\nlibrpa_thirdparty_prepare(Fixture source)\n"
         output = self.run_cmake(body, success=False)
         self.assertIn("Missing third-party component Fixture", output)
-        self.assertIn("LibRPAPrepareThirdparty.cmake", output)
+        self.assertIn("LibRPADownloadThirdparty.cmake", output)
         self.assertIn("Alternatively", output)
         (self.storage / "downloads").mkdir()
         shutil.copy2(self.archives / "fixture.tar.gz", self.storage / "downloads")
@@ -393,9 +436,11 @@ endif()
     def test_offline_archive_transfer(self):
         # The connected and offline machines have independent archive locations.
         downloads = self.root / "connected Downloads"
-        self.run_cmake(f'''set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "{downloads}")
-librpa_thirdparty_prepare(Fixture source)
-''')
+        script = self.standalone_script("LibRPADownloadThirdparty.cmake")
+        result = subprocess.run(["cmake", f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={downloads}", "-P", str(script)],
+                                capture_output=True, text=True, env=fixture_environment())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse((self.storage / "src").exists())
         original_preamble = self.preamble
         for custom in (False, True):
             with self.subTest(custom=custom):
@@ -414,20 +459,64 @@ librpa_thirdparty_prepare(Fixture source)
                 self.assertEqual(tree_hash(checkout / "thirdparty/src" / self.final.name / "include"), self.patched)
                 self.assertFalse((archives / "src").exists())
 
-    def test_preparation_script_populates_archives_with_existing_sources(self):
+    def standalone_script(self, name):
+        script = self.checkout / "cmake" / name
+        shutil.copy2(MODULE.parent / name, script)
+        declaration = self.preamble[self.preamble.index("librpa_thirdparty_declare"):]
+        (self.storage / "manifest.cmake").write_text(declaration)
+        return script
+
+    def test_download_script_with_existing_sources(self):
         self.run_cmake("librpa_thirdparty_prepare(Fixture source)\n")
         header = self.final / "include/vendor/header.hpp"
         header.write_text("// local changes\n")
-        script = self.checkout / "cmake/LibRPAPrepareThirdparty.cmake"
-        shutil.copy2(MODULE.parent / script.name, script)
-        declaration = self.preamble[self.preamble.index("librpa_thirdparty_declare"):]
-        (self.storage / "manifest.cmake").write_text(declaration)
+        script = self.standalone_script("LibRPADownloadThirdparty.cmake")
         downloads = self.root / "Downloads"
         command = ["cmake", f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={downloads}", "-P", str(script)]
         result = subprocess.run(command, capture_output=True, text=True, env=fixture_environment())
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual((downloads / "fixture.tar.gz").read_bytes(),
                          (self.archives / "fixture.tar.gz").read_bytes())
+        self.assertEqual(header.read_text(), "// local changes\n")
+        self.assertNotIn("unpinned", result.stdout + result.stderr)
+        # Cached archives are still verified even when prepared sources exist.
+        (downloads / "fixture.tar.gz").write_bytes(b"corrupt")
+        result = subprocess.run(command, capture_output=True, text=True, env=fixture_environment())
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("archive SHA256 mismatch", result.stdout + result.stderr)
+
+    def test_download_script_component_selection(self):
+        script = self.standalone_script("LibRPADownloadThirdparty.cmake")
+        manifest = self.storage / "manifest.cmake"
+        declaration = manifest.read_text().replace("declare(Fixture ", "declare(Second ").replace(
+            "ARCHIVE fixture.tar.gz", "ARCHIVE second.tar.gz")
+        manifest.write_text(manifest.read_text() + declaration)
+        # Downloads do not require patch files or create source directories.
+        self.patch.unlink()
+        downloads = self.root / "Downloads"
+        command = ["cmake", f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={downloads}"]
+        for components in (["-DCOMPONENTS=Fixture"], []):
+            result = subprocess.run(command + components + ["-P", str(script)],
+                                    capture_output=True, text=True, env=fixture_environment())
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue((downloads / "fixture.tar.gz").exists())
+            self.assertEqual((downloads / "second.tar.gz").exists(), not components)
+            self.assertFalse((self.storage / "src").exists())
+
+    def test_preparation_script_reuses_sources_without_archives(self):
+        script = self.standalone_script("LibRPAPrepareThirdparty.cmake")
+        command = ["cmake", "-P", str(script)]
+        result = subprocess.run(command, capture_output=True, text=True, env=fixture_environment())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(tree_hash(self.final / "include"), self.patched)
+        header = self.final / "include/vendor/header.hpp"
+        header.write_text("// local changes\n")
+        downloads = self.root / "empty Downloads"
+        result = subprocess.run(["cmake", f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={downloads}",
+                                 "-DLIBRPA_THIRDPARTY_DOWNLOAD=OFF", "-P", str(script)],
+                                capture_output=True, text=True, env=fixture_environment())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse(downloads.exists())
         self.assertEqual(header.read_text(), "// local changes\n")
         self.assertIn("unpinned", result.stdout + result.stderr)
 

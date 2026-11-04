@@ -6,14 +6,14 @@
 Run the examples below from the LibRPA source directory. Use `-DNAME=value` with an explicit build directory:
 
 ```sh
-cmake -S . -B build -DLIBRPA_USE_LIBRI=ON
+cmake -B build -DLIBRPA_USE_LIBRI=ON
 ```
 
 CMake cache values persist in that build directory. Use a separate directory when changing compilers or MPI installations. To remove a path override, remove its cache entry and unset its environment variable. When a dependency path cache entry is empty, LibRPA imports a nonempty environment value into the cache and reports its origin. The saved path remains active on later configurations without that environment variable. A nonempty cache value takes precedence.
 
 Header include paths, compiled-dependency source and installation paths, and `LIBRPA_THIRDPARTY_ARCHIVE_DIR` use `PATH` cache entries. On the first configuration, untyped relative `-DNAME=value` paths resolve against the directory where CMake is invoked. Supply absolute paths for environment values, typed `-DNAME:PATH=value` values and later cache updates. Any remaining relative value causes an error before use. Header checks and resolution use the same path.
 
-`LIBRPA_THIRDPARTY_ARCHIVE_DIR` and `LIBRPA_THIRDPARTY_DOWNLOAD` also work with `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. The archive directory also accepts an environment variable. Separately, header include paths and the source and installation paths of compiled dependencies read environment variables of the same name.
+`LIBRPA_THIRDPARTY_ARCHIVE_DIR` and `LIBRPA_THIRDPARTY_DOWNLOAD` also work with the standalone `cmake -P` scripts: `cmake/LibRPADownloadThirdparty.cmake` for archives and `cmake/LibRPAPrepareThirdparty.cmake` for prepared sources. The archive directory also accepts an environment variable. Separately, header include paths and the source and installation paths of compiled dependencies read environment variables of the same name.
 
 For the build requirements and a complete build procedure, see {ref}`Installation <install-build-requirements>`.
 
@@ -56,9 +56,10 @@ Use `cmake --build build --parallel N` to set build concurrency. This is a build
 | [`CEREAL_INCLUDE_DIR`](#cereal-include-dir)                 | path              | empty      |
 | [`LIBDDLA_PATH`](#libddla-path)                             | path              | empty      |
 | [`SCALAPACK_DIR`](#scalapack-dir)                           | string            | empty      |
-| [`LIBRPA_USE_EXTERNAL_ELPA`](#librpa-use-external-elpa)     | bool              | `OFF`      |
+| [`LIBRPA_USE_ELPA`](#librpa-use-elpa) | bool | `OFF` |
+| [`LIBRPA_USE_EXTERNAL_ELPA`](#librpa-use-external-elpa) | bool (deprecated) | unset |
 | [`EXTERNAL_ELPA_DIR`](#external-elpa-dir)                   | path              | empty      |
-| [`LIBRPA_USE_BUNDLED_ELPA`](#librpa-use-bundled-elpa)       | bool              | `OFF`      |
+| [`LIBRPA_USE_BUNDLED_ELPA`](#librpa-use-bundled-elpa) | bool (deprecated) | unset |
 | [`LIBRPA_BUNDLED_ELPA_VERSION`](#librpa-bundled-elpa-version) | string          | `2026.02.001` |
 | [`LIBRPA_BUNDLED_ELPA_KERNEL`](#librpa-bundled-elpa-kernel) | string            | empty      |
 | [`LIBRPA_BUNDLED_ELPA_OPENMP`](#librpa-bundled-elpa-openmp) | bool              | `OFF`      |
@@ -107,7 +108,7 @@ When an external `LIBRI_INCLUDE_DIR` is supplied, its headers must support
 
 Example:
 ```sh
-cmake -S . -B build \
+cmake -B build \
       -DLIBRPA_USE_CUDA=ON \
       -DLIBRPA_USE_LIBRI_GPU=ON
 ```
@@ -125,7 +126,7 @@ architectures. An external LibDDLA installation can be selected with
 
 Example:
 ```sh
-cmake -S . -B build \
+cmake -B build \
       -DLIBRPA_USE_CUDA=ON \
       -DCMAKE_CUDA_ARCHITECTURES=80
 ```
@@ -143,47 +144,48 @@ environment. An external LibDDLA installation can be selected with
 
 Example:
 ```sh
-cmake -S . -B build -DLIBRPA_USE_HIP=ON
+cmake -B build -DLIBRPA_USE_HIP=ON
 ```
+
+(librpa-use-elpa)=
+## `LIBRPA_USE_ELPA`
+
+Enable ELPA for distributed eigensolvers. The default is `OFF`. With `ON` and no supplied dependency, LibRPA downloads and verifies the pinned release, extracts and patches it under `thirdparty/src`, and builds it with LibRPA. Existing managed sources or cached archives can also be used with downloads disabled.
+
+An existing `ELPA::ELPA` target, `ELPA_SOURCE_DIR`, or an installation prefix (`EXTERNAL_ELPA_DIR`, with `ELPA_ROOT` as a fallback) automatically sets this option to `ON`, including when it was set to `OFF`. Parent targets take precedence over paths. Choose either a source path or an installation prefix.
+
+```sh
+# Build the managed release
+cmake -B build -DLIBRPA_USE_ELPA=ON
+
+# Build a supplied source tree; ELPA is enabled automatically
+cmake -B build -DELPA_SOURCE_DIR=/path/to/elpa-source
+
+# Use an installed library; ELPA is enabled automatically
+cmake -B build -DEXTERNAL_ELPA_DIR=/path/to/elpa
+```
+
+Source builds use upstream autotools and a private installation inside the build directory. Choose source and build paths without whitespace. Use a fresh build directory after changes to compiler flags, `CMAKE_BUILD_TYPE` or ELPA sources so the separate ELPA build applies them.
 
 (librpa-use-external-elpa)=
-## `LIBRPA_USE_EXTERNAL_ELPA`
+## `LIBRPA_USE_EXTERNAL_ELPA` (deprecated)
 
-Enable an external ELPA library. An existing `ELPA::ELPA` target takes precedence over installation discovery. Otherwise, LibRPA uses its ELPA finder with `EXTERNAL_ELPA_DIR` and other supported search hints. Each configuration warns about prebuilt library compatibility. Prefer the managed source with `LIBRPA_USE_BUNDLED_ELPA=ON`, then a parent target, then an `ELPA_SOURCE_DIR` build.
+Use `LIBRPA_USE_ELPA` and the dependency settings above for new configurations. Supplying this legacy option, with either `ON` or `OFF`, emits a CMake deprecation warning. With `ON`, it enables ELPA. If no target or path is supplied, it retains the legacy search for an installed library in standard search paths. An explicit source path selects a source build.
 
-This option does not prepare a managed ELPA source tree. It is mutually exclusive with `LIBRPA_USE_BUNDLED_ELPA`.
-
-```sh
-cmake -S . -B build -DLIBRPA_USE_EXTERNAL_ELPA=ON -DEXTERNAL_ELPA_DIR=/path/to/elpa
-```
+To migrate an installed-library configuration, set `EXTERNAL_ELPA_DIR` to its installation prefix and remove the old cache entry with `-ULIBRPA_USE_EXTERNAL_ELPA`.
 
 (librpa-use-bundled-elpa)=
-## `LIBRPA_USE_BUNDLED_ELPA`
+## `LIBRPA_USE_BUNDLED_ELPA` (deprecated)
 
-When enabled, LibRPA builds `ELPA_SOURCE_DIR` if supplied. Otherwise, it downloads, verifies and builds the pinned ELPA release.
-The option name is retained for compatibility with existing build scripts. It no longer means that ELPA source is included in the repository. The wrapper uses an out-of-source autotools build and a private installation inside the build directory.
+Use `LIBRPA_USE_ELPA=ON` to build the managed release, or supply `ELPA_SOURCE_DIR` to build a source tree. Supplying this legacy option, with either `ON` or `OFF`, emits a CMake deprecation warning. With `ON`, it enables ELPA and uses the target and path selection described above. With `OFF`, neither legacy option disables an otherwise enabled ELPA configuration. When both legacy options are `ON` without a target or path, the installed-library search takes precedence.
 
-This option is mutually exclusive with
-[`LIBRPA_USE_EXTERNAL_ELPA`](#librpa-use-external-elpa).
-
-ELPA source and build directory paths must not contain whitespace. LibRPA checks both paths during configuration. Choose the LibRPA checkout, `ELPA_SOURCE_DIR` and the CMake build directory accordingly.
-
-LibRPA builds managed ELPA through CMake's `ExternalProject` mechanism.
-After ELPA has been built in an existing build directory, changing compiler
-flags, `CMAKE_BUILD_TYPE` or source files may not automatically reconfigure and rebuild ELPA.
-Use a fresh build directory, or clean the managed ELPA sub-build, when those
-settings need to be applied to ELPA itself.
-
-Example:
-```sh
-cmake -S . -B build -DLIBRPA_USE_BUNDLED_ELPA=ON
-```
+Remove the old cache entry with `-ULIBRPA_USE_BUNDLED_ELPA` when migrating. Legacy options retained in the cache continue to emit warnings on later configurations.
 
 (librpa-bundled-elpa-version)=
 ## `LIBRPA_BUNDLED_ELPA_VERSION`
 
 Selects which managed ELPA release is built when
-[`LIBRPA_USE_BUNDLED_ELPA`](#librpa-use-bundled-elpa) is enabled.
+[`LIBRPA_USE_ELPA`](#librpa-use-elpa) selects a source build.
 
 Supported value: `2026.02.001`, matching the manifest. Other values are rejected. This option does not select an arbitrary upstream release.
 
@@ -207,7 +209,7 @@ Supported values are:
 
 Example:
 ```sh
-cmake -S . -B build -DLIBRPA_USE_BUNDLED_ELPA=ON \
+cmake -B build -DLIBRPA_USE_ELPA=ON \
       -DLIBRPA_BUNDLED_ELPA_KERNEL=AVX512
 ```
 
@@ -231,7 +233,7 @@ library does not provide the thread level ELPA needs.
 
 Example:
 ```sh
-cmake -S . -B build -DLIBRPA_USE_BUNDLED_ELPA=ON \
+cmake -B build -DLIBRPA_USE_ELPA=ON \
       -DLIBRPA_BUNDLED_ELPA_OPENMP=ON
 ```
 
@@ -246,7 +248,7 @@ can override the default kernel selection when a specific ELPA setup is needed.
 
 Example:
 ```sh
-cmake -S . -B build -DLIBRPA_USE_BUNDLED_ELPA=ON \
+cmake -B build -DLIBRPA_USE_ELPA=ON \
       -DLIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS="--enable-store-build-config"
 ```
 
@@ -267,7 +269,7 @@ separately through CMake.
 
 Example:
 ```sh
-cmake -S . -B build -DLIBRPA_USE_BUNDLED_ELPA=ON \
+cmake -B build -DLIBRPA_USE_ELPA=ON \
       -DLIBRPA_BUNDLED_ELPA_LIBS="-L/path/to/lib -lscalapack -llapack -lblas"
 ```
 
@@ -312,7 +314,7 @@ Each configuration warns about compatibility with LibRPA's compilers and flags. 
 
 External ELPA source directory containing `configure` and `src/elpa_impl.F90`. A nonempty CMake value takes precedence over the environment variable.
 
-Use with `LIBRPA_USE_BUNDLED_ELPA=ON`. `ELPA_SOURCE_DIR` and `EXTERNAL_ELPA_DIR` are mutually exclusive in every mode, including environment values. A source path in external mode, or an installation prefix in bundled mode, stops configuration. With both options OFF, either path produces a warning that names the required option.
+Supplying this path automatically enables `LIBRPA_USE_ELPA`. Choose either this source path or an installation prefix (`EXTERNAL_ELPA_DIR` or `ELPA_ROOT`), including environment values. A parent `ELPA::ELPA` target takes precedence over the source path.
 
 LibRPA hashes the whole tree. Matching patched sources are `pinned`. Matching pristine sources become a patched copy in managed storage (`overlay`). Other sources produce an `unpinned` warning. The out-of-source build preserves the user tree and overlay. An invalid path stops configuration without a download fallback.
 
@@ -345,14 +347,14 @@ The default cache value is empty. In that case, LibRPA selects the level in this
 
 | Condition | Selected level |
 | --- | --- |
-| Either ELPA mode enabled, with neither CUDA nor HIP | `MPI_THREAD_MULTIPLE` |
+| `LIBRPA_USE_ELPA=ON`, with neither CUDA nor HIP | `MPI_THREAD_MULTIPLE` |
 | Otherwise, LibComm status is `managed` or `pinned` | `MPI_THREAD_FUNNELED` |
 | Otherwise | `MPI_THREAD_MULTIPLE` |
 
 Modified managed LibComm headers have status `unpinned` and select `MPI_THREAD_MULTIPLE` automatically. A parent LibComm target has status `target`. LibRPA does not infer its pinned status from the target name or include path. An explicit value takes precedence over the automatic selection.
 
 ```sh
-cmake -S . -B build -DLIBRPA_MPI_THREAD_LEVEL=MPI_THREAD_FUNNELED
+cmake -B build -DLIBRPA_MPI_THREAD_LEVEL=MPI_THREAD_FUNNELED
 ```
 
 The chosen level must satisfy the dependencies' threading requirements.
@@ -417,7 +419,7 @@ An overlay never modifies the supplied directory. Local edits to an existing ove
 If no target or path is supplied, LibRPA prepares managed headers. A required compile probe instantiates `RI::LRI<int,int,3,double>` with the selected LibComm and cereal headers. Failure stops configuration and reports all three sources. The separate fine-grained-lock probe remains optional. Hartree support depends on `RI/physics/Hartree.h` in the resolved include directories.
 
 ```sh
-cmake -S . -B build -DLIBRI_INCLUDE_DIR=/path/to/LibRI/include
+cmake -B build -DLIBRI_INCLUDE_DIR=/path/to/LibRI/include
 ```
 
 (libcomm-include-dir)=
@@ -432,7 +434,7 @@ Headers matching the pinned upstream tree are used directly (`pinned`). LibComm 
 If no target or path is supplied, LibRPA prepares managed headers. Unmodified managed and pinned LibComm influence the automatic [MPI thread-level selection](#librpa-mpi-thread-level).
 
 ```sh
-cmake -S . -B build -DLIBCOMM_INCLUDE_DIR=/path/to/LibComm/include
+cmake -B build -DLIBCOMM_INCLUDE_DIR=/path/to/LibComm/include
 ```
 
 (cereal-include-dir)=
@@ -447,7 +449,7 @@ Headers matching the pinned upstream tree are used directly (`pinned`). Cereal h
 If no target or path is supplied, LibRPA prepares managed headers. The manifest pins cereal to `d81e2f7df7b334fee057e53017388d02e555a836`, which includes the tuple-serialization fix used by this LibRI revision.
 
 ```sh
-cmake -S . -B build -DCEREAL_INCLUDE_DIR=/path/to/cereal/include
+cmake -B build -DCEREAL_INCLUDE_DIR=/path/to/cereal/include
 ```
 
 (libddla-path)=
@@ -466,7 +468,7 @@ The resolution order is:
 The installation must contain `include/ddla/ddla.h` and a `ddla` library under `lib/` or `lib64/`. Missing headers or a missing library cause an error. Installed libraries are not checked against the manifest's source-tree hash. The installation must match the selected backend, compiler and MPI environment.
 
 ```sh
-cmake -S . -B build -DLIBRPA_USE_CUDA=ON -DLIBDDLA_PATH=/path/to/libddla
+cmake -B build -DLIBRPA_USE_CUDA=ON -DLIBDDLA_PATH=/path/to/libddla
 ```
 
 (scalapack-dir)=
@@ -482,14 +484,14 @@ This variable can be provided in two ways:
 - as a CMake option:
 
   ```bash
-  cmake -S . -B build -DSCALAPACK_DIR=/path/to/scalapack
+  cmake -B build -DSCALAPACK_DIR=/path/to/scalapack
   ```
 
 - or as an environment variable:
 
   ```bash
   export SCALAPACK_DIR=/path/to/scalapack
-  cmake -S . -B build
+  cmake -B build
   ```
 
 This option is intended for environments where ScaLAPACK is provided as a
@@ -498,7 +500,7 @@ standalone installation rather than through Intel MKL.
 (external-elpa-dir)=
 ## `EXTERNAL_ELPA_DIR`
 
-ELPA installation prefix used with `LIBRPA_USE_EXTERNAL_ELPA=ON`. A nonempty CMake value takes precedence over the same-named environment variable. An existing `ELPA::ELPA` target bypasses discovery.
+ELPA installation prefix. Supplying this path automatically enables `LIBRPA_USE_ELPA`. A nonempty CMake value takes precedence over the same-named environment variable. An existing `ELPA::ELPA` target bypasses discovery.
 
 The finder looks for ELPA headers and a library. It also adds the Fortran module directory when found. Typical locations are:
 
@@ -506,10 +508,10 @@ The finder looks for ELPA headers and a library. It also adds the Fortran module
 - `include/elpa-*/modules/elpa.mod`
 - `lib/libelpa.so` or `lib/libelpa_openmp.so`, also under `lib64/`
 
-`ELPA_ROOT`, including its environment variable, is used when `EXTERNAL_ELPA_DIR` is absent. An explicit prefix restricts the search to that installation. Missing headers or libraries stop configuration. With no prefix, standard search paths remain available. Installation mode emits a compatibility warning on every configuration. Prefer the managed source with `LIBRPA_USE_BUNDLED_ELPA=ON`, then a parent target, then `ELPA_SOURCE_DIR`.
+`ELPA_ROOT`, including its environment variable, is used when `EXTERNAL_ELPA_DIR` is absent. An explicit prefix restricts the search to that installation. Missing headers or libraries stop configuration. Supplying `ELPA_ROOT` also enables `LIBRPA_USE_ELPA`. Installation mode emits a compatibility warning on every configuration. Source builds use the compilers and settings selected for LibRPA.
 
 ```sh
-cmake -S . -B build -DLIBRPA_USE_EXTERNAL_ELPA=ON -DEXTERNAL_ELPA_DIR=/path/to/elpa
+cmake -B build -DEXTERNAL_ELPA_DIR=/path/to/elpa
 ```
 
 (librpa-thirdparty-archive-dir)=
@@ -523,7 +525,7 @@ If a download is needed, the directory must be writable. Select a writable direc
 
 ```sh
 export LIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads"
-cmake -P cmake/LibRPAPrepareThirdparty.cmake
+cmake -P cmake/LibRPADownloadThirdparty.cmake
 ```
 
 (librpa-thirdparty-download)=
@@ -531,12 +533,12 @@ cmake -P cmake/LibRPAPrepareThirdparty.cmake
 
 Allow downloads of missing archives. Default: `ON`.
 
-With `OFF`, configuration can use an existing source tree or verify, extract and patch a local archive. Source-path overlays also remain available. The preparation script checks every selected archive, including when its sources already exist. Missing inputs cause an error with instructions for connected preparation and manual archive placement.
+With `OFF`, configuration can use an existing source tree or verify, extract and patch a local archive. Source-path overlays also remain available. The download script checks every selected archive, including when its sources already exist. The preparation script reuses existing sources. Missing inputs cause an error with instructions for downloading on a connected machine and manual archive placement.
 
 The option controls downloads from the upstream URLs in `thirdparty/manifest.cmake`. Archive hash checks and source-change warnings apply in both modes.
 
 ```sh
-cmake -S . -B build \
+cmake -B build \
   -DLIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads" \
   -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF
 ```
@@ -564,7 +566,7 @@ Other parent cache entries are not automatically forwarded. `ROCM_PATH` also acc
 Without a target, installation or source path, LibRPA prepares managed LibDDLA sources.
 
 ```sh
-cmake -S . -B build -DLIBRPA_USE_HIP=ON -DLIBDDLA_SOURCE_DIR=/path/to/LibDDLA
+cmake -B build -DLIBRPA_USE_HIP=ON -DLIBDDLA_SOURCE_DIR=/path/to/LibDDLA
 ```
 
 (build-shared-libs)=
@@ -573,7 +575,7 @@ cmake -S . -B build -DLIBRPA_USE_HIP=ON -DLIBDDLA_SOURCE_DIR=/path/to/LibDDLA
 Build shared LibRPA and Fortran-binding libraries when `ON`, or static libraries when `OFF`. The standalone default is `OFF` because LibRPA does not set this standard CMake variable. A parent project can supply its own value. Managed GreenX uses the same setting.
 
 ```sh
-cmake -S . -B build -DBUILD_SHARED_LIBS=ON
+cmake -B build -DBUILD_SHARED_LIBS=ON
 ```
 
 Managed ELPA remains a private static library. LibDDLA's child build provides a shared library independently of this option.
@@ -591,7 +593,7 @@ Use separate build directories for different compiler or child-library configura
 Destination prefix for installation. In a standalone build with no user-supplied prefix, LibRPA selects `install/` under its source directory. A parent project controls its own prefix. Library, executable and header subdirectories follow `GNUInstallDirs`.
 
 ```sh
-cmake -S . -B build -DCMAKE_INSTALL_PREFIX="$HOME/opt/librpa"
+cmake -B build -DCMAKE_INSTALL_PREFIX="$HOME/opt/librpa"
 cmake --build build --target install
 ```
 
@@ -610,7 +612,7 @@ Set `-DMKLROOT=` to select the separate LAPACK and ScaLAPACK discovery path when
 Explicit LAPACK link libraries for the non-MKL discovery path. CMake detects them when no value is supplied. OpenBLAS can supply both LAPACK and BLAS. A semicolon-separated list supports multiple library files.
 
 ```sh
-cmake -S . -B build -DMKLROOT= \
+cmake -B build -DMKLROOT= \
   -DLAPACK_LIBRARIES=/path/to/openblas/lib/libopenblas.so \
   -DSCALAPACK_DIR=/path/to/scalapack
 ```

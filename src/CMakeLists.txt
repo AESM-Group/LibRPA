@@ -67,7 +67,7 @@ target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_MPI)
 if(LIBRPA_USE_LIBRI)
   target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_LIBRI)
 endif()
-if(LIBRPA_USE_EXTERNAL_ELPA OR LIBRPA_USE_BUNDLED_ELPA)
+if(LIBRPA_USE_ELPA)
   target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_ELPA)
 endif()
 if(LIBRPA_VERBOSE_OUTPUT)
@@ -188,7 +188,7 @@ list(APPEND lib_sources
         utils/utils_mem.cpp
 )
 
-if(NOT LIBRPA_USE_EXTERNAL_ELPA AND NOT LIBRPA_USE_BUNDLED_ELPA)
+if(NOT LIBRPA_USE_ELPA)
   list(APPEND lib_sources utils/elpa_stub.cpp)
 endif()
 
@@ -205,7 +205,7 @@ if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   )
 endif()
 
-if(LIBRPA_USE_EXTERNAL_ELPA OR LIBRPA_USE_BUNDLED_ELPA)
+if(LIBRPA_USE_ELPA)
   list(APPEND lib_sources
     elpa/elpa_connector.cpp)
 endif()

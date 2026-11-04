@@ -27,13 +27,15 @@ Relevant documentation includes:
 - [Maintaining third-party dependencies](../docs/develop/thirdparty.md): the tree hash definition, how to update a component, concurrent preparation, parent-project integration and migration from vendored sources.
 - [patches/README.md](patches/README.md): what each patch changes.
 
-For offline preparation, issue the following command at the LibRPA root on a connected machine:
+To download archives for an offline build, run the following command at the LibRPA root on a connected machine:
 
 ```sh
-cmake -P cmake/LibRPAPrepareThirdparty.cmake
+cmake -P cmake/LibRPADownloadThirdparty.cmake
 ```
 
 Then copy the downloaded archives to `LibRPA/thirdparty/downloads/` on the offline machine and configure with `-DLIBRPA_THIRDPARTY_DOWNLOAD=OFF`.
 If you upload them to another directory, set `-DLIBRPA_THIRDPARTY_ARCHIVE_DIR=/path/to/archives` on that machine.
 Each LibRPA checkout prepares its own dependency sources in `thirdparty/src/`.
 See [Offline installation](../docs/user_guide/install.md#offline-installation) for more details.
+
+To extract and patch sources in the local checkout before configuration, run `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. This script downloads missing archives when needed. Both scripts accept `-DCOMPONENTS="LibRI;LibComm;cereal;greenX"` before `-P` to select components.

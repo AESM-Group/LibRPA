@@ -47,7 +47,9 @@ Run it with `cmake -P hash.cmake`. You can edit a managed tree during developmen
 
 ## Preparation and concurrent builds
 
-`cmake/LibRPAPrepareThirdparty.cmake` ensures that each selected archive is available, then prepares the sources. It populates the selected archive directory even when the sources already exist. Normal configuration reuses existing sources directly. The user procedure is in {ref}`Offline installation <install-offline>`.
+`cmake/LibRPADownloadThirdparty.cmake` downloads and verifies selected archives for transfer or shared storage. It populates the archive directory even when prepared sources already exist.
+
+`cmake/LibRPAPrepareThirdparty.cmake` extracts and patches sources in the local checkout, downloading missing archives when needed. Like normal configuration, it reuses existing sources directly. Both scripts accept `COMPONENTS` to select dependencies; the default is all components in the manifest. The user procedure is in {ref}`Offline installation <install-offline>`.
 
 Managed sources and patched copies always use `thirdparty/src/` in the LibRPA checkout. Archives default to `thirdparty/downloads/` in the same checkout. You can select a separate archive directory with {ref}`LIBRPA_THIRDPARTY_ARCHIVE_DIR <librpa-thirdparty-archive-dir>`. Its derived default stays uncached. Downloads use temporary files in that directory before renaming, so other configurations cannot read partial downloads. Shared archives are preserved when extraction or hash verification fails.
 
@@ -55,7 +57,7 @@ Whole-tree path overlays use `file(COPY)` without `FOLLOW_SYMLINK_CHAIN`. This p
 
 Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `thirdparty/src/` directory in the LibRPA checkout. The supplied tree keeps its contents and permissions.
 
-Each preparation uses a separate temporary directory. After extraction and patch application, the prepared tree is renamed into the directory selected by the manifest tree hash. Concurrent configurations reuse a tree published by another process; no filesystem lock is required. The name identifies the reference version; local edits do not rename the directory. Reuse compares its contents with the reference hash and warns on differences. Normal configuration reuses existing trees and overlays, preserving local edits. The preparation script also ensures that their archives are available. Build outputs must stay in build directories. In particular, copy greenX's Python directory to scratch space before installing it, because Python packaging writes build files into its source directory.
+Each preparation uses a separate temporary directory. After extraction and patch application, the prepared tree is renamed into the directory selected by the manifest tree hash. Concurrent configurations reuse a tree published by another process; no filesystem lock is required. The name identifies the reference version; local edits do not rename the directory. Reuse compares its contents with the reference hash and warns on differences. Normal configuration reuses existing trees and overlays, preserving local edits. Use the download script to populate an archive directory independently of existing sources. Build outputs must stay in build directories. In particular, copy greenX's Python directory to scratch space before installing it, because Python packaging writes build files into its source directory.
 
 (thirdparty-parent-projects)=
 ## Parent-project integration
@@ -110,10 +112,10 @@ The header combination must compile before configuration can continue. This chec
 | Parent target | Selection requirement | Parent responsibilities |
 | --- | --- | --- |
 | `LibDDLA::ddla` | Enable CUDA or HIP | Supply a library, public include paths and link dependencies compatible with that backend |
-| `ELPA::ELPA` | Set `LIBRPA_USE_EXTERNAL_ELPA=ON` | Supply the library, headers and required link dependencies |
+| `ELPA::ELPA` | Detected automatically | Supply the library, headers and required link dependencies |
 | `LibGXMiniMax` or `greenX::LibGXMiniMax` | Detected automatically | Supply link dependencies and compatible modules: `Fortran_MODULE_DIRECTORY` for source builds, interface include directories for imported targets |
 
-Define these targets before adding LibRPA. ELPA still requires `LIBRPA_USE_EXTERNAL_ELPA=ON`. GreenX targets are detected even with `LIBRPA_USE_EXTERNAL_GREENX=OFF`, so LibRPA does not create a second target. Setting this option to ON requires a target, source path or installation.
+Define these targets before adding LibRPA. An ELPA target automatically enables `LIBRPA_USE_ELPA`. GreenX targets are detected even with `LIBRPA_USE_EXTERNAL_GREENX=OFF`, so LibRPA does not create a second target. Setting this option to ON requires a target, source path or installation.
 
 In a parent project, prefer a target when the parent already builds the dependency; otherwise let LibRPA use managed sources. See {ref}`Choosing dependency sources <install-dependency-sources>` for the general recommendation and the path rules.
 
@@ -125,4 +127,4 @@ Existing `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR`, `CEREAL_INCLUDE_DIR` and `L
 
 The old `thirdparty/LibRI`, `thirdparty/LibComm`, `thirdparty/cereal`, `thirdparty/LibDDLA` and `thirdparty/greenX` source paths no longer exist. Replace scripts that copy those directories with the preparation script or explicit external paths. Do not hard-code `thirdparty/src/<Name>-<hash12>` paths: a manifest update changes them. For offline builds, transfer the archives and prepare the sources in the destination checkout.
 
-`LIBRPA_USE_BUNDLED_ELPA` and its related option names remain supported, but now build supplied source paths or downloaded managed sources. The tracked `thirdparty/ELPA` directory contains only LibRPA's build wrapper. A dependency cache contains sources and archives, not compiler-specific installed libraries. Each build directory creates its own compiled dependencies.
+`LIBRPA_USE_ELPA=ON` builds managed ELPA sources when no dependency is supplied. An ELPA target, source path or installation prefix automatically enables it. See {ref}`Compile Options <librpa-use-elpa>` for the selection rules and deprecated switches. The tracked `thirdparty/ELPA` directory contains only LibRPA's build wrapper. A dependency cache contains sources and archives, not compiler-specific installed libraries. Each build directory creates its own compiled dependencies.

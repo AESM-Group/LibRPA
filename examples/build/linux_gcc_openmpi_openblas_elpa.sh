@@ -96,7 +96,7 @@ echo "STAGE_DIR=${stage_dir}"
 echo "INSTALL_DIR=${install_dir}"
 echo "START_TIME=$(date --iso-8601=seconds)"
 
-cmake -S "${repo_root}" -B "${build_dir}" \
+cmake -B "${build_dir}" \
     -DCMAKE_INSTALL_PREFIX="${stage_dir}" \
     -DCMAKE_INSTALL_RPATH="${install_rpath}" \
     -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -115,8 +115,7 @@ cmake -S "${repo_root}" -B "${build_dir}" \
     -DLIBRPA_USE_LIBRI_GPU=OFF \
     -DLIBRPA_USE_CUDA=OFF \
     -DLIBRPA_USE_HIP=OFF \
-    -DLIBRPA_USE_EXTERNAL_ELPA=OFF \
-    -DLIBRPA_USE_BUNDLED_ELPA=ON \
+    -DLIBRPA_USE_ELPA=ON \
     -DLIBRPA_BUNDLED_ELPA_VERSION=2026.02.001 \
     -DLIBRPA_BUNDLED_ELPA_OPENMP=ON \
     -DLIBRPA_BUNDLED_ELPA_KERNEL:STRING="" \
@@ -129,8 +128,7 @@ cmake -S "${repo_root}" -B "${build_dir}" \
 
 cmake --build "${build_dir}" -j "${SLURM_CPUS_PER_TASK}"
 
-grep -q '^LIBRPA_USE_EXTERNAL_ELPA:BOOL=OFF$' "${build_dir}/CMakeCache.txt"
-grep -q '^LIBRPA_USE_BUNDLED_ELPA:BOOL=ON$' "${build_dir}/CMakeCache.txt"
+grep -q '^LIBRPA_USE_ELPA:BOOL=ON$' "${build_dir}/CMakeCache.txt"
 grep -q '^LIBRPA_BUNDLED_ELPA_VERSION:STRING=2026.02.001$' "${build_dir}/CMakeCache.txt"
 grep -q '^LIBRPA_BUNDLED_ELPA_OPENMP:BOOL=ON$' "${build_dir}/CMakeCache.txt"
 grep -q '^LIBRPA_BUNDLED_ELPA_KERNEL:STRING=$' "${build_dir}/CMakeCache.txt"

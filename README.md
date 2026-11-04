@@ -57,7 +57,7 @@ After initializing your compiler, MPI and math-library environment, configure,
 build and install with:
 
 ```bash
-cmake -S . -B build \
+cmake -B build \
   -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_SHARED_LIBS=ON \
   -DLIBRPA_ENABLE_TEST=OFF \
@@ -72,11 +72,11 @@ as shown in [Installation](docs/user_guide/install.md), or adapt a script under
 [`examples/build`](examples/build). See [Compile Options](docs/user_guide/compile_options.md)
 for defaults and dependency selection.
 
-To prepare the dependencies and save their archives on a connected machine:
+To download and verify dependency archives on a connected machine:
 
 ```bash
 cmake -DLIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads" \
-  -P cmake/LibRPAPrepareThirdparty.cmake
+  -P cmake/LibRPADownloadThirdparty.cmake
 ```
 
 Upload the downloaded archives to `LibRPA/thirdparty/downloads/` on the build

@@ -98,8 +98,7 @@ cmake -S "${repo_root}" -B "${build_dir}" \
     -DLIBRPA_USE_LIBRI=ON \
     -DLIBRPA_USE_LIBRI_GPU=ON \
     -DLIBRPA_USE_HIP=ON \
-    -DLIBRPA_USE_EXTERNAL_ELPA=OFF \
-    -DLIBRPA_USE_BUNDLED_ELPA=ON \
+    -DLIBRPA_USE_ELPA=ON \
     -DLIBRPA_BUNDLED_ELPA_VERSION=2026.02.001 \
     -DLIBRPA_BUNDLED_ELPA_OPENMP=OFF \
     -DLIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS:STRING="${elpa_configure_args}" \
@@ -125,8 +124,7 @@ if grep -q -- "-D__CUDA_RI" "${build_dir}/compile_commands.json"; then
     exit 1
 fi
 
-grep -q '^LIBRPA_USE_EXTERNAL_ELPA:BOOL=OFF$' "${build_dir}/CMakeCache.txt"
-grep -q '^LIBRPA_USE_BUNDLED_ELPA:BOOL=ON$' "${build_dir}/CMakeCache.txt"
+grep -q '^LIBRPA_USE_ELPA:BOOL=ON$' "${build_dir}/CMakeCache.txt"
 grep -q '^LIBRPA_BUNDLED_ELPA_VERSION:STRING=2026.02.001$' "${build_dir}/CMakeCache.txt"
 grep -q '^LIBRPA_BUNDLED_ELPA_OPENMP:BOOL=OFF$' "${build_dir}/CMakeCache.txt"
 
