@@ -10,6 +10,8 @@ cmake -S . -B build -DLIBRPA_USE_LIBRI=ON
 
 CMake cache values persist in that build directory. Use a separate directory when changing compilers or MPI installations. To remove a path override, remove its cache entry and unset its environment variable. An empty header-path cache value still permits a nonempty environment variable to supply the path.
 
+Header include paths, compiled-dependency source and installation paths, and `LIBRPA_THIRDPARTY_ARCHIVE_DIR` use `PATH` cache entries. On the first configuration, untyped relative `-DNAME=value` paths resolve against the directory where CMake is invoked. Supply absolute paths for environment values, typed `-DNAME:PATH=value` values and later cache updates. Any remaining relative value causes an error before use. Header checks and resolution use the same path. `LIBRPA_THIRDPARTY_DIR` retains its existing relative-path behavior.
+
 The `LIBRPA_THIRDPARTY_*` settings also work with `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. Of these settings, only `LIBRPA_THIRDPARTY_ARCHIVE_DIR` accepts an environment fallback. Header paths and compiled-dependency source and installation paths also accept environment fallbacks.
 
 For a complete build procedure and CMake version requirements, see {ref}`Installation <install-build-requirements>`.
@@ -48,13 +50,13 @@ Use `cmake --build build --parallel N` to set build concurrency. This is a build
 | [`LIBRPA_ENABLE_TEST`](#librpa-enable-test)                 | bool              | `ON`       |
 | [`LIBRPA_ENABLE_CPP_TEST`](#librpa-enable-cpp-test)         | bool              | `ON`       |
 | [`LIBRPA_ENABLE_FORTRAN_TEST`](#librpa-enable-fortran-test) | bool              | `ON`       |
-| [`LIBRI_INCLUDE_DIR`](#libri-include-dir)                   | string            | empty      |
-| [`LIBCOMM_INCLUDE_DIR`](#libcomm-include-dir)               | string            | empty      |
-| [`CEREAL_INCLUDE_DIR`](#cereal-include-dir)                 | string            | empty      |
-| [`LIBDDLA_PATH`](#libddla-path)                             | string            | empty      |
+| [`LIBRI_INCLUDE_DIR`](#libri-include-dir)                   | path              | empty      |
+| [`LIBCOMM_INCLUDE_DIR`](#libcomm-include-dir)               | path              | empty      |
+| [`CEREAL_INCLUDE_DIR`](#cereal-include-dir)                 | path              | empty      |
+| [`LIBDDLA_PATH`](#libddla-path)                             | path              | empty      |
 | [`SCALAPACK_DIR`](#scalapack-dir)                           | string            | empty      |
 | [`LIBRPA_USE_EXTERNAL_ELPA`](#librpa-use-external-elpa)     | bool              | `OFF`      |
-| [`EXTERNAL_ELPA_DIR`](#external-elpa-dir)                   | string            | empty      |
+| [`EXTERNAL_ELPA_DIR`](#external-elpa-dir)                   | path              | empty      |
 | [`LIBRPA_USE_BUNDLED_ELPA`](#librpa-use-bundled-elpa)       | bool              | `OFF`      |
 | [`LIBRPA_BUNDLED_ELPA_VERSION`](#librpa-bundled-elpa-version) | string          | `2026.02.001` |
 | [`LIBRPA_BUNDLED_ELPA_KERNEL`](#librpa-bundled-elpa-kernel) | string            | empty      |
@@ -535,7 +537,7 @@ Set this cache option before `add_subdirectory(LibRPA)` in a parent project. Ign
 (librpa-thirdparty-archive-dir)=
 ## `LIBRPA_THIRDPARTY_ARCHIVE_DIR`
 
-Shared archive directory. The cache default is empty. Resolution uses a nonempty CMake value, then the environment variable, then `${LIBRPA_THIRDPARTY_DIR}/downloads`. Relative paths are converted to absolute paths. The expanded default is not stored in the cache.
+Shared archive directory. The cache default is empty. Resolution uses a nonempty CMake value, then the environment variable, then `${LIBRPA_THIRDPARTY_DIR}/downloads`. The common path rules above apply. The expanded default is not stored in the cache.
 
 Different LibRPA checkouts can share these versioned archives while keeping separate source directories. Local archives work with `LIBRPA_THIRDPARTY_DOWNLOAD=OFF`. Downloads use temporary files inside the archive directory and rename them after success.
 

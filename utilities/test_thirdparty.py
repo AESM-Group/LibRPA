@@ -10,13 +10,17 @@ import tempfile
 import unittest
 
 
+PATH_VARIABLES = ("LIBRI_INCLUDE_DIR", "LIBCOMM_INCLUDE_DIR", "CEREAL_INCLUDE_DIR",
+                  "GREENX_SOURCE_DIR", "EXTERNAL_GREENX_DIR", "ELPA_SOURCE_DIR",
+                  "EXTERNAL_ELPA_DIR", "LIBDDLA_SOURCE_DIR", "LIBDDLA_PATH",
+                  "LIBRPA_THIRDPARTY_ARCHIVE_DIR")
+
 MODULE = Path(__file__).resolve().parents[1] / "cmake/LibRPAThirdparty.cmake"
 
 
 def fixture_environment():
     environment = os.environ.copy()
-    for variable in ("LIBRPA_THIRDPARTY_ARCHIVE_DIR", "GREENX_SOURCE_DIR", "EXTERNAL_GREENX_DIR",
-                     "ELPA_SOURCE_DIR", "EXTERNAL_ELPA_DIR"):
+    for variable in PATH_VARIABLES:
         environment.pop(variable, None)
     return environment
 
@@ -262,12 +266,9 @@ librpa_thirdparty_prepare(Fixture source)
 
     def test_nonempty_relative_archive_path(self):
         environment = dict(fixture_environment(), LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.mirror))
-        self.run_cmake('''librpa_thirdparty_archive_dir(resolved)
-get_filename_component(expected "OFF" ABSOLUTE)
-if(NOT resolved STREQUAL expected)
-  message(FATAL_ERROR "A nonempty path was treated as a boolean: ${resolved}")
-endif()
-''', definitions=["-DLIBRPA_THIRDPARTY_ARCHIVE_DIR:PATH=OFF"], env=environment)
+        output = self.run_cmake("librpa_thirdparty_archive_dir(resolved)", success=False,
+                                definitions=["-DLIBRPA_THIRDPARTY_ARCHIVE_DIR:PATH=OFF"], env=environment)
+        self.assertIn("Supply an absolute path", " ".join(output.split()))
 
     def test_shared_archive_reuse(self):
         archives = self.root / "shared archives"
@@ -329,6 +330,74 @@ endif()
             self.assertEqual(child.returncode, 0, output + error)
         self.assertEqual(tree_hash(self.final / "include"), self.patched)
         self.assertFalse(list((self.storage / "src").glob(".tmp-*")))
+
+
+class PathResolutionTest(unittest.TestCase):
+    def test_relative_paths_share_one_base(self):
+        with tempfile.TemporaryDirectory(prefix="librpa-paths-") as temporary:
+            root = Path(temporary)
+            project = root / "project"
+            project.mkdir()
+            invocation = root / "invocation"
+            invocation.mkdir()
+            (project / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
+project(Paths NONE)
+set(LIBRPA_THIRDPARTY_DIR "{root}/managed" CACHE PATH "")
+include("{MODULE}")
+librpa_thirdparty_path(${{CHECK_VARIABLE}} resolved)
+if(NOT resolved STREQUAL "{invocation}/relative")
+  message(FATAL_ERROR "Unexpected resolved path: ${{resolved}}")
+endif()
+''')
+            for variable in PATH_VARIABLES:
+                for origin in ("untyped", "typed", "environment"):
+                    with self.subTest(variable=variable, origin=origin):
+                        command = ["cmake", "-S", str(project), "-B", str(root / f"{variable}-{origin}"),
+                                   f"-DCHECK_VARIABLE={variable}"]
+                        environment = fixture_environment()
+                        if origin == "environment":
+                            environment[variable] = "relative"
+                        else:
+                            command.append(f"-D{variable}{':PATH' if origin == 'typed' else ''}=relative")
+                        result = subprocess.run(command, cwd=invocation, capture_output=True,
+                                                text=True, env=environment)
+                        output = " ".join((result.stdout + result.stderr).split())
+                        self.assertEqual(result.returncode == 0, origin == "untyped", output)
+                        if origin != "untyped":
+                            self.assertIn("Supply an absolute path", output)
+                            self.assertIn(variable, output)
+
+
+    def test_relative_header_path_uses_invocation_directory(self):
+        with tempfile.TemporaryDirectory(prefix="librpa-headers-") as temporary:
+            root = Path(temporary)
+            project = root / "project"
+            project.mkdir()
+            invocation = root / "invocation"
+            header = invocation / "relative/vendor/header.hpp"
+            header.parent.mkdir(parents=True)
+            header.write_text("// header\n")
+            digest = tree_hash(header.parent.parent)
+            (project / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
+project(Headers NONE)
+set(LIBRPA_THIRDPARTY_DIR "{root}/managed" CACHE PATH "")
+include("{MODULE}")
+librpa_thirdparty_declare(Fixture VERSION 1 URL unused ARCHIVE unused
+  HASH_SUBDIR include TREE_SHA256 {digest} LICENSE test)
+librpa_thirdparty_path(LIBRI_INCLUDE_DIR checked)
+if(NOT EXISTS "${{checked}}/vendor/header.hpp")
+  message(FATAL_ERROR "Header pre-check failed")
+endif()
+librpa_thirdparty_resolve_headers(Fixture Fixture::Fixture LIBRI_INCLUDE_DIR
+  vendor/header.hpp resolved status)
+if(NOT checked STREQUAL resolved OR NOT status STREQUAL "pinned")
+  message(FATAL_ERROR "Header checks and resolution disagree")
+endif()
+''')
+            result = subprocess.run(["cmake", "-S", str(project), "-B", str(root / "build"),
+                                     "-DLIBRI_INCLUDE_DIR=relative"], cwd=invocation,
+                                    capture_output=True, text=True, env=fixture_environment())
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 class ELPAPathTest(unittest.TestCase):
