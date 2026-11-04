@@ -109,7 +109,7 @@ The header combination must compile before configuration can continue. This chec
 
 Define these targets before adding LibRPA. ELPA still requires `LIBRPA_USE_EXTERNAL_ELPA=ON`. GreenX targets are detected even with `LIBRPA_USE_EXTERNAL_GREENX=OFF`, so LibRPA does not create a second target. Setting this option to ON requires a target, source path or installation.
 
-For compiled dependencies, managed sources are recommended unless the parent already provides the dependency. In a parent project, prefer a target; for dependency development, prefer a source path. Installations are supported with a warning about compiler and flag compatibility. Source and installation paths for the same enabled source build are mutually exclusive. ELPA source paths outside source-build mode are ignored with a warning.
+For compiled dependencies, managed sources are recommended unless the parent already provides the dependency. In a parent project, prefer a target; for dependency development, prefer a source path. Installations are supported with a warning about compiler and flag compatibility. ELPA source and installation paths are mutually exclusive in every mode. Each path requires its corresponding ELPA option. With both options OFF, an unused path produces a warning.
 
 Use `rpa_lib` to link a C or C++ consumer. With `LIBRPA_ENABLE_FORTRAN_BIND=ON`, the Fortran target is `rpa_f03_lib`, which also exposes its build-time module directory. LibRPA does not currently install a package configuration or target export for `find_package(librpa)`.
 

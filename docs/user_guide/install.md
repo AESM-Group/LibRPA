@@ -200,7 +200,7 @@ When several sources are supplied, LibRPA selects the first available one in thi
 | ELPA | `ELPA::ELPA` | `ELPA_SOURCE_DIR` | `EXTERNAL_ELPA_DIR` |
 | LibDDLA | `LibDDLA::ddla` | `LIBDDLA_SOURCE_DIR` | `LIBDDLA_PATH` |
 
-Do not supply both a source path and an installation prefix for the same enabled source build. Invalid explicit paths cause an error. For ELPA, enable `LIBRPA_USE_EXTERNAL_ELPA` for a target or installation, or `LIBRPA_USE_BUNDLED_ELPA` for a source build. ELPA is disabled by default. An `ELPA_SOURCE_DIR` outside source-build mode is ignored with a warning.
+Do not supply both a source path and an installation prefix for the same dependency. Invalid explicit paths cause an error. For ELPA, enable `LIBRPA_USE_EXTERNAL_ELPA` for a target or installation, or `LIBRPA_USE_BUNDLED_ELPA` for a source build. ELPA is disabled by default. An ELPA path with the wrong mode enabled is an error. With both options OFF, either path produces a warning that names the required option.
 
 Whole-tree source paths follow the same hash rules as header paths: `pinned`, `overlay` for a matching pristine tree with patches, or `unpinned`. Overlays preserve the original source tree and symbolic links. LibDDLA has no patches.
 

@@ -309,7 +309,7 @@ Each configuration warns about compatibility with LibRPA's compilers and flags. 
 
 External ELPA source directory containing `configure` and `src/elpa_impl.F90`. A nonempty CMake value takes precedence over the environment variable.
 
-Use with `LIBRPA_USE_BUNDLED_ELPA=ON`. Otherwise, LibRPA ignores this path with a warning. With source builds enabled, `ELPA_SOURCE_DIR` and `EXTERNAL_ELPA_DIR` are mutually exclusive.
+Use with `LIBRPA_USE_BUNDLED_ELPA=ON`. `ELPA_SOURCE_DIR` and `EXTERNAL_ELPA_DIR` are mutually exclusive in every mode, including environment values. A source path in external mode, or an installation prefix in bundled mode, stops configuration. With both options OFF, either path produces a warning that names the required option.
 
 LibRPA hashes the whole tree. Matching patched sources are `pinned`. Matching pristine sources become a patched copy in managed storage (`overlay`). Other sources produce an `unpinned` warning. The out-of-source build preserves the user tree and overlay. An invalid path stops configuration without a download fallback.
 

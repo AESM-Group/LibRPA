@@ -15,7 +15,8 @@ MODULE = Path(__file__).resolve().parents[1] / "cmake/LibRPAThirdparty.cmake"
 
 def fixture_environment():
     environment = os.environ.copy()
-    for variable in ("LIBRPA_THIRDPARTY_ARCHIVE_DIR", "GREENX_SOURCE_DIR", "EXTERNAL_GREENX_DIR"):
+    for variable in ("LIBRPA_THIRDPARTY_ARCHIVE_DIR", "GREENX_SOURCE_DIR", "EXTERNAL_GREENX_DIR",
+                     "ELPA_SOURCE_DIR", "EXTERNAL_ELPA_DIR"):
         environment.pop(variable, None)
     return environment
 
@@ -76,6 +77,30 @@ librpa_thirdparty_declare(Fixture VERSION 1 URL "file:///nonexistent/fixture.tar
         output = result.stdout + result.stderr
         self.assertEqual(result.returncode == 0, success, output)
         return output
+
+    def test_elpa_mode_and_path_conflicts(self):
+        for external, bundled in ((False, False), (True, False), (False, True), (True, True)):
+            for source, prefix in ((False, False), (True, False), (False, True), (True, True)):
+                for origin in ("cmake", "environment", "mixed"):
+                    with self.subTest(external=external, bundled=bundled,
+                                      source=source, prefix=prefix, origin=origin):
+                        body = (f"set(LIBRPA_USE_EXTERNAL_ELPA {int(external)})\n"
+                                f"set(LIBRPA_USE_BUNDLED_ELPA {int(bundled)})\n")
+                        environment = fixture_environment()
+                        for variable, enabled in (("ELPA_SOURCE_DIR", source), ("EXTERNAL_ELPA_DIR", prefix)):
+                            if enabled:
+                                if origin == "environment" or (origin == "mixed" and variable == "ELPA_SOURCE_DIR"):
+                                    environment[variable] = str(self.root)
+                                else:
+                                    body += f'set({variable} "{self.root}")\n'
+                        body += f'include("{MODULE.parent}/ValidateELPAOptions.cmake")\n'
+                        conflict = ((external and bundled) or (source and prefix)
+                                    or (bundled and prefix) or (external and source))
+                        output = self.run_cmake(body, success=not conflict, env=environment)
+                        if not external and not bundled and source != prefix:
+                            option = "LIBRPA_USE_BUNDLED_ELPA" if source else "LIBRPA_USE_EXTERNAL_ELPA"
+                            self.assertIn(f"is ignored unless {option}=ON", " ".join(output.split()))
+                        self.assertNotIn("Downloading", output)
 
     def test_directory_symlink_hash(self):
         (self.upstream / "include/alias").symlink_to("vendor", target_is_directory=True)
