@@ -1,0 +1,29 @@
+name: Risk tier
+
+# Give the minimum risk tier from the diff. Fail if the description has no tier
+# or gives a lower tier. The check runs again when the description changes.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: risk-tier-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  tier:
+    runs-on: ubuntu-latest
+    steps:
+      # The checkout is the merge commit, and its first parent is the base branch
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Give the minimum risk tier
+        # Give the description through the environment, not in the script text
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: python utilities/check_risk_tier.py --base HEAD^1 --body-env PR_BODY --github
