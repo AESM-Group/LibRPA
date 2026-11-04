@@ -12,10 +12,12 @@
 ### Added
 
 - Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and separate download and source-preparation scripts with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
-- Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibRI/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `EXTERNAL_GREENX_DIR` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
+- Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibRI/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `GREENX_PATH` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
 
 ### Changed
 
+- Renamed ELPA source-build settings to `LIBRPA_ELPA_KERNEL`, `LIBRPA_ELPA_OPENMP`, `LIBRPA_ELPA_CONFIGURE_ARGS` and `LIBRPA_ELPA_LIBS`. Source versions now come from the selected source tree; the manifest controls the downloaded release.
+- Standardized installation prefix options as `LIBDDLA_PATH`, `ELPA_PATH` and `GREENX_PATH`.
 - Unified ELPA selection under `LIBRPA_USE_ELPA`, which defaults to `OFF`. Setting it to `ON` builds managed sources when no dependency is supplied. A parent ELPA target, source path or installation prefix enables ELPA automatically.
 - Updated cereal to `d81e2f7df7b334fee057e53017388d02e555a836`.
 

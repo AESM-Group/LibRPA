@@ -1,8 +1,8 @@
 # Find ELPA headers, Fortran modules and library from an installation prefix.
 #
 # Variables accepted as hints:
-#   EXTERNAL_ELPA_DIR - ELPA installation prefix
-#   ELPA_ROOT         - ELPA installation prefix
+#   ELPA_PATH - ELPA installation prefix
+#   ELPA_ROOT - Fallback installation prefix
 #
 # Variables provided:
 #   ELPA_FOUND        - True if ELPA was found
@@ -14,10 +14,10 @@
 #   ELPA::ELPA        - Imported target
 
 set(_ELPA_ROOT_HINTS)
-if(EXTERNAL_ELPA_DIR)
-  list(APPEND _ELPA_ROOT_HINTS "${EXTERNAL_ELPA_DIR}")
-elseif(DEFINED ENV{EXTERNAL_ELPA_DIR} AND NOT "$ENV{EXTERNAL_ELPA_DIR}" STREQUAL "")
-  list(APPEND _ELPA_ROOT_HINTS "$ENV{EXTERNAL_ELPA_DIR}")
+if(ELPA_PATH)
+  list(APPEND _ELPA_ROOT_HINTS "${ELPA_PATH}")
+elseif(DEFINED ENV{ELPA_PATH} AND NOT "$ENV{ELPA_PATH}" STREQUAL "")
+  list(APPEND _ELPA_ROOT_HINTS "$ENV{ELPA_PATH}")
 elseif(ELPA_ROOT)
   list(APPEND _ELPA_ROOT_HINTS "${ELPA_ROOT}")
 elseif(DEFINED ENV{ELPA_ROOT} AND NOT "$ENV{ELPA_ROOT}" STREQUAL "")

@@ -11,8 +11,8 @@ import unittest
 
 
 PATH_VARIABLES = ("LIBRI_INCLUDE_DIR", "LIBCOMM_INCLUDE_DIR", "CEREAL_INCLUDE_DIR",
-                  "GREENX_SOURCE_DIR", "EXTERNAL_GREENX_DIR", "ELPA_SOURCE_DIR",
-                  "EXTERNAL_ELPA_DIR", "ELPA_ROOT", "LIBDDLA_SOURCE_DIR", "LIBDDLA_PATH",
+                  "GREENX_SOURCE_DIR", "GREENX_PATH", "EXTERNAL_GREENX_DIR", "ELPA_SOURCE_DIR",
+                  "ELPA_PATH", "EXTERNAL_ELPA_DIR", "ELPA_ROOT", "LIBDDLA_SOURCE_DIR", "LIBDDLA_PATH",
                   "LIBRPA_THIRDPARTY_ARCHIVE_DIR")
 
 MODULE = Path(__file__).resolve().parents[1] / "cmake/LibRPAThirdparty.cmake"
@@ -91,7 +91,7 @@ librpa_thirdparty_declare(Fixture VERSION 1 URL "{(self.archives / "fixture.tar.
     def test_elpa_selection(self):
         for enabled in (False, True):
             for source in (False, True):
-                for prefix in (None, "EXTERNAL_ELPA_DIR", "ELPA_ROOT"):
+                for prefix in (None, "ELPA_PATH", "EXTERNAL_ELPA_DIR", "ELPA_ROOT"):
                     for origin in ("cmake", "environment", "mixed"):
                         with self.subTest(enabled=enabled, source=source,
                                           prefix=prefix, origin=origin):
@@ -109,7 +109,10 @@ librpa_thirdparty_declare(Fixture VERSION 1 URL "{(self.archives / "fixture.tar.
                                 mode = "installed" if prefix else "source" if source or enabled else ""
                                 state = "ON" if mode else "0"
                                 self.assertIn(f"ELPA={state}, mode={mode}", output)
-                                self.assertNotRegex(output, r"CMake (Deprecation Warning|Warning \(deprecated\))")
+                                if prefix == "EXTERNAL_ELPA_DIR":
+                                    self.assertIn("EXTERNAL_ELPA_DIR is deprecated", output)
+                                else:
+                                    self.assertNotRegex(output, r"CMake (Deprecation Warning|Warning \(deprecated\))")
                             self.assertNotIn("Downloading", output)
 
     def test_elpa_deprecated_options(self):
@@ -140,10 +143,10 @@ if(NOT LIBRPA_USE_ELPA OR NOT _elpa_mode STREQUAL "target")
 endif()
 ''')
         build = self.root / "parent-build"
-        for path_option in (None, "ELPA_SOURCE_DIR", "EXTERNAL_ELPA_DIR"):
+        for path_option in (None, "ELPA_SOURCE_DIR", "ELPA_PATH"):
             with self.subTest(path=path_option):
                 command = ["cmake", "-S", str(project), "-B", str(build), "-DLIBRPA_USE_ELPA=OFF",
-                           "-DELPA_SOURCE_DIR=", "-DEXTERNAL_ELPA_DIR="]
+                           "-DELPA_SOURCE_DIR=", "-DELPA_PATH="]
                 if path_option:
                     command.append(f"-D{path_option}={self.root}")
                 result = subprocess.run(command, capture_output=True, text=True, env=fixture_environment())
@@ -562,6 +565,41 @@ endif()
 
 
 class PathResolutionTest(unittest.TestCase):
+    def test_installation_alias_precedence_and_persistence(self):
+        with tempfile.TemporaryDirectory(prefix="librpa-alias-") as temporary:
+            root = Path(temporary).resolve()
+            project = root / "CMakeLists.txt"
+            project.write_text(f'''cmake_minimum_required(VERSION 3.18)
+project(Alias NONE)
+include("{MODULE}")
+librpa_thirdparty_path(${{NEW_NAME}} resolved ${{OLD_NAME}})
+file(WRITE "${{CMAKE_BINARY_DIR}}/resolved.txt" "${{resolved}}")
+''')
+            for new, old in (("ELPA_PATH", "EXTERNAL_ELPA_DIR"), ("GREENX_PATH", "EXTERNAL_GREENX_DIR")):
+                cases = (
+                    ({old: "legacy-cache"}, {old: "legacy-env"}, "legacy-cache"),
+                    ({}, {old: "legacy-env"}, "legacy-env"),
+                    ({old: "legacy-cache"}, {new: "new-env"}, "new-env"),
+                    ({new: "new-cache", old: "legacy-cache"}, {new: "new-env", old: "legacy-env"}, "new-cache"),
+                    ({old: ""}, {}, ""),
+                    ({}, {}, ""),
+                )
+                for number, (cache, environment_values, selected) in enumerate(cases):
+                    with self.subTest(new=new, case=number):
+                        build = root / f"{new}-{number}"
+                        command = ["cmake", "-S", str(root), "-B", str(build), f"-DNEW_NAME={new}", f"-DOLD_NAME={old}"]
+                        definitions = [f"-D{k}={root / v if v else ''}" for k, v in cache.items()]
+                        environment = fixture_environment()
+                        environment.update({k: str(root / v) for k, v in environment_values.items()})
+                        expected = str(root / selected) if selected else ""
+                        for arguments, env in ((command + definitions, environment), (command, fixture_environment())):
+                            result = subprocess.run(arguments, capture_output=True, text=True, env=env)
+                            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                            self.assertEqual((build / "resolved.txt").read_text(), expected)
+                            self.assertEqual(f"{old} is deprecated" in result.stderr, old in cache or old in environment_values)
+                        if not cache and not environment_values:
+                            self.assertNotIn(f"{old}:", (build / "CMakeCache.txt").read_text())
+
     def test_relative_paths_share_one_base(self):
         with tempfile.TemporaryDirectory(prefix="librpa-paths-") as temporary:
             # CMake resolves the invocation directory through symlinks, such
@@ -672,6 +710,78 @@ endif()
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
+class ELPABuildOptionsTest(unittest.TestCase):
+    def test_legacy_aliases_and_explicit_new_values(self):
+        with tempfile.TemporaryDirectory(prefix="librpa-elpa-options-") as temporary:
+            root = Path(temporary)
+            for suffix, old_value, new_value in (("KERNEL", "AVX2", ""), ("OPENMP", "ON", "OFF"),
+                                                  ("CONFIGURE_ARGS", "--enable-store-build-config", ""),
+                                                  ("LIBS", "-lold", "-lnew")):
+                for override in (False, True):
+                    with self.subTest(suffix=suffix, override=override):
+                        old = f"LIBRPA_BUNDLED_ELPA_{suffix}"
+                        new = f"LIBRPA_ELPA_{suffix}"
+                        script = root / "options.cmake"
+                        script.write_text(f'''cmake_minimum_required(VERSION 3.18)
+include("{MODULE.parent}/ELPABuildOptions.cmake")
+message(STATUS "RESOLVED=${{{new}}}")
+''')
+                        command = ["cmake", f"-D{old}={old_value}"]
+                        if override:
+                            command.append(f"-D{new}={new_value}")
+                        result = subprocess.run(command + ["-P", str(script)], capture_output=True, text=True)
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        self.assertIn(f"{old} is deprecated", result.stderr)
+                        self.assertIn(f"RESOLVED={new_value if override else old_value}\n", result.stdout)
+
+    def test_source_version_and_build_settings(self):
+        with tempfile.TemporaryDirectory(prefix="librpa-elpa-source-") as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir()
+            # A compiler-free OpenMP package lets us inspect generated build rules.
+            (root / "FindOpenMP.cmake").write_text('''foreach(lang C CXX Fortran)
+  add_library(OpenMP::OpenMP_${lang} INTERFACE IMPORTED)
+  set(OpenMP_${lang}_FLAGS -fopenmp)
+endforeach()
+''')
+            (root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
+project(ELPASource NONE)
+list(PREPEND CMAKE_MODULE_PATH "{root}")
+include("{MODULE.parent}/ELPABuildOptions.cmake")
+set(_elpa_source_dir "{source}")
+set(CMAKE_INSTALL_LIBDIR lib)
+set(CMAKE_INSTALL_INCLUDEDIR include)
+set(CMAKE_STATIC_LIBRARY_PREFIX lib)
+set(CMAKE_STATIC_LIBRARY_SUFFIX .a)
+add_subdirectory("{MODULE.parent.parent}/thirdparty/ELPA" elpa-build)
+get_target_property(includes elpa INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(links elpa INTERFACE_LINK_LIBRARIES)
+ExternalProject_Get_Property(librpa_bundled_elpa CONFIGURE_COMMAND)
+file(WRITE "${{CMAKE_BINARY_DIR}}/settings.txt" "${{includes}}\n${{links}}\n${{CONFIGURE_COMMAND}}")
+''')
+            for version in ("2024.03.001", "2026.02.001"):
+                for openmp in (False, True):
+                    with self.subTest(version=version, openmp=openmp):
+                        (source / "configure").write_text(f"PACKAGE_VERSION='{version}'\n")
+                        build = root / f"build-{version}-{openmp}"
+                        result = subprocess.run(["cmake", "-S", str(root), "-B", str(build),
+                            "-DLIBRPA_BUNDLED_ELPA_VERSION=ignored", "-DLIBRPA_ELPA_KERNEL=AVX2",
+                            f"-DLIBRPA_ELPA_OPENMP={'ON' if openmp else 'OFF'}",
+                            "-DLIBRPA_ELPA_CONFIGURE_ARGS=--enable-store-build-config",
+                            "-DLIBRPA_ELPA_LIBS=-L/custom/lib -lmath"], capture_output=True, text=True)
+                        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                        self.assertIn("LIBRPA_BUNDLED_ELPA_VERSION is deprecated and ignored", result.stderr)
+                        settings = (build / "settings.txt").read_text()
+                        library = "elpa_openmp" if openmp else "elpa"
+                        self.assertIn(f"include/{library}-{version}", settings)
+                        self.assertIn("--enable-avx2-kernels" if version.startswith("2026") else "--enable-avx2;", settings)
+                        self.assertIn("--enable-openmp" if openmp else "--disable-openmp", settings)
+                        self.assertEqual("OpenMP::OpenMP_Fortran" in settings, openmp)
+                        self.assertIn("--enable-store-build-config", settings)
+                        self.assertIn("LIBS=-L/custom/lib -lmath", settings)
+
+
 class ELPAPathTest(unittest.TestCase):
     def test_source_and_build_whitespace_rejected_at_configure(self):
         with tempfile.TemporaryDirectory(prefix="librpa-elpa-") as temporary:
@@ -684,7 +794,6 @@ class ELPAPathTest(unittest.TestCase):
                         (root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
 project(ELPAPath NONE)
 set(_elpa_source_dir "{source}")
-set(LIBRPA_BUNDLED_ELPA_VERSION 2026.02.001)
 include("{MODULE.parent.parent}/thirdparty/ELPA/CMakeLists.txt")
 ''')
                         result = subprocess.run(["cmake", "-S", str(root), "-B", str(build)],
@@ -782,7 +891,7 @@ add_library({target} INTERFACE IMPORTED)
                 self.assertNotIn("prebuilt installation", output)
 
     def test_installed_transitive_modules_and_compiler_warning(self):
-        body = f'set(EXTERNAL_GREENX_DIR "{self.prefix}")'
+        body = f'set(GREENX_PATH "{self.prefix}")'
         output = self.configure(body)
         self.assertIn(f"greenX=installed({self.prefix})", output)
         self.assertIn("using a prebuilt installation", output)
@@ -794,8 +903,15 @@ add_library({target} INTERFACE IMPORTED)
         output = self.configure(body, success=False)
         self.assertIn("missing kinds.mod", output)
 
+    def test_legacy_installation_alias(self):
+        output = self.configure(f'set(EXTERNAL_GREENX_DIR "{self.prefix}")')
+        self.assertIn("EXTERNAL_GREENX_DIR is deprecated", output)
+        self.assertIn(f"greenX=installed({self.prefix})", output)
+        output = self.configure(f'set(GREENX_SOURCE_DIR /source)\nset(EXTERNAL_GREENX_DIR "{self.prefix}")', success=False)
+        self.assertIn("mutually exclusive", output)
+
     def test_ambiguous_or_missing_external_source(self):
-        output = self.configure('set(GREENX_SOURCE_DIR /source)\nset(EXTERNAL_GREENX_DIR /prefix)',
+        output = self.configure('set(GREENX_SOURCE_DIR /source)\nset(GREENX_PATH /prefix)',
                                 success=False)
         self.assertIn("mutually exclusive", output)
         output = self.configure('set(LIBRPA_USE_EXTERNAL_GREENX ON)', success=False)

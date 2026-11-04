@@ -1,31 +1,28 @@
 # Autoconf rejects whitespace in source and build paths.
-set(_elpa_binary_dir "${CMAKE_CURRENT_BINARY_DIR}/build-${LIBRPA_BUNDLED_ELPA_VERSION}")
-foreach(_elpa_path IN ITEMS "${_elpa_source_dir}" "${_elpa_binary_dir}")
+foreach(_elpa_path IN ITEMS "${_elpa_source_dir}" "${CMAKE_CURRENT_BINARY_DIR}")
   if(_elpa_path MATCHES "[ \t\r\n]")
     message(FATAL_ERROR "ELPA source builds do not support whitespace in paths: '${_elpa_path}'. Use a LibRPA checkout (or ELPA_SOURCE_DIR) and a CMake build directory without spaces or other whitespace.")
   endif()
 endforeach()
 
-include(ExternalProject)
-
-# Validate the requested managed source and avoid clashing with an ELPA target
-# supplied by a parent project.
-set(_LIBRPA_BUNDLED_ELPA_SUPPORTED_VERSIONS
-  2026.02.001
-)
-
-if(NOT LIBRPA_BUNDLED_ELPA_VERSION IN_LIST _LIBRPA_BUNDLED_ELPA_SUPPORTED_VERSIONS)
-  message(FATAL_ERROR
-    "Unsupported LIBRPA_BUNDLED_ELPA_VERSION='${LIBRPA_BUNDLED_ELPA_VERSION}'. "
-    "Supported versions: ${_LIBRPA_BUNDLED_ELPA_SUPPORTED_VERSIONS}")
-endif()
-
-if(TARGET elpa)
-  message(FATAL_ERROR "Cannot build managed ELPA because target 'elpa' already exists")
-endif()
-
 if(NOT EXISTS "${_elpa_source_dir}/configure")
-  message(FATAL_ERROR "Managed ELPA source directory is incomplete: ${_elpa_source_dir}")
+  message(FATAL_ERROR "ELPA source directory is incomplete: ${_elpa_source_dir}")
+endif()
+
+# The selected source determines the installed header layout and configure flags.
+file(STRINGS "${_elpa_source_dir}/configure" _elpa_version_line
+  REGEX [=[^PACKAGE_VERSION=['"]([^'"]+)['"]$]=] LIMIT_COUNT 1)
+if(NOT _elpa_version_line)
+  message(FATAL_ERROR "Cannot read PACKAGE_VERSION from ${_elpa_source_dir}/configure")
+endif()
+string(REGEX REPLACE [=[^PACKAGE_VERSION=['"]([^'"]+)['"]$]=] "\\1"
+  _elpa_source_version "${_elpa_version_line}")
+set(_elpa_binary_dir "${CMAKE_CURRENT_BINARY_DIR}/build-${_elpa_source_version}")
+message(STATUS "ELPA source version: ${_elpa_source_version}")
+
+include(ExternalProject)
+if(TARGET elpa)
+  message(FATAL_ERROR "Cannot build ELPA sources because target 'elpa' already exists")
 endif()
 
 # Find the tools needed by ELPA's autotools build.
@@ -50,10 +47,10 @@ set(_elpa_prefix "${CMAKE_CURRENT_BINARY_DIR}/install")
 set(_elpa_libdir "${_elpa_prefix}/${CMAKE_INSTALL_LIBDIR}")
 set(_elpa_includedir "${_elpa_prefix}/${CMAKE_INSTALL_INCLUDEDIR}")
 set(_elpa_library_base elpa)
-if(LIBRPA_BUNDLED_ELPA_OPENMP)
+if(LIBRPA_ELPA_OPENMP)
   set(_elpa_library_base elpa_openmp)
 endif()
-set(_elpa_versioned_includedir "${_elpa_includedir}/${_elpa_library_base}-${LIBRPA_BUNDLED_ELPA_VERSION}")
+set(_elpa_versioned_includedir "${_elpa_includedir}/${_elpa_library_base}-${_elpa_source_version}")
 set(_elpa_moduledir "${_elpa_versioned_includedir}/modules")
 set(_elpa_libtool_library "lib${_elpa_library_base}.la")
 set(_elpa_library "${_elpa_libdir}/${CMAKE_STATIC_LIBRARY_PREFIX}${_elpa_library_base}${CMAKE_STATIC_LIBRARY_SUFFIX}")
@@ -102,7 +99,7 @@ set(_elpa_configure_args
 )
 
 # Configure ELPA's own OpenMP support separately from LibRPA's OpenMP usage.
-if(LIBRPA_BUNDLED_ELPA_OPENMP)
+if(LIBRPA_ELPA_OPENMP)
   find_package(OpenMP REQUIRED COMPONENTS C CXX Fortran)
   list(APPEND _elpa_configure_args
     "--enable-openmp"
@@ -113,25 +110,25 @@ if(LIBRPA_BUNDLED_ELPA_OPENMP)
   string(APPEND _elpa_c_flags " ${OpenMP_C_FLAGS}")
   string(APPEND _elpa_cxx_flags " ${OpenMP_CXX_FLAGS}")
   string(APPEND _elpa_fortran_flags " ${OpenMP_Fortran_FLAGS}")
-  message(STATUS "Use managed ELPA OpenMP         : ON")
+  message(STATUS "Use ELPA source OpenMP          : ON")
 else()
   list(APPEND _elpa_configure_args "--disable-openmp")
-  message(STATUS "Use managed ELPA OpenMP         : OFF")
+  message(STATUS "Use ELPA source OpenMP          : OFF")
 endif()
 
 # Select x86-specific ELPA kernels only when explicitly requested. By default,
 # use portable generic kernels, which also works on non-x86 platforms.
 set(_elpa_supported_x86_kernels SSE SSE_ASSEMBLY AVX AVX2 AVX512)
-string(STRIP "${LIBRPA_BUNDLED_ELPA_KERNEL}" _elpa_x86_kernel)
+string(STRIP "${LIBRPA_ELPA_KERNEL}" _elpa_x86_kernel)
 string(TOUPPER "${_elpa_x86_kernel}" _elpa_x86_kernel)
 string(REPLACE "-" "_" _elpa_x86_kernel "${_elpa_x86_kernel}")
 if(_elpa_x86_kernel AND NOT _elpa_x86_kernel IN_LIST _elpa_supported_x86_kernels)
   message(FATAL_ERROR
-    "Unsupported LIBRPA_BUNDLED_ELPA_KERNEL='${LIBRPA_BUNDLED_ELPA_KERNEL}'. "
+    "Unsupported LIBRPA_ELPA_KERNEL='${LIBRPA_ELPA_KERNEL}'. "
     "Supported values: empty, ${_elpa_supported_x86_kernels}")
 endif()
 
-if(LIBRPA_BUNDLED_ELPA_VERSION VERSION_LESS 2026.02.001)
+if(_elpa_source_version VERSION_LESS 2026.02.001)
   set(_elpa_disable_x86_kernel_args
     "--disable-sse"
     "--disable-sse-assembly"
@@ -153,20 +150,20 @@ list(APPEND _elpa_configure_args ${_elpa_disable_x86_kernel_args})
 if(_elpa_x86_kernel)
   string(TOLOWER "${_elpa_x86_kernel}" _elpa_x86_kernel_flag)
   string(REPLACE "_" "-" _elpa_x86_kernel_flag "${_elpa_x86_kernel_flag}")
-  if(LIBRPA_BUNDLED_ELPA_VERSION VERSION_LESS 2026.02.001)
+  if(_elpa_source_version VERSION_LESS 2026.02.001)
     list(APPEND _elpa_configure_args "--enable-${_elpa_x86_kernel_flag}")
   else()
     list(APPEND _elpa_configure_args "--enable-${_elpa_x86_kernel_flag}-kernels")
   endif()
-  message(STATUS "Use managed ELPA x86 kernel     : ${_elpa_x86_kernel}")
+  message(STATUS "Use ELPA source x86 kernel     : ${_elpa_x86_kernel}")
 else()
-  message(STATUS "Use managed ELPA x86 kernel     : none")
+  message(STATUS "Use ELPA source x86 kernel     : none")
 endif()
 
 # Let advanced users pass additional configure arguments after LibRPA's
 # defaults so those arguments can override the defaults when needed.
-if(LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS)
-  separate_arguments(_elpa_extra_configure_args UNIX_COMMAND "${LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS}")
+if(LIBRPA_ELPA_CONFIGURE_ARGS)
+  separate_arguments(_elpa_extra_configure_args UNIX_COMMAND "${LIBRPA_ELPA_CONFIGURE_ARGS}")
   list(APPEND _elpa_configure_args ${_elpa_extra_configure_args})
 endif()
 
@@ -218,7 +215,7 @@ ExternalProject_Add(librpa_bundled_elpa
       "CFLAGS=${_elpa_c_flags}"
       "CXXFLAGS=${_elpa_cxx_flags}"
       "FCFLAGS=${_elpa_fortran_flags}"
-      "LIBS=${LIBRPA_BUNDLED_ELPA_LIBS}"
+      "LIBS=${LIBRPA_ELPA_LIBS}"
       "${_elpa_source_dir}/configure" ${_elpa_configure_args}
   BUILD_COMMAND
     ${CMAKE_COMMAND} -E env ${_elpa_make_environment}
@@ -345,7 +342,7 @@ endif()
 if(TARGET MPI::MPI_Fortran)
   list(APPEND _elpa_interface_link_libraries MPI::MPI_Fortran)
 endif()
-if(LIBRPA_BUNDLED_ELPA_OPENMP)
+if(LIBRPA_ELPA_OPENMP)
   foreach(_elpa_openmp_target IN ITEMS
       OpenMP::OpenMP_C
       OpenMP::OpenMP_CXX

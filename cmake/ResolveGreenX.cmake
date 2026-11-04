@@ -1,8 +1,8 @@
 # Select a parent target, then source, installation, and managed source.
 librpa_thirdparty_path(GREENX_SOURCE_DIR _greenx_user_source)
-librpa_thirdparty_path(EXTERNAL_GREENX_DIR _greenx_prefix)
+librpa_thirdparty_path(GREENX_PATH _greenx_prefix EXTERNAL_GREENX_DIR)
 if(_greenx_user_source AND _greenx_prefix)
-  message(FATAL_ERROR "greenX: GREENX_SOURCE_DIR and EXTERNAL_GREENX_DIR are mutually exclusive")
+  message(FATAL_ERROR "greenX: GREENX_SOURCE_DIR and GREENX_PATH are mutually exclusive")
 endif()
 
 if(TARGET LibGXMiniMax)
@@ -26,7 +26,7 @@ elseif(_greenx_prefix)
     message(FATAL_ERROR "greenX: installation ${_greenx_prefix} does not provide greenX::LibGXMiniMax")
   endif()
   librpa_thirdparty_warn_installed(greenX "${_greenx_prefix}"
-    "leave EXTERNAL_GREENX_DIR empty" GREENX_SOURCE_DIR)
+    "leave GREENX_PATH empty" GREENX_SOURCE_DIR)
   set(_greenx_status installed)
 
   # Installed modules come from MiniMax and its transitive GXCommon target.
@@ -82,7 +82,7 @@ elseif(_greenx_prefix)
     endif()
   endforeach()
 elseif(LIBRPA_USE_EXTERNAL_GREENX)
-  message(FATAL_ERROR "LIBRPA_USE_EXTERNAL_GREENX requires a parent-project LibGXMiniMax or greenX::LibGXMiniMax target, GREENX_SOURCE_DIR, or EXTERNAL_GREENX_DIR")
+  message(FATAL_ERROR "LIBRPA_USE_EXTERNAL_GREENX requires a parent-project LibGXMiniMax or greenX::LibGXMiniMax target, GREENX_SOURCE_DIR, or GREENX_PATH")
 else()
   librpa_thirdparty_prepare(greenX _greenx_source_dir _greenx_status)
 endif()

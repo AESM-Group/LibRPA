@@ -58,17 +58,19 @@ Use `cmake --build build --parallel N` to set build concurrency. This is a build
 | [`SCALAPACK_DIR`](#scalapack-dir)                           | string            | empty      |
 | [`LIBRPA_USE_ELPA`](#librpa-use-elpa) | bool | `OFF` |
 | [`LIBRPA_USE_EXTERNAL_ELPA`](#librpa-use-external-elpa) | bool (deprecated) | unset |
-| [`EXTERNAL_ELPA_DIR`](#external-elpa-dir)                   | path              | empty      |
+| [`ELPA_PATH`](#elpa-path) | path | empty |
+| [`EXTERNAL_ELPA_DIR`](#external-elpa-dir) | path (deprecated) | unset |
 | [`LIBRPA_USE_BUNDLED_ELPA`](#librpa-use-bundled-elpa) | bool (deprecated) | unset |
-| [`LIBRPA_BUNDLED_ELPA_VERSION`](#librpa-bundled-elpa-version) | string          | `2026.02.001` |
-| [`LIBRPA_BUNDLED_ELPA_KERNEL`](#librpa-bundled-elpa-kernel) | string            | empty      |
-| [`LIBRPA_BUNDLED_ELPA_OPENMP`](#librpa-bundled-elpa-openmp) | bool              | `OFF`      |
-| [`LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS`](#librpa-bundled-elpa-configure-args) | string | empty |
-| [`LIBRPA_BUNDLED_ELPA_LIBS`](#librpa-bundled-elpa-libs)     | string            | empty      |
+| [`LIBRPA_BUNDLED_ELPA_VERSION`](#librpa-bundled-elpa-version) | string (deprecated, ignored) | unset |
+| [`LIBRPA_ELPA_KERNEL`](#librpa-elpa-kernel) | string            | empty      |
+| [`LIBRPA_ELPA_OPENMP`](#librpa-elpa-openmp) | bool              | `OFF`      |
+| [`LIBRPA_ELPA_CONFIGURE_ARGS`](#librpa-elpa-configure-args) | string | empty |
+| [`LIBRPA_ELPA_LIBS`](#librpa-elpa-libs)     | string            | empty      |
 | [`LIBRPA_THIRDPARTY_DOWNLOAD`](#librpa-thirdparty-download) | bool | `ON` |
 | [`LIBRPA_THIRDPARTY_ARCHIVE_DIR`](#librpa-thirdparty-archive-dir) | path | empty |
 | [`GREENX_SOURCE_DIR`](#greenx-source-dir) | path | empty |
-| [`EXTERNAL_GREENX_DIR`](#external-greenx-dir) | path | empty |
+| [`GREENX_PATH`](#greenx-path) | path | empty |
+| [`EXTERNAL_GREENX_DIR`](#external-greenx-dir) | path (deprecated) | unset |
 | [`ELPA_SOURCE_DIR`](#elpa-source-dir) | path | empty |
 | [`LIBDDLA_SOURCE_DIR`](#libddla-source-dir) | path | empty |
 | [`BUILD_SHARED_LIBS`](#build-shared-libs) | bool | `OFF` in a standalone build |
@@ -152,7 +154,7 @@ cmake -B build -DLIBRPA_USE_HIP=ON
 
 Enable ELPA for distributed eigensolvers. The default is `OFF`. With `ON` and no supplied dependency, LibRPA downloads and verifies the pinned release, extracts and patches it under `thirdparty/src`, and builds it with LibRPA. Existing managed sources or cached archives can also be used with downloads disabled.
 
-An existing `ELPA::ELPA` target, `ELPA_SOURCE_DIR`, or an installation prefix (`EXTERNAL_ELPA_DIR`, with `ELPA_ROOT` as a fallback) automatically sets this option to `ON`, including when it was set to `OFF`. Parent targets take precedence over paths. Choose either a source path or an installation prefix.
+An existing `ELPA::ELPA` target, `ELPA_SOURCE_DIR`, or an installation prefix (`ELPA_PATH`, with `ELPA_ROOT` as a fallback) automatically sets this option to `ON`, including when it was set to `OFF`. Parent targets take precedence over paths. Choose either a source path or an installation prefix.
 
 ```sh
 # Build the managed release
@@ -162,7 +164,7 @@ cmake -B build -DLIBRPA_USE_ELPA=ON
 cmake -B build -DELPA_SOURCE_DIR=/path/to/elpa-source
 
 # Use an installed library; ELPA is enabled automatically
-cmake -B build -DEXTERNAL_ELPA_DIR=/path/to/elpa
+cmake -B build -DELPA_PATH=/path/to/elpa
 ```
 
 Source builds use upstream autotools and a private installation inside the build directory. Choose source and build paths without whitespace. Use a fresh build directory after changes to compiler flags, `CMAKE_BUILD_TYPE` or ELPA sources so the separate ELPA build applies them.
@@ -172,7 +174,7 @@ Source builds use upstream autotools and a private installation inside the build
 
 Use `LIBRPA_USE_ELPA` and the dependency settings above for new configurations. Supplying this legacy option, with either `ON` or `OFF`, emits a CMake deprecation warning. With `ON`, it enables ELPA. If no target or path is supplied, it retains the legacy search for an installed library in standard search paths. An explicit source path selects a source build.
 
-To migrate an installed-library configuration, set `EXTERNAL_ELPA_DIR` to its installation prefix and remove the old cache entry with `-ULIBRPA_USE_EXTERNAL_ELPA`.
+To migrate an installed-library configuration, set `ELPA_PATH` to its installation prefix and remove the old cache entry with `-ULIBRPA_USE_EXTERNAL_ELPA`.
 
 (librpa-use-bundled-elpa)=
 ## `LIBRPA_USE_BUNDLED_ELPA` (deprecated)
@@ -182,17 +184,18 @@ Use `LIBRPA_USE_ELPA=ON` to build the managed release, or supply `ELPA_SOURCE_DI
 Remove the old cache entry with `-ULIBRPA_USE_BUNDLED_ELPA` when migrating. Legacy options retained in the cache continue to emit warnings on later configurations.
 
 (librpa-bundled-elpa-version)=
-## `LIBRPA_BUNDLED_ELPA_VERSION`
+## `LIBRPA_BUNDLED_ELPA_VERSION` (deprecated)
 
-Selects which managed ELPA release is built when
-[`LIBRPA_USE_ELPA`](#librpa-use-elpa) selects a source build.
+This option is ignored and emits a deprecation warning when defined. The manifest selects the downloaded release. For `ELPA_SOURCE_DIR`, the supplied source tree determines the version. LibRPA reads `PACKAGE_VERSION` from the selected source's `configure` script to determine its header installation paths and version-specific configure arguments.
 
-Supported value: `2026.02.001`, matching the manifest. Other values are rejected. This option does not select an arbitrary upstream release.
+Remove the old cache entry with `-ULIBRPA_BUNDLED_ELPA_VERSION`. There is no replacement version option.
 
-(librpa-bundled-elpa-kernel)=
-## `LIBRPA_BUNDLED_ELPA_KERNEL`
+(librpa-elpa-kernel)=
+## `LIBRPA_ELPA_KERNEL`
 
-Selects an x86 SIMD kernel family for the managed ELPA build.
+Applies when LibRPA builds downloaded ELPA sources or `ELPA_SOURCE_DIR`. It has no effect on an installed library or a parent ELPA target.
+
+Selects an x86 SIMD kernel family for the ELPA source build.
 
 By default, this option is empty. In that case, LibRPA disables ELPA's
 x86-specific SIMD kernels and lets ELPA build portable generic kernels. Set this
@@ -210,13 +213,15 @@ Supported values are:
 Example:
 ```sh
 cmake -B build -DLIBRPA_USE_ELPA=ON \
-      -DLIBRPA_BUNDLED_ELPA_KERNEL=AVX512
+      -DLIBRPA_ELPA_KERNEL=AVX512
 ```
 
-(librpa-bundled-elpa-openmp)=
-## `LIBRPA_BUNDLED_ELPA_OPENMP`
+(librpa-elpa-openmp)=
+## `LIBRPA_ELPA_OPENMP`
 
-Controls whether the managed ELPA library is built with ELPA's own OpenMP
+Applies when LibRPA builds downloaded ELPA sources or `ELPA_SOURCE_DIR`. It has no effect on an installed library or a parent ELPA target.
+
+Controls whether ELPA is built with ELPA's own OpenMP
 support.
 
 The default is `OFF`. In that case, ELPA is built as an MPI-only static library,
@@ -234,44 +239,63 @@ library does not provide the thread level ELPA needs.
 Example:
 ```sh
 cmake -B build -DLIBRPA_USE_ELPA=ON \
-      -DLIBRPA_BUNDLED_ELPA_OPENMP=ON
+      -DLIBRPA_ELPA_OPENMP=ON
 ```
 
-(librpa-bundled-elpa-configure-args)=
-## `LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS`
+(librpa-elpa-configure-args)=
+## `LIBRPA_ELPA_CONFIGURE_ARGS`
 
-Additional arguments passed to the managed ELPA `configure` script. Supply one quoted string with space-separated arguments. CMake parses this string with `separate_arguments(... UNIX_COMMAND ...)`.
+Applies when LibRPA builds downloaded ELPA sources or `ELPA_SOURCE_DIR`. It has no effect on an installed library or a parent ELPA target.
+
+Additional arguments passed to the ELPA source `configure` script. Supply one quoted string with space-separated arguments. CMake parses this string with `separate_arguments(... UNIX_COMMAND ...)`.
 
 Arguments passed through this option are appended after LibRPA's defaults,
-including [`LIBRPA_BUNDLED_ELPA_KERNEL`](#librpa-bundled-elpa-kernel), so they
+including [`LIBRPA_ELPA_KERNEL`](#librpa-elpa-kernel), so they
 can override the default kernel selection when a specific ELPA setup is needed.
 
 Example:
 ```sh
 cmake -B build -DLIBRPA_USE_ELPA=ON \
-      -DLIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS="--enable-store-build-config"
+      -DLIBRPA_ELPA_CONFIGURE_ARGS="--enable-store-build-config"
 ```
 
-(librpa-bundled-elpa-libs)=
-## `LIBRPA_BUNDLED_ELPA_LIBS`
+(librpa-elpa-libs)=
+## `LIBRPA_ELPA_LIBS`
 
-Linker flags passed to the managed ELPA `configure` script through its `LIBS`
+Applies when LibRPA builds downloaded ELPA sources or `ELPA_SOURCE_DIR`. It has no effect on an installed library or a parent ELPA target.
+
+Linker flags passed to the ELPA source `configure` script through its `LIBS`
 environment variable.
 
 By default, LibRPA forwards the detected LAPACK and ScaLAPACK libraries to the
-managed ELPA build. Set this option only when the autodetected flags are not
+ELPA source build. Set this option only when the autodetected flags are not
 suitable for a particular compiler or math library setup.
 
 When static math libraries are used, ELPA's libtool build may try to include
 those static archives inside `libelpa.a`. LibRPA removes such nested archive
-members after the managed ELPA install step and links the math libraries
+members after the ELPA source install step and links the math libraries
 separately through CMake.
 
 Example:
 ```sh
 cmake -B build -DLIBRPA_USE_ELPA=ON \
-      -DLIBRPA_BUNDLED_ELPA_LIBS="-L/path/to/lib -lscalapack -llapack -lblas"
+      -DLIBRPA_ELPA_LIBS="-L/path/to/lib -lscalapack -llapack -lblas"
 ```
+
+(librpa-bundled-elpa-kernel)=
+(librpa-bundled-elpa-openmp)=
+(librpa-bundled-elpa-configure-args)=
+(librpa-bundled-elpa-libs)=
+## Deprecated ELPA source-build option names
+
+| Deprecated name | Replacement |
+| --- | --- |
+| `LIBRPA_BUNDLED_ELPA_KERNEL` | `LIBRPA_ELPA_KERNEL` |
+| `LIBRPA_BUNDLED_ELPA_OPENMP` | `LIBRPA_ELPA_OPENMP` |
+| `LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS` | `LIBRPA_ELPA_CONFIGURE_ARGS` |
+| `LIBRPA_BUNDLED_ELPA_LIBS` | `LIBRPA_ELPA_LIBS` |
+
+Defining an old name emits a deprecation warning. Its value initializes the replacement when the new name is unset. An explicit new value, including `OFF` or an empty string, takes precedence. These settings apply only to source builds. Remove the old cache entries after migrating.
 
 (librpa-use-cmake-inc)=
 ## `LIBRPA_USE_CMAKE_INC`
@@ -285,7 +309,7 @@ When enabled, the `cmake.inc` file is used to initialize compilers and other bui
 
 Require an external greenX source. Default: `OFF`.
 
-LibRPA first uses an existing `LibGXMiniMax` or `greenX::LibGXMiniMax` target, regardless of this option. Otherwise, it uses `GREENX_SOURCE_DIR`, then `EXTERNAL_GREENX_DIR`. Supplying both paths is an error.
+LibRPA first uses an existing `LibGXMiniMax` or `greenX::LibGXMiniMax` target, regardless of this option. Otherwise, it uses `GREENX_SOURCE_DIR`, then `GREENX_PATH`. Supplying both paths is an error.
 
 With `ON`, configuration fails if none of these external sources is supplied. With `OFF`, LibRPA falls back to the managed source. GreenX is required even with `LIBRPA_USE_LIBRI=OFF`.
 
@@ -298,10 +322,10 @@ External greenX source directory containing `GX-TimeFrequency/CMakeLists.txt`. A
 
 LibRPA hashes the whole tree. Matching patched sources are `pinned`. Matching pristine sources become a patched copy in managed storage (`overlay`). Other sources produce an `unpinned` warning and are used directly. The supplied tree remains unchanged. LibRPA builds the selected tree with its own compilers.
 
-`GREENX_SOURCE_DIR` and `EXTERNAL_GREENX_DIR` are mutually exclusive. An invalid explicit path stops configuration without a download fallback.
+`GREENX_SOURCE_DIR` and `GREENX_PATH` are mutually exclusive. An invalid explicit path stops configuration without a download fallback.
 
-(external-greenx-dir)=
-## `EXTERNAL_GREENX_DIR`
+(greenx-path)=
+## `GREENX_PATH`
 
 Prebuilt greenX installation prefix. A nonempty CMake value takes precedence over the environment variable. A parent target takes precedence over installation discovery.
 
@@ -309,12 +333,19 @@ LibRPA loads `greenXConfig.cmake` only from this prefix and uses `greenX::LibGXM
 
 Each configuration warns about compatibility with LibRPA's compilers and flags. Prefer the managed source (leave this variable empty), then a parent target, then `GREENX_SOURCE_DIR`. The installation must also provide compatible BLAS/LAPACK dependencies. Supply `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` when necessary.
 
+(external-greenx-dir)=
+## `EXTERNAL_GREENX_DIR` (deprecated)
+
+Legacy alias for `GREENX_PATH`. A nonempty `GREENX_PATH` CMake value takes precedence, followed by its environment variable, the legacy CMake value, and the legacy environment variable. Defining the old name in CMake or the environment emits a deprecation warning, including when its value is empty or the new name takes precedence.
+
+To migrate, set `GREENX_PATH`, remove the old cache entry with `-UEXTERNAL_GREENX_DIR`, and unset the old environment variable. An environment value selected through the alias is saved under the legacy name in the cache for later configurations.
+
 (elpa-source-dir)=
 ## `ELPA_SOURCE_DIR`
 
 External ELPA source directory containing `configure` and `src/elpa_impl.F90`. A nonempty CMake value takes precedence over the environment variable.
 
-Supplying this path automatically enables `LIBRPA_USE_ELPA`. Choose either this source path or an installation prefix (`EXTERNAL_ELPA_DIR` or `ELPA_ROOT`), including environment values. A parent `ELPA::ELPA` target takes precedence over the source path.
+Supplying this path automatically enables `LIBRPA_USE_ELPA`. Choose either this source path or an installation prefix (`ELPA_PATH` or `ELPA_ROOT`), including environment values. A parent `ELPA::ELPA` target takes precedence over the source path.
 
 LibRPA hashes the whole tree. Matching patched sources are `pinned`. Matching pristine sources become a patched copy in managed storage (`overlay`). Other sources produce an `unpinned` warning. The out-of-source build preserves the user tree and overlay. An invalid path stops configuration without a download fallback.
 
@@ -497,8 +528,8 @@ This variable can be provided in two ways:
 This option is intended for environments where ScaLAPACK is provided as a
 standalone installation rather than through Intel MKL.
 
-(external-elpa-dir)=
-## `EXTERNAL_ELPA_DIR`
+(elpa-path)=
+## `ELPA_PATH`
 
 ELPA installation prefix. Supplying this path automatically enables `LIBRPA_USE_ELPA`. A nonempty CMake value takes precedence over the same-named environment variable. An existing `ELPA::ELPA` target bypasses discovery.
 
@@ -508,11 +539,18 @@ The finder looks for ELPA headers and a library. It also adds the Fortran module
 - `include/elpa-*/modules/elpa.mod`
 - `lib/libelpa.so` or `lib/libelpa_openmp.so`, also under `lib64/`
 
-`ELPA_ROOT`, including its environment variable, is used when `EXTERNAL_ELPA_DIR` is absent. An explicit prefix restricts the search to that installation. Missing headers or libraries stop configuration. Supplying `ELPA_ROOT` also enables `LIBRPA_USE_ELPA`. Installation mode emits a compatibility warning on every configuration. Source builds use the compilers and settings selected for LibRPA.
+`ELPA_ROOT`, including its environment variable, is used when `ELPA_PATH` is absent. An explicit prefix restricts the search to that installation. Missing headers or libraries stop configuration. Supplying `ELPA_ROOT` also enables `LIBRPA_USE_ELPA`. Installation mode emits a compatibility warning on every configuration. Source builds use the compilers and settings selected for LibRPA.
 
 ```sh
-cmake -B build -DEXTERNAL_ELPA_DIR=/path/to/elpa
+cmake -B build -DELPA_PATH=/path/to/elpa
 ```
+
+(external-elpa-dir)=
+## `EXTERNAL_ELPA_DIR` (deprecated)
+
+Legacy alias for `ELPA_PATH`. A nonempty `ELPA_PATH` CMake value takes precedence, followed by its environment variable, the legacy CMake value, and the legacy environment variable. `ELPA_ROOT` is the fallback when neither name supplies a path. Defining the old name in CMake or the environment emits a deprecation warning, including when its value is empty or the new name takes precedence.
+
+A path supplied through this alias also enables `LIBRPA_USE_ELPA`. To migrate, set `ELPA_PATH`, remove the old cache entry with `-UEXTERNAL_ELPA_DIR`, and unset the old environment variable. An environment value selected through the alias is saved under the legacy name in the cache for later configurations.
 
 (librpa-thirdparty-archive-dir)=
 ## `LIBRPA_THIRDPARTY_ARCHIVE_DIR`

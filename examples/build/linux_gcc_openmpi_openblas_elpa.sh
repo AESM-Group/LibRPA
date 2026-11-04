@@ -116,10 +116,9 @@ cmake -B "${build_dir}" \
     -DLIBRPA_USE_CUDA=OFF \
     -DLIBRPA_USE_HIP=OFF \
     -DLIBRPA_USE_ELPA=ON \
-    -DLIBRPA_BUNDLED_ELPA_VERSION=2026.02.001 \
-    -DLIBRPA_BUNDLED_ELPA_OPENMP=ON \
-    -DLIBRPA_BUNDLED_ELPA_KERNEL:STRING="" \
-    -DLIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS:STRING="${elpa_configure_args}" \
+    -DLIBRPA_ELPA_OPENMP=ON \
+    -DLIBRPA_ELPA_KERNEL:STRING="" \
+    -DLIBRPA_ELPA_CONFIGURE_ARGS:STRING="${elpa_configure_args}" \
     -DBUILD_SHARED_LIBS=ON \
     -DLIBRPA_VERBOSE_OUTPUT=ON \
     -DCMAKE_C_FLAGS="-g -O3 -fopenmp" \
@@ -129,9 +128,8 @@ cmake -B "${build_dir}" \
 cmake --build "${build_dir}" -j "${SLURM_CPUS_PER_TASK}"
 
 grep -q '^LIBRPA_USE_ELPA:BOOL=ON$' "${build_dir}/CMakeCache.txt"
-grep -q '^LIBRPA_BUNDLED_ELPA_VERSION:STRING=2026.02.001$' "${build_dir}/CMakeCache.txt"
-grep -q '^LIBRPA_BUNDLED_ELPA_OPENMP:BOOL=ON$' "${build_dir}/CMakeCache.txt"
-grep -q '^LIBRPA_BUNDLED_ELPA_KERNEL:STRING=$' "${build_dir}/CMakeCache.txt"
+grep -q '^LIBRPA_ELPA_OPENMP:BOOL=ON$' "${build_dir}/CMakeCache.txt"
+grep -q '^LIBRPA_ELPA_KERNEL:STRING=$' "${build_dir}/CMakeCache.txt"
 grep -q '^LIBRPA_USE_LIBRI_GPU:BOOL=OFF$' "${build_dir}/CMakeCache.txt"
 grep -q '^LIBRPA_USE_CUDA:BOOL=OFF$' "${build_dir}/CMakeCache.txt"
 grep -q '^LIBRPA_USE_HIP:BOOL=OFF$' "${build_dir}/CMakeCache.txt"

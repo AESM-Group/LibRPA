@@ -4,15 +4,22 @@ get_filename_component(LIBRPA_SOURCE_DIR "${_LIBRPA_THIRDPARTY_MODULE_DIR}/.." A
 # PATH cache entries normalize untyped relative -D values against CMake's
 # invocation directory, before any existence checks or dependency resolution.
 foreach(_path_variable LIBRI_INCLUDE_DIR LIBCOMM_INCLUDE_DIR CEREAL_INCLUDE_DIR
-    GREENX_SOURCE_DIR EXTERNAL_GREENX_DIR ELPA_SOURCE_DIR EXTERNAL_ELPA_DIR ELPA_ROOT
+    GREENX_SOURCE_DIR GREENX_PATH ELPA_SOURCE_DIR ELPA_PATH ELPA_ROOT
     LIBDDLA_SOURCE_DIR LIBDDLA_PATH)
   set(${_path_variable} "${${_path_variable}}" CACHE PATH "Explicit third-party dependency path")
+endforeach()
+# Normalize legacy -D paths only when supplied; fresh caches use the new names.
+foreach(_path_variable EXTERNAL_ELPA_DIR EXTERNAL_GREENX_DIR)
+  if(DEFINED ${_path_variable})
+    set(${_path_variable} "${${_path_variable}}" CACHE PATH "Deprecated installation prefix")
+  endif()
 endforeach()
 set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "${LIBRPA_THIRDPARTY_ARCHIVE_DIR}" CACHE PATH "Archive directory; empty uses the environment or thirdparty/downloads")
 option(LIBRPA_THIRDPARTY_DOWNLOAD "Download missing third-party archives" ON)
 
 # Preserve environment selections across automatic reconfiguration. Keep the
 # derived archive default uncached so it stays local to this checkout.
+# An optional third argument supplies a deprecated fallback variable name.
 function(librpa_thirdparty_path variable out)
   set(_path "${${variable}}")
   set(_from_environment FALSE)
@@ -28,6 +35,17 @@ function(librpa_thirdparty_path variable out)
   if(_from_environment)
     set(${variable} "${_path}" CACHE PATH "Explicit third-party dependency path" FORCE)
     message(STATUS "${variable}: using and caching path from environment: ${_path}")
+  endif()
+  if(ARGC GREATER 2)
+    set(_legacy "${ARGV2}")
+    if(DEFINED ${_legacy} OR DEFINED ENV{${_legacy}})
+      message(DEPRECATION
+        "${_legacy} is deprecated. Use ${variable} instead, and remove "
+        "${_legacy} from the CMake cache and environment.")
+      if("${_path}" STREQUAL "")
+        librpa_thirdparty_path("${_legacy}" _path)
+      endif()
+    endif()
   endif()
   set(${out} "${_path}" PARENT_SCOPE)
 endfunction()

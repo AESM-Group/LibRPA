@@ -195,11 +195,11 @@ For a path, choose either a source directory or an installation prefix. The tabl
 
 | Dependency | Parent target | Source path | Installation prefix |
 | --- | --- | --- | --- |
-| greenX | `LibGXMiniMax` or `greenX::LibGXMiniMax` | `GREENX_SOURCE_DIR` | `EXTERNAL_GREENX_DIR` |
-| ELPA | `ELPA::ELPA` | `ELPA_SOURCE_DIR` | `EXTERNAL_ELPA_DIR` |
+| greenX | `LibGXMiniMax` or `greenX::LibGXMiniMax` | `GREENX_SOURCE_DIR` | `GREENX_PATH` |
+| ELPA | `ELPA::ELPA` | `ELPA_SOURCE_DIR` | `ELPA_PATH` |
 | LibDDLA | `LibDDLA::ddla` | `LIBDDLA_SOURCE_DIR` | `LIBDDLA_PATH` |
 
-ELPA is optional and disabled by default. Set `LIBRPA_USE_ELPA=ON` to download and build the managed release. A parent `ELPA::ELPA` target, `ELPA_SOURCE_DIR`, or `EXTERNAL_ELPA_DIR` automatically enables ELPA. `ELPA_ROOT` also selects an installation when `EXTERNAL_ELPA_DIR` is absent. A parent target takes precedence over the supplied path.
+ELPA is optional and disabled by default. Set `LIBRPA_USE_ELPA=ON` to download and build the managed release. A parent `ELPA::ELPA` target, `ELPA_SOURCE_DIR`, or `ELPA_PATH` automatically enables ELPA. `ELPA_ROOT` also selects an installation when `ELPA_PATH` is absent. A parent target takes precedence over the supplied path.
 
 For a source directory, CMake compares its contents with the version recorded in the manifest.
 It uses a matching patched tree directly (`pinned`) or creates a patched copy of a matching upstream tree (`overlay`).
@@ -238,7 +238,7 @@ Parent projects can provide `LibRI::LibRI`, `LibComm::LibComm` and `cereal::cere
 For GPU builds, you can supply `LibDDLA::ddla`, a source directory through `LIBDDLA_SOURCE_DIR`, or an installation through `LIBDDLA_PATH`.
 CMake uses the parent target first, then the selected path, and otherwise prepares managed sources. LibDDLA source builds use a separate CMake build.
 
-With `LIBRPA_USE_EXTERNAL_GREENX=ON`, supply a parent target, `GREENX_SOURCE_DIR` or `EXTERNAL_GREENX_DIR`.
+With `LIBRPA_USE_EXTERNAL_GREENX=ON`, supply a parent target, `GREENX_SOURCE_DIR` or `GREENX_PATH`.
 CMake also uses an available parent greenX target with the default setting.
 
 See [Compile Options](compile_options.md) for defaults, accepted values and precedence rules.
@@ -256,7 +256,7 @@ Managed sources and patched copies are stored in `thirdparty/src/<Name>-<hash12>
 Explicit component paths select your own sources through the options described above.
 Build outputs stay in the build directory, so several builds of the same checkout can use the same prepared sources.
 
-To build managed ELPA, you also need a C compiler, `make`, Bash and a C preprocessor.
+To build ELPA from downloaded sources or `ELPA_SOURCE_DIR`, you also need a C compiler, `make`, Bash and a C preprocessor. The `LIBRPA_ELPA_*` build options configure these source builds; installed libraries and parent targets keep their own build settings.
 For managed ELPA, choose a LibRPA checkout and build directory without spaces. An explicit `ELPA_SOURCE_DIR` also needs a path without spaces.
 For ELPA or LibDDLA, a fresh build directory is useful when you change compiler flags or backend options.
 
