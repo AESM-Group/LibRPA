@@ -1,9 +1,9 @@
 # Installation
 
-LibRPA prepares its source dependencies during CMake configuration. The repository contains their versions, URLs, patches and hashes, but not their source trees. A first configuration needs network access or a prepared dependency directory.
-
 (install-build-requirements)=
-## Build requirements
+## Overview of build procedure
+
+### Requirements
 
 The CPU build requires:
 
@@ -14,7 +14,15 @@ The CPU build requires:
 - CMake 3.18 or newer, and a build tool supported by the selected CMake generator.
 - Git or `patch` when source preparation needs to apply patches. Git has precedence when both tools are available.
 
-### Source dependencies
+### Procedure
+
+1. Configure the build directory with CMake and select the compilers and libraries. During configuration, LibRPA prepares the third-party libraries that the selected options need (see the table below). By default, it downloads the versions listed in `thirdparty/manifest.cmake`, applies LibRPA's patches and checks the result against the hashes in the manifest. The first configuration thus needs network access. For a machine without network access, prepare the libraries on another machine, as described in {ref}`Offline installation <install-offline>`. To use your own copies instead, see {ref}`Choosing dependency sources <install-dependency-sources>`.
+2. Build LibRPA and the compiled third-party libraries.
+3. Install, if necessary.
+
+{ref}`Download, build and install <install-build>` gives the commands for these steps.
+
+### Third-party dependencies
 
 | Component | When LibRPA needs it | Default source |
 | --- | --- | --- |
