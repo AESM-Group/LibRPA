@@ -169,6 +169,8 @@ cmake -S . -B build \
   '-DLIBRPA_THIRDPARTY_MIRRORS=https://mirror.example.org/librpa;file:///srv/librpa-archives'
 ```
 
+Downloads stop after 60 seconds without transfer activity. There is no total transfer time limit. Failed attempts remove their temporary files.
+
 Each mirror serves the archive filenames from the manifest. CMake tries the prefixes in order, then the upstream URL. Mirrors are used only when an archive is missing and downloads are enabled. Existing archives are not replaced by a change to the mirror setting.
 
 `LIBRPA_THIRDPARTY_DIR` stores verified trees in `src/<Name>-<hash12>/`. Archives default to `downloads/` within that directory. Use a shared archive directory to avoid downloads across LibRPA checkouts:

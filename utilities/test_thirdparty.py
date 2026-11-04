@@ -218,6 +218,20 @@ endif()
         self.assertEqual(os.readlink(result / "alias"), "include")
         self.assertEqual(tree_hash(result), patched)
 
+    def test_failed_download_cleanup_and_mirror_retry(self):
+        missing = (self.root / "missing").as_uri()
+        output = self.run_cmake(f'''set(LIBRPA_THIRDPARTY_MIRRORS "{missing}")
+librpa_thirdparty_prepare(Fixture source)
+''', success=False)
+        self.assertIn("Missing third-party component Fixture", output)
+        self.assertFalse(list((self.storage / "downloads").iterdir()))
+        self.assertFalse(self.final.exists())
+        self.run_cmake(f'''set(LIBRPA_THIRDPARTY_MIRRORS "{missing};{self.mirror.as_uri()}")
+librpa_thirdparty_prepare(Fixture source)
+''')
+        self.assertEqual(tree_hash(self.final / "include"), self.patched)
+        self.assertFalse(list((self.storage / "downloads").glob("*.tmp-*")))
+
     def test_offline_archive_and_failed_patch(self):
         body = "set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\nlibrpa_thirdparty_prepare(Fixture source)\n"
         output = self.run_cmake(body, success=False)
