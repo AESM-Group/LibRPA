@@ -17,6 +17,10 @@ Compiled dependencies select the first supplied source: parent target, source pa
 
 Sources are prepared under `src/<Name>-<TREE_SHA256 first 12 characters>/`. Archives default to `downloads/`, or use the separate `LIBRPA_THIRDPARTY_ARCHIVE_DIR`. Multiple checkouts can share that archive directory. Local archives work with downloads disabled. Downloads use a temporary file in the archive directory followed by a rename. Corrupt shared archives are not deleted automatically. The default `downloads/` and `src/` directories are ignored by Git. Every configuration verifies each selected managed tree; there is no option to skip this check. A mismatch stops configuration without deleting the modified tree. Preserve any edits, then delete that tree to prepare it again. Use path mode for dependency development.
 
+Dependency include, source, installation and archive paths use `PATH` cache entries. Untyped relative `-D` values on the first configuration resolve against the CMake invocation directory. Use absolute paths for environment values and typed or later cache values. Remaining relative values are rejected.
+
+When a dependency path cache entry is empty, a selected environment path is saved in the cache and reported. A nonempty cache value takes precedence. To clear it, unset the environment variable and run `cmake -U NAME -S . -B build`. Standalone `cmake -P` preparation does not persist a cache.
+
 ## Offline preparation
 
 On a connected machine, from the LibRPA checkout:
@@ -41,16 +45,12 @@ Set `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR` or `CEREAL_INCLUDE_DIR` to the di
 
 Whole-tree paths (`GREENX_SOURCE_DIR`, `ELPA_SOURCE_DIR`, `LIBDDLA_SOURCE_DIR`) use the same hash rules. Matching pristine greenX or ELPA trees receive an overlay. `file(COPY)` preserves symbolic links, and the copied tree is verified before patching. The supplied source tree is unchanged.
 
+Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `LIBRPA_THIRDPARTY_DIR/src` directory. The supplied tree keeps its contents and permissions.
+
 For a complete example, see [Parent-project integration](../docs/develop/thirdparty.md#parent-project-integration). Set `LIBRPA_THIRDPARTY_DIR` to the parent's dependency directory before `add_subdirectory`, and ignore its `downloads/` and `src/` directories. The LibRPA source directory then needs no generated dependency files.
 
-For compiler requirements, build/install commands and troubleshooting, see [Installation](../docs/user_guide/install.md). See [Compile Options](../docs/user_guide/compile_options.md) for defaults and all path rules. Only `LIBRPA_THIRDPARTY_ARCHIVE_DIR` among the four cache settings above accepts an environment fallback.
+For compiler requirements, build/install commands and troubleshooting, see [Installation](../docs/user_guide/install.md). See [Compile Options](../docs/user_guide/compile_options.md) for defaults and all path rules. Of the four settings in the table above, only `LIBRPA_THIRDPARTY_ARCHIVE_DIR` reads an environment variable. Dependency include, source and installation paths also read environment variables.
 
 ## Updates
 
 Update the manifest, regenerate any necessary patches, compute pristine and patched tree hashes, and run build and numerical regressions. See [the developer procedure](../docs/develop/thirdparty.md) for the exact hash definition and validation steps, and [patches/README.md](patches/README.md) for local modifications and licenses.
-
-Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `LIBRPA_THIRDPARTY_DIR/src` directory. The supplied tree keeps its contents and permissions.
-
-Dependency include, source, installation and archive paths use `PATH` cache entries. Untyped relative `-D` values on the first configuration resolve against the CMake invocation directory. Use absolute paths for environment values and typed or later cache values. Remaining relative values are rejected.
-
-When a dependency path cache entry is empty, a selected environment path is saved in the cache and reported. A nonempty cache value takes precedence. To clear it, unset the environment variable and run `cmake -U NAME -S . -B build`. Standalone `cmake -P` preparation does not persist a cache.

@@ -230,7 +230,7 @@ The user directory is never patched in place. LibComm and cereal currently have 
 
 Parent projects can provide `LibRI::LibRI`, `LibComm::LibComm` and `cereal::cereal` before adding LibRPA. See {ref}`Parent-project integration <thirdparty-parent-projects>` for a complete example.
 
-For GPU builds, LibDDLA resolves `LibDDLA::ddla`, `LIBDDLA_SOURCE_DIR`, `LIBDDLA_PATH`, then managed sources. The two paths are mutually exclusive. Source builds use a separate CMake build. LibRPA does not patch a user-supplied LibDDLA source tree.
+For GPU builds, LibDDLA resolves `LibDDLA::ddla`, then `LIBDDLA_SOURCE_DIR` or `LIBDDLA_PATH`, then managed sources. Supplying both paths is an error. Source builds use a separate CMake build. LibRPA does not patch a user-supplied LibDDLA source tree.
 
 `LIBRPA_USE_EXTERNAL_GREENX=ON` requires a parent target, `GREENX_SOURCE_DIR` or `EXTERNAL_GREENX_DIR`. Parent greenX targets are also selected when this option is OFF.
 
@@ -242,11 +242,19 @@ See [Compile Options](compile_options.md) for defaults, accepted values and prec
 
 The error identifies the component, archive filename and upstream URL. Prepare the dependencies on a connected machine, or place the required archive in the effective archive directory. A local `file://` mirror still requires `LIBRPA_THIRDPARTY_DOWNLOAD=ON`. With downloads disabled, place the archive directly in that directory instead.
 
+Downloads use CMake's built-in libcurl. Behind a proxy, set `https_proxy` (or `ALL_PROXY`) in the environment before preparation or configuration. If TLS verification fails because the system lacks the required CA certificates, pass a certificate bundle with `-DCMAKE_TLS_CAINFO=/path/to/ca-bundle.crt`. This also works with `cmake -P`. LibRPA does not disable TLS verification. Alternatively, prepare the archives on another machine.
+
 ### A managed tree fails verification
 
 Preserve any local edits before removing the exact directory named in the error. Reconfigure to recreate it from the cached archive. Do not change the manifest hash merely to accept a local edit. Use an explicit local path for dependency development.
 
 If a newly extracted tree fails, check that the archive matches the manifest and the patches match the LibRPA checkout. Replace an incorrect or damaged cached archive before trying again. Tree verification covers files in the declared hash scope, not archive timestamps or compressed bytes.
+
+Added files in that scope also change the hash. For example, a `.DS_Store` file that macOS Finder creates in a managed header directory stops configuration. Remove the added file, or remove the tree and reconfigure.
+
+### Removing old dependency trees
+
+A manifest update creates new `src/<Name>-<hash12>/` directories and keeps the old ones. Configuration uses and verifies only the trees that the current manifest selects. You can remove other `src/<Name>-<hash12>/` directories and archives that the current manifest does not name. Do not remove trees that another LibRPA checkout uses through the same `LIBRPA_THIRDPARTY_DIR`. `src/.tmp-*` directories and `downloads/*.tmp-*` files remain only after an interrupted preparation. Remove them when no configuration or preparation is running.
 
 ### An explicit path or the LibRI compile probe fails
 

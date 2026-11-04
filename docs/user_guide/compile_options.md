@@ -12,7 +12,7 @@ CMake cache values persist in that build directory. Use a separate directory whe
 
 Header include paths, compiled-dependency source and installation paths, and `LIBRPA_THIRDPARTY_ARCHIVE_DIR` use `PATH` cache entries. On the first configuration, untyped relative `-DNAME=value` paths resolve against the directory where CMake is invoked. Supply absolute paths for environment values, typed `-DNAME:PATH=value` values and later cache updates. Any remaining relative value causes an error before use. Header checks and resolution use the same path. `LIBRPA_THIRDPARTY_DIR` retains its existing relative-path behavior.
 
-The `LIBRPA_THIRDPARTY_*` settings also work with `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. Of these settings, only `LIBRPA_THIRDPARTY_ARCHIVE_DIR` accepts an environment fallback. Header paths and compiled-dependency source and installation paths also accept environment fallbacks.
+The four `LIBRPA_THIRDPARTY_*` settings also work with `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. Of these four, only `LIBRPA_THIRDPARTY_ARCHIVE_DIR` reads an environment variable. Separately, header include paths and the source and installation paths of compiled dependencies read environment variables of the same name.
 
 For a complete build procedure and CMake version requirements, see {ref}`Installation <install-build-requirements>`.
 
@@ -459,9 +459,8 @@ Installation prefix of LibDDLA. Used only with a CUDA or HIP backend. A nonempty
 The resolution order is:
 
 1. Existing `LibDDLA::ddla` target.
-2. `LIBDDLA_SOURCE_DIR` source tree.
-3. `LIBDDLA_PATH` installation.
-4. Managed source from the manifest.
+2. `LIBDDLA_SOURCE_DIR` source tree or `LIBDDLA_PATH` installation. Supplying both is an error.
+3. Managed source from the manifest.
 
 `LIBDDLA_PATH` and `LIBDDLA_SOURCE_DIR` are mutually exclusive. Each installation-mode configuration warns about compiler and flag compatibility. Prefer the managed source (leave both variables empty), then a parent target, then a source build.
 

@@ -49,6 +49,8 @@ The source directory and archive directory can be separate. `LIBRPA_THIRDPARTY_A
 
 Whole-tree path overlays use `file(COPY)` without `FOLLOW_SYMLINK_CHAIN`. This preserves directory symbolic links on macOS and Linux. The copied tree must match the original hash before patches are applied. The user tree remains unchanged. Keep Git metadata outside a tree that should match the manifest; `.git` is not excluded from the hash.
 
+Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `LIBRPA_THIRDPARTY_DIR/src` directory. The supplied tree keeps its contents and permissions.
+
 Each preparation uses a separate temporary directory. Only a verified tree is renamed into its content-addressed final location. Concurrent configurations verify a tree published by another process; no filesystem lock is required. Build outputs must stay in build directories. In particular, copy greenX's Python directory to scratch space before installing it, because Python packaging writes build files into its source directory.
 
 (thirdparty-parent-projects)=
@@ -120,5 +122,3 @@ Existing `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR`, `CEREAL_INCLUDE_DIR` and `L
 The old `thirdparty/LibRI`, `thirdparty/LibComm`, `thirdparty/cereal`, `thirdparty/LibDDLA` and `thirdparty/greenX` source paths no longer exist. Replace scripts that copy those directories with the preparation script or explicit external paths. Do not hard-code `src/<Name>-<hash12>` paths: a manifest update changes them. Preserve symbolic links when transferring a prepared cache.
 
 `LIBRPA_USE_BUNDLED_ELPA` and its related option names remain supported, but now build supplied source paths or downloaded managed sources. The tracked `thirdparty/ELPA` directory contains only LibRPA's build wrapper. A dependency cache contains sources and archives, not compiler-specific installed libraries. Each build directory creates its own compiled dependencies.
-
-Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `LIBRPA_THIRDPARTY_DIR/src` directory. The supplied tree keeps its contents and permissions.
