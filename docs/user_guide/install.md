@@ -1,42 +1,40 @@
 # Installation
 
 (install-build-requirements)=
+## General requirements
+
+To build LibRPA, you need:
+
+- A C++17 compiler with a working `std::filesystem` implementation, and a Fortran compiler.
+- MPI and OpenMP development libraries compatible with these compilers.
+- BLAS, LAPACK and ScaLAPACK libraries compatible with that MPI installation.
+- CMake 3.18 or newer, and a build tool such as `make` or Ninja.
+- Git or `patch`.
+- Network access during the first configuration. For a machine without network access, see {ref}`Offline installation <install-offline>`.
+
+GPU builds also need the CUDA toolkit and NCCL, or ROCm and RCCL.
+
+## Third-party dependencies
+
+LibRPA uses the third-party libraries below. You do not need to install them: CMake downloads and prepares the ones that the selected options need.
+
+| Library | Needed when |
+| --- | --- |
+| GreenX | Always |
+| LibRI, LibComm, cereal | `LIBRPA_USE_LIBRI=ON` (the default) |
+| ELPA | `LIBRPA_USE_BUNDLED_ELPA=ON` or `LIBRPA_USE_EXTERNAL_ELPA=ON` |
+| LibDDLA | `LIBRPA_USE_CUDA=ON` or `LIBRPA_USE_HIP=ON` |
+
+*GW* and EXX need LibRI. RPA correlation energies can also be computed with `LIBRPA_USE_LIBRI=OFF`. To use your own copies of these libraries, see {ref}`Third-party library details <install-thirdparty-details>`.
+
 ## Overview of build procedure
 
-### Requirements
+1. Get the LibRPA source code.
+2. Configure the build with CMake. Select the compilers and math libraries. CMake also prepares the third-party libraries in this step.
+3. Build LibRPA.
+4. Install LibRPA, if necessary.
 
-The CPU build requires:
-
-- A C++17 compiler with a working `std::filesystem` implementation.
-- A Fortran compiler, including when the Fortran binding is disabled. GreenX contains Fortran code.
-- MPI and OpenMP development libraries compatible with the selected compilers.
-- BLAS, LAPACK and ScaLAPACK libraries compatible with that MPI installation.
-- CMake 3.18 or newer, and a build tool supported by the selected CMake generator.
-- Git or `patch` when source preparation needs to apply patches. Git has precedence when both tools are available.
-
-### Procedure
-
-1. Configure the build directory with CMake and select the compilers and libraries. During configuration, LibRPA prepares the third-party libraries that the selected options need (see the table below). By default, it downloads the versions listed in `thirdparty/manifest.cmake`, applies LibRPA's patches and checks the result against the hashes in the manifest. The first configuration thus needs network access. For a machine without network access, prepare the libraries on another machine, as described in {ref}`Offline installation <install-offline>`. To use your own copies instead, see {ref}`Choosing dependency sources <install-dependency-sources>`.
-2. Build LibRPA and the compiled third-party libraries.
-3. Install, if necessary.
-
-{ref}`Download, build and install <install-build>` gives the commands for these steps.
-
-### Third-party dependencies
-
-| Component | When LibRPA needs it | Default source |
-| --- | --- | --- |
-| GreenX | Every build | Parent target, source path, installation, then managed source |
-| LibRI, LibComm, cereal | `LIBRPA_USE_LIBRI=ON`, the default | Managed headers, unless the parent provides targets or the user supplies include paths |
-| LibDDLA | `LIBRPA_USE_CUDA=ON` or `LIBRPA_USE_HIP=ON` | Managed source, unless a target, installation or local source tree is supplied |
-| ELPA | Either ELPA option is enabled | Source path or managed source with `LIBRPA_USE_BUNDLED_ELPA=ON`, or a target/installation with `LIBRPA_USE_EXTERNAL_ELPA=ON` |
-
-*GW* and EXX require LibRI. RPA correlation energies can also be computed with `LIBRPA_USE_LIBRI=OFF`. GreenX remains required in that configuration.
-
-Managed ELPA also needs a C compiler, `make`, Bash and a C preprocessor. ELPA source builds require source and build directory paths without whitespace. Use a `LIBRPA_THIRDPARTY_DIR` without spaces, and check `ELPA_SOURCE_DIR` when supplied. CUDA and HIP builds need their GPU toolchains and communication libraries, in addition to LibDDLA. Source preparation does not install compilers, MPI, math libraries or GPU toolchains.
-
-(install-build)=
-## Download, build and install
+## Preparation
 
 Clone the repository and enter its directory:
 
@@ -45,11 +43,12 @@ git clone https://github.com/AESM-Group/LibRPA
 cd LibRPA
 ```
 
-The current source layout does not need submodule initialization. For historical checkouts before `28b7431`, including `v0.4.0-gw-benchmark`, use the instructions for that revision.
+By default, CMake prepares the third-party libraries during configuration. It downloads the versions that LibRPA uses, applies LibRPA's patches and checks the files. You do not need to do anything else. For a machine without network access, prepare the libraries on another machine first, as described in {ref}`Offline installation <install-offline>`.
 
-### Intel oneAPI example
+(install-build)=
+## Build
 
-Initialize the compiler, MPI and MKL environment before configuration. The example below uses the LLVM wrappers `mpiicpx` and `mpiifx`:
+Initialize the compiler, MPI and MKL environment, for example Intel oneAPI. Then configure, build and install:
 
 ```sh
 cmake -S . -B build \
@@ -63,13 +62,9 @@ cmake --build build --parallel 2
 cmake --build build --target install
 ```
 
-This example explicitly selects shared libraries and disables LibRPA test targets. Without these settings, `BUILD_SHARED_LIBS` is off in a standalone build and `LIBRPA_ENABLE_TEST` is on. The driver is enabled by default. Add `-DLIBRPA_ENABLE_FORTRAN_BIND=ON` to build the Fortran binding.
+When `MKLROOT` is set, LibRPA uses MKL for BLAS, LAPACK and ScaLAPACK.
 
-When `MKLROOT` is nonempty, LibRPA uses its Intel MKL finder. A CMake `MKLROOT` value takes precedence over the environment variable. The finder supplies the BLAS, LAPACK and ScaLAPACK dependencies.
-
-### GCC and OpenBLAS example
-
-Use C++ and Fortran wrappers from the same MPI installation. Replace the library paths below with the paths for your Linux installation:
+With GCC and OpenBLAS, use the MPI wrappers and give the library paths. Replace the paths below with the paths on your system:
 
 ```sh
 cmake -S . -B build-gcc \
@@ -87,30 +82,11 @@ cmake --build build-gcc --parallel 2
 cmake --build build-gcc --target install
 ```
 
-An empty `MKLROOT` selects the LAPACK and ScaLAPACK discovery path. The explicit library paths remove ambiguity when several math libraries are installed. Platform-specific examples are available in [Build Examples](../examples/build/index).
+The empty `MKLROOT` makes CMake search for BLAS, LAPACK and ScaLAPACK instead of MKL. For more platforms, see [Build Examples](../examples/build/index). For all options, see [Compile Options](compile_options.md).
 
-Use a separate build directory when you change the compiler or MPI installation. Compiler flags and backend options for ELPA or LibDDLA can also require a fresh child build.
+The driver is `build/chi0_main.exe`. Installation puts the driver in `bin/`, the libraries in `lib/` or `lib64/` and the headers in `include/librpa/` under `CMAKE_INSTALL_PREFIX`. Add `-DLIBRPA_ENABLE_FORTRAN_BIND=ON` to build the Fortran binding. Use a new build directory when you change the compiler or MPI installation.
 
-### Build products and installation layout
-
-The build directory contains:
-
-| Product | Location |
-| --- | --- |
-| Driver, when enabled | `build/chi0_main.exe` |
-| Shared library | `build/src/librpa.so` on Linux, `build/src/librpa.dylib` on macOS |
-| Static library | `build/src/librpa.a` when `BUILD_SHARED_LIBS=OFF` |
-| Fortran binding, when enabled | `build/binding/fortran/`, including `librpa_f03.mod` |
-
-Installation puts the driver under `bin/`, libraries under `lib/` or `lib64/`, and LibRPA public headers under `include/librpa/`. These paths follow CMake's `GNUInstallDirs` settings. The default standalone prefix is `install/` under the LibRPA source directory if no prefix was supplied.
-
-The Fortran binding additionally installs its module and stub source. LibRI, LibComm and cereal headers are not installed. LibRPA does not currently install a CMake package configuration for `find_package(librpa)`. Parent projects can instead use the source-tree target `rpa_lib`.
-
-The install target also runs install rules from managed GreenX. Managed ELPA stays private to its build directory. LibDDLA child builds install their library into the LibRPA installation. Shared-library users need the selected MPI, compiler and math runtimes at execution time.
-
-### Optional tests
-
-Enable LibRPA tests in the configured build:
+To run the tests, configure with `-DLIBRPA_ENABLE_TEST=ON`, build, and run `ctest`:
 
 ```sh
 cmake -S . -B build -DLIBRPA_ENABLE_TEST=ON -DENABLE_GREENX_CTEST=OFF
@@ -118,7 +94,7 @@ cmake --build build --parallel 2
 (cd build && OMP_NUM_THREADS=1 ctest --output-on-failure)
 ```
 
-Several tests launch multiple MPI ranks. Run them where the necessary CPU allocation is available. `ENABLE_GREENX_CTEST=OFF` disables GreenX's test registration, not LibRPA's tests.
+`ENABLE_GREENX_CTEST=OFF` leaves out the GreenX tests. Some tests start several MPI processes. Run them where enough CPU cores are available.
 
 (install-offline)=
 ## Offline installation
@@ -182,8 +158,13 @@ cmake -P cmake/LibRPAPrepareThirdparty.cmake
 
 A nonempty CMake value overrides this environment variable. When selected during configuration, the environment path is saved in the cache for later configurations. Standalone `cmake -P` preparation does not write a persistent cache. Local archives in the selected directory also work with downloads disabled. Build outputs remain in the build directory. Multiple build directories can share this source cache. A hash change selects a new directory and leaves earlier trees in place.
 
+(install-thirdparty-details)=
+## Third-party library details
+
+This section is for users who supply their own copies of the third-party libraries, or who need to know how LibRPA builds them.
+
 (install-dependency-sources)=
-## Choosing dependency sources
+### Choosing dependency sources
 
 For compiled dependencies (greenX, ELPA and LibDDLA), choose a source in this order of preference:
 
@@ -207,7 +188,7 @@ Do not supply both a source path and an installation prefix for the same depende
 Whole-tree source paths follow the same hash rules as header paths: `pinned`, `overlay` for a matching pristine tree with patches, or `unpinned`. Overlays preserve the original source tree and symbolic links. LibDDLA has no patches.
 
 (install-local-dependencies)=
-## Local dependencies and parent projects
+### Local dependencies and parent projects
 
 For LibRI, LibComm and cereal, the selection order is: existing parent target, explicit include directory, then managed headers. A nonempty CMake path variable takes precedence over its environment variable. An environment path selected for an empty cache entry is saved there, with a status message. Later configurations keep the saved path even when the environment variable is absent.
 
@@ -235,6 +216,21 @@ For GPU builds, LibDDLA resolves `LibDDLA::ddla`, then `LIBDDLA_SOURCE_DIR` or `
 `LIBRPA_USE_EXTERNAL_GREENX=ON` requires a parent target, `GREENX_SOURCE_DIR` or `EXTERNAL_GREENX_DIR`. Parent greenX targets are also selected when this option is OFF.
 
 See [Compile Options](compile_options.md) for defaults, accepted values and precedence rules.
+
+### How LibRPA builds and installs the libraries
+
+| Library | Default source | Build and installation |
+| --- | --- | --- |
+| GreenX | Managed source | Built with LibRPA. The LibRPA install target also installs GreenX. |
+| LibRI, LibComm, cereal | Managed headers | Header-only. They are not installed. |
+| ELPA | Managed source with `LIBRPA_USE_BUNDLED_ELPA=ON` | Built in a separate sub-build. It stays in the build directory. |
+| LibDDLA | Managed source | Built in a separate sub-build and installed with LibRPA. |
+
+Managed sources are stored in `src/<Name>-<hash12>/` under `LIBRPA_THIRDPARTY_DIR` (default: `thirdparty/` in the LibRPA source directory). Build outputs stay in the build directory, so several build directories can use the same sources.
+
+Managed ELPA also needs a C compiler, `make`, Bash and a C preprocessor. Its source and build directory paths must not contain whitespace: use a `LIBRPA_THIRDPARTY_DIR` and a build directory without spaces. A change of the compiler flags or of the ELPA or LibDDLA backend options can need a new build directory.
+
+With shared libraries, the MPI, compiler and math-library runtimes must also be available when LibRPA runs. LibRPA does not install a CMake package configuration for `find_package(librpa)`. Parent projects can use the target `rpa_lib`.
 
 ## Troubleshooting
 
