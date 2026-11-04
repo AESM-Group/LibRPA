@@ -59,13 +59,17 @@ bibtex_bibfiles = ["references.bib"]
 
 # -- Options for Doxylink -------------------------------------------------
 doxygen_build_dir = "doxygen/librpa"
+# Resolve the tag file independently of the directory running sphinx-build.
+doxygen_tagfile = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), doxygen_build_dir, "html", "tagfile.xml"
+)
 doxylink = {
-    "librpa": (f"{doxygen_build_dir}/html/tagfile.xml", f"{doxygen_build_dir}/html"),
+    "librpa": (doxygen_tagfile, f"{doxygen_build_dir}/html"),
 }
 
 # -- Options for MyST output -------------------------------------------------
-# myst_heading_anchors = 3
-myst_heading_anchors = True
+# Register automatic anchors for all Markdown heading levels (H1-H6).
+myst_heading_anchors = 6
 # Making Sphinx Support Markdown Math Formulas
 myst_enable_extensions = [
     "dollarmath",  # Enable $ symbol for inline math
