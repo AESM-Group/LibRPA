@@ -246,7 +246,7 @@ Downloads use CMake's built-in libcurl. Behind a proxy, set `https_proxy` (or `A
 
 ### A managed tree fails verification
 
-Preserve any local edits before removing the exact directory named in the error. Reconfigure to recreate it from the cached archive. Do not change the manifest hash merely to accept a local edit. Use an explicit local path for dependency development.
+Every configuration verifies each selected managed tree, and there is no option to skip this check. Preserve any local edits before removing the exact directory named in the error. Reconfigure to recreate it from the cached archive. Do not change the manifest hash merely to accept a local edit. Use an explicit local path for dependency development.
 
 If a newly extracted tree fails, check that the archive matches the manifest and the patches match the LibRPA checkout. Replace an incorrect or damaged cached archive before trying again. Tree verification covers files in the declared hash scope, not archive timestamps or compressed bytes.
 

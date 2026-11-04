@@ -1,5 +1,6 @@
 # Compile Options
 
+(librpa-how-to-set-options)=
 ## How to set options
 
 Run the examples below from the LibRPA source directory. Use `-DNAME=value` with an explicit build directory:
