@@ -89,7 +89,7 @@ numfig = True
 html_theme = 'sphinx_book_theme'
 # options for sphinx_book_theme
 html_theme_options = {
-  "show_toc_level": 3
+  "show_toc_level": 1
 }
 
 html_title = "LibRPA Documentation"
@@ -103,6 +103,7 @@ html_css_files = [
 ]
 html_js_files = [
     "open-dropdown.js",
+    "toc-follow.js",
 ]
 
 # Configure MathJax
