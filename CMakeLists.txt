@@ -28,7 +28,6 @@ option(LIBRPA_USE_LIBRI            "Use LibRI for tensor contraction in LibRPA" 
 option(LIBRPA_USE_LIBRI_GPU        "Use GPU tensor contractions in LibRI" OFF)
 option(LIBRPA_USE_ELPA             "Use ELPA for distributed eigensolvers" OFF)
 option(LIBRPA_USE_CMAKE_INC        "Use cmake.inc for configure (deprecated)" OFF)
-option(LIBRPA_USE_EXTERNAL_GREENX  "Require an external greenX target, source tree or installation" OFF)
 option(LIBRPA_ENABLE_TEST          "Flag to build LibRPA tests" ON)
 option(LIBRPA_ENABLE_DRIVER        "Flag to build LibRPA driver executable" ON)
 option(LIBRPA_ENABLE_FORTRAN_BIND  "Flag to build LibRPA Fotran binding" OFF)

@@ -26,20 +26,26 @@ if(TARGET elpa)
 endif()
 
 # Find the tools needed by ELPA's autotools build.
-find_program(LIBRPA_BUNDLED_ELPA_MAKE_EXECUTABLE NAMES gmake make)
-if(NOT LIBRPA_BUNDLED_ELPA_MAKE_EXECUTABLE)
-  message(FATAL_ERROR "Managed ELPA requires a make executable")
+find_program(_librpa_elpa_make_executable NAMES gmake make)
+if(NOT _librpa_elpa_make_executable)
+  message(FATAL_ERROR "ELPA source builds require a make executable")
 endif()
 
-find_program(LIBRPA_BUNDLED_ELPA_BASH_EXECUTABLE NAMES bash)
-if(NOT LIBRPA_BUNDLED_ELPA_BASH_EXECUTABLE)
-  message(FATAL_ERROR "Managed ELPA requires bash for its Fortran dependency preprocessor wrapper")
+find_program(_librpa_elpa_bash_executable NAMES bash)
+if(NOT _librpa_elpa_bash_executable)
+  message(FATAL_ERROR "ELPA source builds require bash for its Fortran dependency preprocessor wrapper")
 endif()
 
-find_program(LIBRPA_BUNDLED_ELPA_CPP_EXECUTABLE NAMES cpp-13 cpp)
-if(NOT LIBRPA_BUNDLED_ELPA_CPP_EXECUTABLE)
-  message(FATAL_ERROR "Managed ELPA requires a C preprocessor executable named cpp")
+find_program(_librpa_elpa_cpp_executable NAMES cpp-13 cpp)
+if(NOT _librpa_elpa_cpp_executable)
+  message(FATAL_ERROR "ELPA source builds require a C preprocessor executable named cpp")
 endif()
+
+# Tool discovery is internal; these paths are not user-facing build options.
+foreach(_tool make bash cpp)
+  set(_variable "_librpa_elpa_${_tool}_executable")
+  set(${_variable} "${${_variable}}" CACHE INTERNAL "ELPA source build ${_tool} executable" FORCE)
+endforeach()
 
 # Keep the ELPA install private to this build tree and mirror the installed
 # include/module layout expected by ELPA clients.
@@ -186,7 +192,7 @@ while (($#)); do
   fi
 done
 
-exec "@LIBRPA_BUNDLED_ELPA_CPP_EXECUTABLE@" -P -traditional -w "${args[@]}"
+exec "@_librpa_elpa_cpp_executable@" -P -traditional -w "${args[@]}"
 ]=])
 configure_file(
   "${_elpa_fortran_cpp_wrapper_in}"
@@ -198,7 +204,7 @@ configure_file(
 # wrapper above during its generated Fortran dependency scan.
 set(_elpa_make_environment
   "MAKEFLAGS="
-  "FORTRAN_CPP=${LIBRPA_BUNDLED_ELPA_BASH_EXECUTABLE} ${_elpa_fortran_cpp_wrapper}"
+  "FORTRAN_CPP=${_librpa_elpa_bash_executable} ${_elpa_fortran_cpp_wrapper}"
 )
 
 # Drive the upstream ELPA autotools build inside CMake. The install command is
@@ -219,7 +225,7 @@ ExternalProject_Add(librpa_bundled_elpa
       "${_elpa_source_dir}/configure" ${_elpa_configure_args}
   BUILD_COMMAND
     ${CMAKE_COMMAND} -E env ${_elpa_make_environment}
-      "${LIBRPA_BUNDLED_ELPA_MAKE_EXECUTABLE}"
+      "${_librpa_elpa_make_executable}"
       "ACLOCAL=true"
       "AUTOCONF=true"
       "AUTOHEADER=true"
@@ -227,7 +233,7 @@ ExternalProject_Add(librpa_bundled_elpa
       "${_elpa_libtool_library}"
   INSTALL_COMMAND
     ${CMAKE_COMMAND} -E env ${_elpa_make_environment}
-      "${LIBRPA_BUNDLED_ELPA_MAKE_EXECUTABLE}"
+      "${_librpa_elpa_make_executable}"
       "ACLOCAL=true"
       "AUTOCONF=true"
       "AUTOHEADER=true"

@@ -16,6 +16,7 @@
 
 ### Changed
 
+- GreenX selection now uses the supplied target, source path or installation prefix, with managed sources as the default. The legacy selection switch is deprecated and ignored.
 - Renamed ELPA source-build settings to `LIBRPA_ELPA_KERNEL`, `LIBRPA_ELPA_OPENMP`, `LIBRPA_ELPA_CONFIGURE_ARGS` and `LIBRPA_ELPA_LIBS`. Source versions now come from the selected source tree; the manifest controls the downloaded release.
 - Standardized installation prefix options as `LIBDDLA_PATH`, `ELPA_PATH` and `GREENX_PATH`.
 - Unified ELPA selection under `LIBRPA_USE_ELPA`, which defaults to `OFF`. Setting it to `ON` builds managed sources when no dependency is supplied. A parent ELPA target, source path or installation prefix enables ELPA automatically.
@@ -23,7 +24,7 @@
 
 ### Fixed
 
-- Detected parent greenX targets even when `LIBRPA_USE_EXTERNAL_GREENX` is OFF, avoiding duplicate targets.
+- Detected parent greenX targets automatically, avoiding duplicate targets.
 - Corrected the LibDDLA revision in the license list to `0d576d4`.
 
 ## [0.9.0] - 2026-10-31

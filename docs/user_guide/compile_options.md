@@ -42,7 +42,7 @@ Use `cmake --build build --parallel N` to set build concurrency. This is a build
 | [`LIBRPA_USE_CUDA`](#librpa-use-cuda)                       | bool              | `OFF`      |
 | [`LIBRPA_USE_HIP`](#librpa-use-hip)                         | bool              | `OFF`      |
 | [`LIBRPA_USE_CMAKE_INC`](#librpa-use-cmake-inc)             | bool              | `OFF`      |
-| [`LIBRPA_USE_EXTERNAL_GREENX`](#librpa-use-external-greenx) | bool              | `OFF`      |
+| [`LIBRPA_USE_EXTERNAL_GREENX`](#librpa-use-external-greenx) | bool (deprecated, ignored) | unset |
 | [`LIBRPA_ENABLE_FORTRAN_BIND`](#librpa-enable-fortran-bind) | bool              | `OFF`      |
 | [`LIBRPA_FORTRAN_DP`](#librpa-fortran-dp)                   | string or integer | `c_double` |
 | [`LIBRPA_ENABLE_DRIVER`](#librpa-enable-driver)             | bool              | `ON`       |
@@ -305,15 +305,11 @@ When enabled, the `cmake.inc` file is used to initialize compilers and other bui
 **Deprecated**. It is recommended to use standard CMake command-line options such as `-C` or `-D` to specify custom variables.
 
 (librpa-use-external-greenx)=
-## `LIBRPA_USE_EXTERNAL_GREENX`
+## `LIBRPA_USE_EXTERNAL_GREENX` (deprecated)
 
-Require an external greenX source. Default: `OFF`.
+This option is ignored and emits a deprecation warning when defined, with either `ON` or `OFF`. GreenX is always enabled. LibRPA uses a parent target, `GREENX_SOURCE_DIR` or `GREENX_PATH` when supplied, and otherwise prepares managed sources. Choose either a source directory or an installation prefix.
 
-LibRPA first uses an existing `LibGXMiniMax` or `greenX::LibGXMiniMax` target, regardless of this option. Otherwise, it uses `GREENX_SOURCE_DIR`, then `GREENX_PATH`. Supplying both paths is an error.
-
-With `ON`, configuration fails if none of these external sources is supplied. With `OFF`, LibRPA falls back to the managed source. GreenX is required even with `LIBRPA_USE_LIBRI=OFF`.
-
-A source-built target must provide its link dependencies and `Fortran_MODULE_DIRECTORY`. Imported targets must expose compatible module directories through their link interface. See {ref}`Parent-project integration <thirdparty-parent-projects>`.
+Remove the old cache entry with `-ULIBRPA_USE_EXTERNAL_GREENX`. No replacement switch is needed. See {ref}`Parent-project integration <thirdparty-parent-projects>` for target requirements.
 
 (greenx-source-dir)=
 ## `GREENX_SOURCE_DIR`

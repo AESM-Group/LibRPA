@@ -863,7 +863,10 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" DESTINATION share/gre
         body = f'''librpa_thirdparty_declare(greenX VERSION 1234567 URL unused ARCHIVE unused ARCHIVE_SHA256 unused
   TREE_SHA256 {digest} LICENSE test)
 '''
-        self.configure(body)
+        for value in ("ON", "OFF"):
+            output = self.configure(body + f"\nset(LIBRPA_USE_EXTERNAL_GREENX {value})")
+            self.assertIn("LIBRPA_USE_EXTERNAL_GREENX is deprecated and ignored", output)
+            self.assertIn("greenX=managed", output)
         cache = (self.root / "build/CMakeCache.txt").read_text()
         prefix = next(line.split("=", 1)[1] for line in cache.splitlines()
                       if line.startswith("CMAKE_INSTALL_PREFIX:"))
@@ -880,13 +883,14 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" DESTINATION share/gre
         self.assertIn(f"(source: {managed})", output)
         self.assertTrue((managed / "CMakeLists.txt").read_text().endswith("# local edit\n"))
 
-    def test_parent_target_with_external_option_off(self):
+    def test_parent_target_with_deprecated_option(self):
         for target in ("LibGXMiniMax", "greenX::LibGXMiniMax"):
             with self.subTest(target=target):
                 output = self.configure(f'''set(LIBRPA_USE_EXTERNAL_GREENX OFF)
 add_library({target} INTERFACE IMPORTED)
 ''')
                 self.assertIn("greenX=target", output)
+                self.assertIn("LIBRPA_USE_EXTERNAL_GREENX is deprecated and ignored", output)
                 self.assertNotIn("Downloading", output)
                 self.assertNotIn("prebuilt installation", output)
 
@@ -914,8 +918,7 @@ add_library({target} INTERFACE IMPORTED)
         output = self.configure('set(GREENX_SOURCE_DIR /source)\nset(GREENX_PATH /prefix)',
                                 success=False)
         self.assertIn("mutually exclusive", output)
-        output = self.configure('set(LIBRPA_USE_EXTERNAL_GREENX ON)', success=False)
-        self.assertIn("LIBRPA_USE_EXTERNAL_GREENX requires", output)
+
 
 
 if __name__ == "__main__":

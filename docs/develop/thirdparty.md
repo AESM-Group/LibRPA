@@ -115,7 +115,7 @@ The header combination must compile before configuration can continue. This chec
 | `ELPA::ELPA` | Detected automatically | Supply the library, headers and required link dependencies |
 | `LibGXMiniMax` or `greenX::LibGXMiniMax` | Detected automatically | Supply link dependencies and compatible modules: `Fortran_MODULE_DIRECTORY` for source builds, interface include directories for imported targets |
 
-Define these targets before adding LibRPA. An ELPA target automatically enables `LIBRPA_USE_ELPA`. GreenX targets are detected even with `LIBRPA_USE_EXTERNAL_GREENX=OFF`, so LibRPA does not create a second target. Setting this option to ON requires a target, source path or installation.
+Define these targets before adding LibRPA. An ELPA target automatically enables `LIBRPA_USE_ELPA`. GreenX targets are detected automatically, so LibRPA shares the parent target. Without a target or explicit path, it uses managed sources.
 
 In a parent project, prefer a target when the parent already builds the dependency; otherwise let LibRPA use managed sources. See {ref}`Choosing dependency sources <install-dependency-sources>` for the general recommendation and the path rules.
 

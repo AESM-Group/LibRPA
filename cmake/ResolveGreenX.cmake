@@ -1,4 +1,10 @@
 # Select a parent target, then source, installation, and managed source.
+if(DEFINED LIBRPA_USE_EXTERNAL_GREENX)
+  message(DEPRECATION
+    "LIBRPA_USE_EXTERNAL_GREENX is deprecated and ignored. Supply a greenX target, "
+    "GREENX_SOURCE_DIR or GREENX_PATH to select an external dependency; otherwise "
+    "LibRPA prepares managed sources. Remove LIBRPA_USE_EXTERNAL_GREENX from the CMake cache.")
+endif()
 librpa_thirdparty_path(GREENX_SOURCE_DIR _greenx_user_source)
 librpa_thirdparty_path(GREENX_PATH _greenx_prefix EXTERNAL_GREENX_DIR)
 if(_greenx_user_source AND _greenx_prefix)
@@ -81,8 +87,6 @@ elseif(_greenx_prefix)
       endif()
     endif()
   endforeach()
-elseif(LIBRPA_USE_EXTERNAL_GREENX)
-  message(FATAL_ERROR "LIBRPA_USE_EXTERNAL_GREENX requires a parent-project LibGXMiniMax or greenX::LibGXMiniMax target, GREENX_SOURCE_DIR, or GREENX_PATH")
 else()
   librpa_thirdparty_prepare(greenX _greenx_source_dir _greenx_status)
 endif()

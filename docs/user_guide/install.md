@@ -238,8 +238,7 @@ Parent projects can provide `LibRI::LibRI`, `LibComm::LibComm` and `cereal::cere
 For GPU builds, you can supply `LibDDLA::ddla`, a source directory through `LIBDDLA_SOURCE_DIR`, or an installation through `LIBDDLA_PATH`.
 CMake uses the parent target first, then the selected path, and otherwise prepares managed sources. LibDDLA source builds use a separate CMake build.
 
-With `LIBRPA_USE_EXTERNAL_GREENX=ON`, supply a parent target, `GREENX_SOURCE_DIR` or `GREENX_PATH`.
-CMake also uses an available parent greenX target with the default setting.
+GreenX is always enabled. Supply a parent target, `GREENX_SOURCE_DIR` or `GREENX_PATH` to select your own copy. Otherwise, CMake prepares managed sources.
 
 See [Compile Options](compile_options.md) for defaults, accepted values and precedence rules.
 
