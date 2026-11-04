@@ -16,7 +16,7 @@ GPU builds also need the CUDA toolkit and NCCL, or ROCm and RCCL.
 
 ## Third-party dependencies
 
-LibRPA uses the third-party libraries below. You do not need to install them: CMake downloads and prepares the ones that the selected options need.
+LibRPA uses the third-party libraries below:
 
 | Library | Needed when |
 | --- | --- |
@@ -25,157 +25,174 @@ LibRPA uses the third-party libraries below. You do not need to install them: CM
 | ELPA | `LIBRPA_USE_BUNDLED_ELPA=ON` or `LIBRPA_USE_EXTERNAL_ELPA=ON` |
 | LibDDLA | `LIBRPA_USE_CUDA=ON` or `LIBRPA_USE_HIP=ON` |
 
-*GW* and EXX need LibRI. RPA correlation energies can also be computed with `LIBRPA_USE_LIBRI=OFF`. To use your own copies of these libraries, see {ref}`Third-party library details <install-thirdparty-details>`.
+You do not have to install them beforehand: CMake downloads and prepares the ones that the selected options need.
+In case you would like to use your own copies of these libraries, see {ref}`Third-party library details <install-thirdparty-details>`.
 
 ## Overview of build procedure
 
 1. Get the LibRPA source code.
-2. Configure the build with CMake. Select the compilers and math libraries. CMake also prepares the third-party libraries in this step.
-3. Build LibRPA.
+2. Configure the build with CMake. CMake also prepares the third-party libraries in this step when needed.
+3. Build LibRPA on the target platform.
 4. Install LibRPA, if necessary.
 
-## Preparation
+## Preparation: get the code
 
-Clone the repository and enter its directory:
+You can download a source archive from the [releases page](https://github.com/AESM-Group/LibRPA/releases) and extract it on your machine.
+For the development version, clone the repository:
 
 ```sh
 git clone https://github.com/AESM-Group/LibRPA
-cd LibRPA
 ```
 
-By default, CMake prepares the third-party libraries during configuration. It downloads the versions that LibRPA uses, applies LibRPA's patches and checks the files. You do not need to do anything else. For a machine without network access, prepare the libraries on another machine first, as described in {ref}`Offline installation <install-offline>`.
+By default, CMake prepares the third-party libraries during configuration.
+It downloads the versions that LibRPA uses, checks the archives and applies LibRPA's patches.
+For an offline machine, you can prepare the libraries on a connected machine and transfer the files before the build.
+See {ref}`Offline installation <install-offline>` for this procedure.
+To experiment with a third-party component, you can also supply the path to your own copy.
 
 (install-build)=
 ## Build
 
-Initialize the compiler, MPI and MKL environment, for example Intel oneAPI. Then configure, build and install:
+Once the compilers and libraries listed above are available in your environment, enter the LibRPA source directory.
+You can then configure, build and install LibRPA with:
 
 ```sh
-cmake -S . -B build \
-  -DCMAKE_CXX_COMPILER=mpiicpx \
-  -DCMAKE_Fortran_COMPILER=mpiifx \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_SHARED_LIBS=ON \
-  -DLIBRPA_ENABLE_TEST=OFF \
-  -DCMAKE_INSTALL_PREFIX="$HOME/opt/librpa"
-cmake --build build --parallel 2
+cmake -B build -DCMAKE_INSTALL_PREFIX="$HOME/opt/librpa"
+cmake --build build -j 2
+# Install public APIs and libraries to $HOME/opt/librpa
 cmake --build build --target install
 ```
 
-When `MKLROOT` is set, LibRPA uses MKL for BLAS, LAPACK and ScaLAPACK.
+CMake searches your environment for the required components.
+You can select a compiler toolchain, such as Intel oneAPI or GCC with OpenBLAS, through CMake built-in options like `-DCMAKE_CXX_COMPILER`.
+LibRPA also provides its own options to select the features to build.
 
-With GCC and OpenBLAS, use the MPI wrappers and give the library paths. Replace the paths below with the paths on your system:
+For examples with different toolchains and platforms, please refer to [Build Examples](../examples/build/index).
+For all build options, see [Compile Options](compile_options.md).
 
-```sh
-cmake -S . -B build-gcc \
-  -DCMAKE_CXX_COMPILER=mpicxx \
-  -DCMAKE_Fortran_COMPILER=mpifort \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_SHARED_LIBS=ON \
-  -DLIBRPA_ENABLE_TEST=OFF \
-  -DMKLROOT= \
-  -DBLAS_LIBRARIES=/path/to/openblas/lib/libopenblas.so \
-  -DLAPACK_LIBRARIES=/path/to/openblas/lib/libopenblas.so \
-  -DSCALAPACK_DIR=/path/to/scalapack \
-  -DCMAKE_INSTALL_PREFIX="$HOME/opt/librpa"
-cmake --build build-gcc --parallel 2
-cmake --build build-gcc --target install
-```
+## Build products
 
-The empty `MKLROOT` makes CMake search for BLAS, LAPACK and ScaLAPACK instead of MKL. For more platforms, see [Build Examples](../examples/build/index). For all options, see [Compile Options](compile_options.md).
+The build produces the following files. Installation paths are relative to `CMAKE_INSTALL_PREFIX` (`$HOME/opt/librpa` in the example above).
 
-The driver is `build/chi0_main.exe`. Installation puts the driver in `bin/`, the libraries in `lib/` or `lib64/` and the headers in `include/librpa/` under `CMAKE_INSTALL_PREFIX`. Add `-DLIBRPA_ENABLE_FORTRAN_BIND=ON` to build the Fortran binding. Use a new build directory when you change the compiler or MPI installation.
+| Product | Location in the build or source tree | Installation directory |
+| --- | --- | --- |
+| Driver | `build/chi0_main.exe` | `bin/` |
+| LibRPA library | `build/src/librpa.*` | `lib/` or `lib64/` |
+| Public C and C++ headers | `include/librpa*.h` and `include/librpa.hpp` | `include/librpa/` |
+| Optional Fortran binding library and module | `build/binding/fortran/librpa_f03.*` | Library: `lib/` or `lib64/`; module: `include/librpa/` |
+
+Fortran binding is built when `-DLIBRPA_ENABLE_FORTRAN_BIND=ON`.
+When you change the compiler or MPI installation, make sure you use a new build directory to avoid potential incompatibility issue.
+
+## Run tests
 
 To run the tests, configure with `-DLIBRPA_ENABLE_TEST=ON`, build, and run `ctest`:
 
 ```sh
-cmake -S . -B build -DLIBRPA_ENABLE_TEST=ON -DENABLE_GREENX_CTEST=OFF
-cmake --build build --parallel 2
-(cd build && OMP_NUM_THREADS=1 ctest --output-on-failure)
+cmake -B build -DLIBRPA_ENABLE_TEST=ON -DENABLE_GREENX_CTEST=OFF
+cmake --build build -j 2
+cd build && ctest --output-on-failure
 ```
 
-`ENABLE_GREENX_CTEST=OFF` leaves out the GreenX tests. Some tests start several MPI processes. Run them where enough CPU cores are available.
+This runs the LibRPA unit tests.
+Some tests use several MPI processes (at most 4).
+
+For regression tests and comparisons with reference results, see the [regression test guide](https://github.com/AESM-Group/LibRPA/blob/master/regression_tests/README.md#run-automatic-regression-test-and-analysis).
 
 (install-offline)=
 ## Offline installation
 
-Use the same LibRPA manifest and patches on the preparation machine and the build machine. On a connected machine, run:
+You can download the dependency archives on a connected machine and upload them to the machine where you will build LibRPA.
+Use the same LibRPA source version on both machines so that the archive names, hashes and patches match.
+From the LibRPA source directory on the connected machine, run:
 
 ```sh
-cmake -DLIBRPA_THIRDPARTY_DIR=/path/to/deps \
+cmake -DLIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads" \
   -P cmake/LibRPAPrepareThirdparty.cmake
 ```
 
-This prepares all six components without compiling them. To prepare only the default CPU dependencies, use:
+This command saves the archives in `~/Downloads` and prepares the sources in the local checkout's `thirdparty/src/`.
+It also downloads missing archives when the sources are already present.
+To prepare only the default CPU dependencies, use:
 
 ```sh
-cmake -DLIBRPA_THIRDPARTY_DIR=/path/to/deps \
+cmake -DLIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads" \
   '-DCOMPONENTS=LibRI;LibComm;cereal;greenX' \
   -P cmake/LibRPAPrepareThirdparty.cmake
 ```
 
-Add `ELPA` or `LibDDLA` to that list when the corresponding source build is needed. Component names are case-sensitive. `COMPONENTS` selects preparation-script components only. It does not change the build options.
+You can add `ELPA` or `LibDDLA` to this list for builds that use them.
+`COMPONENTS` selects which sources the script prepares. Use the component names with the capitalization shown above.
 
-Copy `/path/to/deps` to the offline machine, preserving symbolic links and file contents. For example:
+Upload the downloaded archives to the build machine, keeping the `ARCHIVE` filenames listed in `thirdparty/manifest.cmake`.
+You can choose the archive location independently on each machine:
+
+| Archive location on the build machine | Configuration |
+| --- | --- |
+| `LibRPA/thirdparty/downloads/` | Use the default archive directory |
+| `~/Downloads` or another directory | Set `LIBRPA_THIRDPARTY_ARCHIVE_DIR` to that directory |
+
+For archives in `LibRPA/thirdparty/downloads/`, run from the LibRPA source directory:
 
 ```sh
-rsync -a /path/to/deps/ build-host:/path/to/deps/
+cmake -S . -B build -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF
+cmake --build build --parallel 2
 ```
 
-Configure from the LibRPA source directory on that machine:
+For archives in the build machine's `~/Downloads`, use:
 
 ```sh
 cmake -S . -B build \
-  -DLIBRPA_THIRDPARTY_DIR=/path/to/deps \
+  -DLIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads" \
   -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF
 cmake --build build --parallel 2
 ```
 
-Add your compiler, math-library and installation options to this configuration command. Disabling downloads does not disable extraction, patch application or hash verification.
+Both configurations use local archives with downloads disabled.
+CMake checks the archives, extracts them and applies patches in the build machine's `LibRPA/thirdparty/src/` directory.
+Git or `patch` is needed on that machine to apply the patches.
+You can add your compiler, math-library and installation options to either configuration command.
 
-Alternatively, copy only the manifest's archives into `LIBRPA_THIRDPARTY_ARCHIVE_DIR` (default `/path/to/deps/downloads/`). Use the exact `ARCHIVE` filenames from `thirdparty/manifest.cmake`. CMake then prepares missing trees locally. This method also needs Git or `patch` for components with patches.
+### Downloads and shared storage
 
-### Mirrors and shared storage
+CMake downloads each component from the upstream URL in `thirdparty/manifest.cmake` and reuses archives already in the cache.
 
-Use semicolon-separated URL prefixes to select mirrors:
+Downloads can continue for as long as data arrives. An attempt stops after 60 seconds without transfer activity, and CMake removes its temporary file.
 
-```sh
-cmake -S . -B build \
-  -DLIBRPA_THIRDPARTY_DIR=/path/to/deps \
-  '-DLIBRPA_THIRDPARTY_MIRRORS=https://mirror.example.org/librpa;file:///srv/librpa-archives'
-```
-
-Downloads stop after 60 seconds without transfer activity. There is no total transfer time limit. Failed attempts remove their temporary files.
-
-Each mirror serves the archive filenames from the manifest. CMake tries the prefixes in order, then the upstream URL. Mirrors are used only when an archive is missing and downloads are enabled. Existing archives are not replaced by a change to the mirror setting.
-
-`LIBRPA_THIRDPARTY_DIR` stores verified trees in `src/<Name>-<hash12>/`. Archives default to `downloads/` within that directory. Use a shared archive directory to avoid downloads across LibRPA checkouts:
+Each LibRPA checkout stores its prepared sources in `thirdparty/src/<Name>-<hash12>/` and uses `thirdparty/downloads/` as the default archive directory.
+Both directories are ignored by Git. You can share downloaded archives across checkouts with:
 
 ```sh
-export LIBRPA_THIRDPARTY_ARCHIVE_DIR=~/downloads/LibRPA_tarballs
+export LIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads"
 cmake -P cmake/LibRPAPrepareThirdparty.cmake
 ```
 
-A nonempty CMake value overrides this environment variable. When selected during configuration, the environment path is saved in the cache for later configurations. Standalone `cmake -P` preparation does not write a persistent cache. Local archives in the selected directory also work with downloads disabled. Build outputs remain in the build directory. Multiple build directories can share this source cache. A hash change selects a new directory and leaves earlier trees in place.
+You can set `LIBRPA_THIRDPARTY_ARCHIVE_DIR` through either the environment or a CMake option. A nonempty CMake value takes precedence.
+Configuration saves a selected environment path in the CMake cache for later use. With `cmake -P`, the path applies to that preparation run.
+The archives in this directory are also available for offline builds.
+
+Build directories for the same LibRPA checkout share its prepared sources, while each keeps its own build outputs.
+A change to a component's reference hash selects a new source directory, alongside earlier versions.
 
 (install-thirdparty-details)=
 ## Third-party library details
 
-This section is for users who supply their own copies of the third-party libraries, or who need to know how LibRPA builds them.
+You can use the sources that LibRPA prepares, supply your own copies, or share dependencies with a parent CMake project.
 
 (install-dependency-sources)=
 ### Choosing dependency sources
 
-For compiled dependencies (greenX, ELPA and LibDDLA), choose a source in this order of preference:
+For compiled dependencies (greenX, ELPA and LibDDLA), the following options suit different build setups:
 
-1. Managed sources. Do not set a target, source path or installation prefix. LibRPA uses the pinned version and patches, verifies the tree hash, and builds it with its own compilers and build settings. This is the recommended choice for standalone builds.
-2. A parent project's CMake target. Use this when LibRPA is part of a larger project. The parent controls the toolchain and link dependencies.
-3. An external source path. Use this to develop or test a dependency. LibRPA builds it with its own compilers and build settings.
-4. A prebuilt installation prefix, only when the other choices are not possible. Prebuilt libraries can have incompatible compilers, flags, C++ ABIs, BLAS/LAPACK libraries or Fortran modules. Each configuration warns about these risks.
+- **Managed sources** are the recommended starting point for standalone builds. CMake downloads the selected versions, checks the archives and applies LibRPA's patches. It builds these sources with the compilers and settings selected for LibRPA.
+- **A parent project's CMake target** lets LibRPA share a dependency that the parent already builds. The parent supplies its build settings and link dependencies.
+- **An external source path** lets you develop or test your own copy of a dependency. LibRPA builds it with the same compilers as the rest of the project.
+- **A prebuilt installation** lets you reuse an installed library. Source builds are generally easier to match to LibRPA's toolchain. For a prebuilt library, choose one with compatible compilers, flags, C++ ABI, math libraries and Fortran modules. CMake displays a reminder about these requirements.
 
-For ELPA, managed sources require `LIBRPA_USE_BUNDLED_ELPA=ON`, because ELPA is disabled by default.
+To use managed ELPA sources, set `LIBRPA_USE_BUNDLED_ELPA=ON`.
 
-When several sources are supplied, LibRPA selects the first available one in this order: parent target, source path, installation prefix, managed sources. Managed sources are used only when nothing else is supplied. This selection order is not a recommendation.
+CMake gives supplied dependencies precedence over managed sources. It first looks for a parent target, then an explicit path.
+For a path, choose either a source directory or an installation prefix. The table below lists the targets and options for each dependency.
 
 | Dependency | Parent target | Source path | Installation prefix |
 | --- | --- | --- | --- |
@@ -183,14 +200,24 @@ When several sources are supplied, LibRPA selects the first available one in thi
 | ELPA | `ELPA::ELPA` | `ELPA_SOURCE_DIR` | `EXTERNAL_ELPA_DIR` |
 | LibDDLA | `LibDDLA::ddla` | `LIBDDLA_SOURCE_DIR` | `LIBDDLA_PATH` |
 
-Do not supply both a source path and an installation prefix for the same dependency. Invalid explicit paths cause an error. For ELPA, enable `LIBRPA_USE_EXTERNAL_ELPA` for a target or installation, or `LIBRPA_USE_BUNDLED_ELPA` for a source build. ELPA is disabled by default. An ELPA path with the wrong mode enabled is an error. With both options OFF, either path produces a warning that names the required option.
+ELPA is optional and disabled by default. Select the mode that corresponds to your source:
 
-Whole-tree source paths follow the same hash rules as header paths: `pinned`, `overlay` for a matching pristine tree with patches, or `unpinned`. Overlays preserve the original source tree and symbolic links. LibDDLA has no patches.
+| ELPA source | Option |
+| --- | --- |
+| Parent target or installed library | `LIBRPA_USE_EXTERNAL_ELPA=ON` |
+| Managed or external source directory | `LIBRPA_USE_BUNDLED_ELPA=ON` |
+
+Enable one of these modes when you supply an ELPA path. CMake checks the path and mode together during configuration.
+
+For a source directory, CMake compares its contents with the version recorded in the manifest.
+It uses a matching patched tree directly (`pinned`) or creates a patched copy of a matching upstream tree (`overlay`).
+Other versions remain available with status `unpinned`. The copy preserves the original sources and symbolic links. LibDDLA uses the supplied source directly.
 
 (install-local-dependencies)=
 ### Local dependencies and parent projects
 
-For LibRI, LibComm and cereal, the selection order is: existing parent target, explicit include directory, then managed headers. A nonempty CMake path variable takes precedence over its environment variable. An environment path selected for an empty cache entry is saved there, with a status message. Later configurations keep the saved path even when the environment variable is absent.
+For LibRI, LibComm and cereal, you can supply a parent target or an include directory. CMake uses managed headers for the remaining libraries.
+For example, to use local LibRI and LibComm headers:
 
 ```sh
 cmake -S . -B build \
@@ -198,22 +225,29 @@ cmake -S . -B build \
   -DLIBCOMM_INCLUDE_DIR=/path/to/LibComm/include
 ```
 
-In this example, cereal remains managed unless its target or path is also supplied. Invalid explicit paths cause an error without a download fallback. A supplied parent target takes precedence over the corresponding path.
+In this example, CMake prepares cereal automatically.
+A parent target takes precedence over an include path, and a nonempty CMake path option takes precedence over its environment variable.
+When configuration selects a path from the environment, it saves that path in the cache for later configurations.
+CMake checks explicit paths before it prepares the headers.
 
 | Header source | Result |
 | --- | --- |
 | Headers match the pinned, patched tree | Used directly, status `pinned` |
-| LibRI headers match the pinned pristine tree | Copied, patched and verified in managed storage, status `overlay` |
+| LibRI headers match the pinned pristine tree | Copied and patched in managed storage, status `overlay` if unchanged |
 | Other header contents | Used with a warning, status `unpinned` |
-| Existing parent target | Used without patches or tree-hash checks, status `target` |
+| Existing parent target | Headers supplied by the parent project, status `target` |
 
-The user directory is never patched in place. LibComm and cereal currently have no patches, so their matching upstream headers are `pinned`, not `overlay`. A required compile probe checks the three selected header libraries together. Passing this probe does not establish complete numerical compatibility for another revision.
+LibRPA applies patches to a copy in managed storage, keeping your source directory unchanged.
+LibComm and cereal currently use their upstream headers directly, with status `pinned` when they match the manifest.
+During configuration, a compile check tests the three header libraries together. For other revisions, regression tests can help assess numerical compatibility.
 
 Parent projects can provide `LibRI::LibRI`, `LibComm::LibComm` and `cereal::cereal` before adding LibRPA. See {ref}`Parent-project integration <thirdparty-parent-projects>` for a complete example.
 
-For GPU builds, LibDDLA resolves `LibDDLA::ddla`, then `LIBDDLA_SOURCE_DIR` or `LIBDDLA_PATH`, then managed sources. Supplying both paths is an error. Source builds use a separate CMake build. LibRPA does not patch a user-supplied LibDDLA source tree.
+For GPU builds, you can supply `LibDDLA::ddla`, a source directory through `LIBDDLA_SOURCE_DIR`, or an installation through `LIBDDLA_PATH`.
+CMake uses the parent target first, then the selected path, and otherwise prepares managed sources. LibDDLA source builds use a separate CMake build.
 
-`LIBRPA_USE_EXTERNAL_GREENX=ON` requires a parent target, `GREENX_SOURCE_DIR` or `EXTERNAL_GREENX_DIR`. Parent greenX targets are also selected when this option is OFF.
+With `LIBRPA_USE_EXTERNAL_GREENX=ON`, supply a parent target, `GREENX_SOURCE_DIR` or `EXTERNAL_GREENX_DIR`.
+CMake also uses an available parent greenX target with the default setting.
 
 See [Compile Options](compile_options.md) for defaults, accepted values and precedence rules.
 
@@ -222,46 +256,87 @@ See [Compile Options](compile_options.md) for defaults, accepted values and prec
 | Library | Default source | Build and installation |
 | --- | --- | --- |
 | GreenX | Managed source | Built with LibRPA. The LibRPA install target also installs GreenX. |
-| LibRI, LibComm, cereal | Managed headers | Header-only. They are not installed. |
+| LibRI, LibComm, cereal | Managed headers | Used during compilation and kept in the source cache. |
 | ELPA | Managed source with `LIBRPA_USE_BUNDLED_ELPA=ON` | Built in a separate sub-build. It stays in the build directory. |
 | LibDDLA | Managed source | Built in a separate sub-build and installed with LibRPA. |
 
-Managed sources are stored in `src/<Name>-<hash12>/` under `LIBRPA_THIRDPARTY_DIR` (default: `thirdparty/` in the LibRPA source directory). Build outputs stay in the build directory, so several build directories can use the same sources.
+Managed sources and patched copies are stored in `thirdparty/src/<Name>-<hash12>/` in the LibRPA checkout.
+Explicit component paths select your own sources through the options described above.
+Build outputs stay in the build directory, so several builds of the same checkout can use the same prepared sources.
 
-Managed ELPA also needs a C compiler, `make`, Bash and a C preprocessor. Its source and build directory paths must not contain whitespace: use a `LIBRPA_THIRDPARTY_DIR` and a build directory without spaces. A change of the compiler flags or of the ELPA or LibDDLA backend options can need a new build directory.
+To build managed ELPA, you also need a C compiler, `make`, Bash and a C preprocessor.
+For managed ELPA, choose a LibRPA checkout and build directory without spaces. An explicit `ELPA_SOURCE_DIR` also needs a path without spaces.
+For ELPA or LibDDLA, a fresh build directory is useful when you change compiler flags or backend options.
 
-With shared libraries, the MPI, compiler and math-library runtimes must also be available when LibRPA runs. LibRPA does not install a CMake package configuration for `find_package(librpa)`. Parent projects can use the target `rpa_lib`.
+For a shared-library build, load the MPI, compiler and math-library runtimes in the environment where you run LibRPA.
+A parent CMake project can add LibRPA with `add_subdirectory` and link to `rpa_lib`.
+See {ref}`Parent-project integration <thirdparty-parent-projects>` for the setup.
 
 ## Troubleshooting
 
 ### A dependency is missing or a download fails
 
-The error identifies the component, archive filename and upstream URL. Prepare the dependencies on a connected machine, or place the required archive in the effective archive directory. A local `file://` mirror still requires `LIBRPA_THIRDPARTY_DOWNLOAD=ON`. With downloads disabled, place the archive directly in that directory instead.
+The CMake message gives the component name, archive filename and upstream URL.
+You can use these to obtain the archive and place it in `LIBRPA_THIRDPARTY_ARCHIVE_DIR`.
+The {ref}`offline preparation procedure <install-offline>` also prepares the dependencies for transfer from another machine.
 
-Downloads use CMake's built-in libcurl. Behind a proxy, set `https_proxy` (or `ALL_PROXY`) in the environment before preparation or configuration. If TLS verification fails because the system lacks the required CA certificates, pass a certificate bundle with `-DCMAKE_TLS_CAINFO=/path/to/ca-bundle.crt`. This also works with `cmake -P`. LibRPA does not disable TLS verification. Alternatively, prepare the archives on another machine.
+Downloads use CMake's built-in libcurl.
+If your network uses a proxy, set `https_proxy` or `ALL_PROXY` before preparation or configuration.
+For a TLS certificate error, you can supply your network's CA certificate bundle with `-DCMAKE_TLS_CAINFO=/path/to/ca-bundle.crt`.
+This option also works with `cmake -P`.
 
-### A managed tree fails verification
+### A managed tree differs from the reference version
 
-Every configuration verifies each selected managed tree, and there is no option to skip this check. Preserve any local edits before removing the exact directory named in the error. Reconfigure to recreate it from the cached archive. Do not change the manifest hash merely to accept a local edit. Use an explicit local path for dependency development.
+You can edit sources under `thirdparty/src/<Name>-<hash12>/` and use them in your next build.
+During configuration, CMake compares them with the reference hash in the manifest. It reports differences with a warning and status `unpinned`, then continues with your sources.
+For ELPA and LibDDLA, use a fresh build directory after source edits so their separate builds compile the changes.
 
-If a newly extracted tree fails, check that the archive matches the manifest and the patches match the LibRPA checkout. Replace an incorrect or damaged cached archive before trying again. Tree verification covers files in the declared hash scope, not archive timestamps or compressed bytes.
+The comparison covers `include/` for header-only dependencies and the whole tree for compiled dependencies.
+Added and removed files also affect this comparison, including `.DS_Store` files.
+For modified LibComm headers, the automatic MPI thread level is `MPI_THREAD_MULTIPLE`. You can select a level explicitly with `LIBRPA_MPI_THREAD_LEVEL`.
 
-Added files in that scope also change the hash. For example, a `.DS_Store` file that macOS Finder creates in a managed header directory stops configuration. Remove the added file, or remove the tree and reconfigure.
+To restore the reference sources, first save any edits you want to keep.
+Then remove the affected source directory and reconfigure. LibRPA prepares a new copy from the cached archive.
+
+### An archive fails verification
+
+LibRPA checks the SHA-256 of each archive before extraction. This check includes local archives and covers the compressed file.
+If a downloaded archive differs from the manifest, CMake reports the mismatch and removes the temporary download.
+For an archive already in the cache, the error message identifies the file to replace.
+Obtain the archive specified in the manifest, replace that file, and run configuration again.
+Normal configuration can reuse prepared sources independently of their archives. The preparation script also checks the archives so they are ready for transfer.
 
 ### Removing old dependency trees
 
-A manifest update creates new `src/<Name>-<hash12>/` directories and keeps the old ones. Configuration uses and verifies only the trees that the current manifest selects. You can remove other `src/<Name>-<hash12>/` directories and archives that the current manifest does not name. Do not remove trees that another LibRPA checkout uses through the same `LIBRPA_THIRDPARTY_DIR`. `src/.tmp-*` directories and `downloads/*.tmp-*` files remain only after an interrupted preparation. Remove them when no configuration or preparation is running.
+When a component's reference hash changes, CMake prepares it in a new `thirdparty/src/<Name>-<hash12>/` directory and keeps the earlier version.
+You can remove an older source directory once the builds of that checkout have finished using it.
+Shared archives can be removed once the checkouts that use them have finished with those versions.
+Save any local edits you want to keep before removing a source directory.
+
+After an interrupted preparation, temporary directories can remain under `thirdparty/src/.tmp-*`, and temporary downloads can remain as `*.tmp-*` in the selected archive directory.
+You can remove these once configuration and preparation processes have finished.
 
 ### An explicit path or the LibRI compile probe fails
 
-The paths must contain `RI/ri/LRI.h`, `Comm/Comm_Tools.h` or `cereal/cereal.hpp`, as appropriate. They name include directories, not repository roots. To return to managed headers, remove the relevant CMake cache entry and unset the corresponding environment variable.
+Set each path to the include directory that contains the corresponding header:
+
+| Option | Header relative to that directory |
+| --- | --- |
+| `LIBRI_INCLUDE_DIR` | `RI/ri/LRI.h` |
+| `LIBCOMM_INCLUDE_DIR` | `Comm/Comm_Tools.h` |
+| `CEREAL_INCLUDE_DIR` | `cereal/cereal.hpp` |
+
+To return to managed headers, clear both the environment variable and the CMake cache entry. For example:
 
 ```sh
 unset LIBRI_INCLUDE_DIR
 cmake -S . -B build -U LIBRI_INCLUDE_DIR
 ```
 
-Repeat this for other explicit paths as needed. A parent target still takes precedence. For probe failures, inspect the dependency paths and statuses in the CMake error. Check the compiler diagnostics in the build directory's `CMakeFiles/` logs.
+You can clear the other include paths in the same way. In a parent project, CMake continues to use any supplied dependency targets.
+
+If the header compile check fails, the CMake message lists the selected paths and their statuses.
+The logs under the build directory's `CMakeFiles/` contain the compiler diagnostics.
 
 ### `std::filesystem` link errors with Intel compilers
 

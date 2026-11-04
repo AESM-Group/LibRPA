@@ -4,27 +4,36 @@ LibRPA does not track third-party source code. This directory declares the depen
 
 | Path | Content |
 | --- | --- |
-| `manifest.cmake` | Version, upstream URL, archive filename, patches, license and tree hashes of each component |
+| `manifest.cmake` | Version, upstream URL, archive filename, patches, license, archive SHA-256 and reference tree hashes of each component |
 | `patches/` | Local patches, applied after extraction; see [patches/README.md](patches/README.md) |
 | `ELPA/` | LibRPA's build wrapper for ELPA source builds |
 | `downloads/` | Default archive directory; generated and ignored by Git |
-| `src/` | Verified, patched source trees in `src/<Name>-<hash12>/`; generated and ignored by Git |
+| `src/` | Prepared, patched source trees in `src/<Name>-<hash12>/`; generated and ignored by Git |
 
-A default configuration downloads, patches and verifies the required components here. `LIBRPA_THIRDPARTY_DIR` moves `downloads/` and `src/` to another directory, and `LIBRPA_THIRDPARTY_ARCHIVE_DIR` moves the archives only. Do not edit the trees in `src/`: configuration rejects changed contents.
+A default configuration downloads the required archives, verifies their SHA-256 hashes, then extracts and patches the sources here.
+Archives are downloaded under `LIBRPA_THIRDPARTY_ARCHIVE_DIR`, which defaults to `thirdparty/downloads/`.
+Extracted sources and patched copies stay in `thirdparty/src/`.
 
-## Documentation
+You can edit the trees in `thirdparty/src/` directly after preparation.
+Configuration warns when their contents differ from the reference tree and uses them with status `unpinned`.
+It preserves your edits and does not download or apply patches again.
+The warning uses the manifest's tree hash. It covers `include/` for header-only libraries and the full source tree for compiled libraries.
+Please be careful to preserve local changes before deleting a source directory or switching dependency versions.
 
-- [Installation](../docs/user_guide/install.md): offline preparation, mirrors and shared archives, how to choose a dependency source, local paths, and troubleshooting.
+Relevant documentation includes:
+
+- [Installation](../docs/user_guide/install.md): offline preparation, downloads and shared archives, how to choose a dependency source, local paths, and troubleshooting.
 - [Compile Options](../docs/user_guide/compile_options.md): each dependency option, with its default, precedence and path rules.
 - [Maintaining third-party dependencies](../docs/develop/thirdparty.md): the tree hash definition, how to update a component, concurrent preparation, parent-project integration and migration from vendored sources.
 - [patches/README.md](patches/README.md): what each patch changes.
 
-## Offline preparation in short
-
-On a connected machine, from the LibRPA checkout:
+For offline preparation, issue the following command at the LibRPA root on a connected machine:
 
 ```sh
-cmake -DLIBRPA_THIRDPARTY_DIR=/path/to/deps -P cmake/LibRPAPrepareThirdparty.cmake
+cmake -P cmake/LibRPAPrepareThirdparty.cmake
 ```
 
-Copy `/path/to/deps` to the offline machine with symbolic links preserved, for example with `rsync -a`. Then configure with `-DLIBRPA_THIRDPARTY_DIR=/path/to/deps -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF`. See [Offline installation](../docs/user_guide/install.md#offline-installation) for component selection and archive-only transfer.
+Then copy the downloaded archives to `LibRPA/thirdparty/downloads/` on the offline machine and configure with `-DLIBRPA_THIRDPARTY_DOWNLOAD=OFF`.
+If you upload them to another directory, set `-DLIBRPA_THIRDPARTY_ARCHIVE_DIR=/path/to/archives` on that machine.
+Each LibRPA checkout prepares its own dependency sources in `thirdparty/src/`.
+See [Offline installation](../docs/user_guide/install.md#offline-installation) for more details.

@@ -11,9 +11,9 @@ cmake -S . -B build -DLIBRPA_USE_LIBRI=ON
 
 CMake cache values persist in that build directory. Use a separate directory when changing compilers or MPI installations. To remove a path override, remove its cache entry and unset its environment variable. When a dependency path cache entry is empty, LibRPA imports a nonempty environment value into the cache and reports its origin. The saved path remains active on later configurations without that environment variable. A nonempty cache value takes precedence.
 
-Header include paths, compiled-dependency source and installation paths, and `LIBRPA_THIRDPARTY_ARCHIVE_DIR` use `PATH` cache entries. On the first configuration, untyped relative `-DNAME=value` paths resolve against the directory where CMake is invoked. Supply absolute paths for environment values, typed `-DNAME:PATH=value` values and later cache updates. Any remaining relative value causes an error before use. Header checks and resolution use the same path. `LIBRPA_THIRDPARTY_DIR` retains its existing relative-path behavior.
+Header include paths, compiled-dependency source and installation paths, and `LIBRPA_THIRDPARTY_ARCHIVE_DIR` use `PATH` cache entries. On the first configuration, untyped relative `-DNAME=value` paths resolve against the directory where CMake is invoked. Supply absolute paths for environment values, typed `-DNAME:PATH=value` values and later cache updates. Any remaining relative value causes an error before use. Header checks and resolution use the same path.
 
-The four `LIBRPA_THIRDPARTY_*` settings also work with `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. Of these four, only `LIBRPA_THIRDPARTY_ARCHIVE_DIR` reads an environment variable. Separately, header include paths and the source and installation paths of compiled dependencies read environment variables of the same name.
+`LIBRPA_THIRDPARTY_ARCHIVE_DIR` and `LIBRPA_THIRDPARTY_DOWNLOAD` also work with `cmake -P cmake/LibRPAPrepareThirdparty.cmake`. The archive directory also accepts an environment variable. Separately, header include paths and the source and installation paths of compiled dependencies read environment variables of the same name.
 
 For the build requirements and a complete build procedure, see {ref}`Installation <install-build-requirements>`.
 
@@ -64,9 +64,7 @@ Use `cmake --build build --parallel N` to set build concurrency. This is a build
 | [`LIBRPA_BUNDLED_ELPA_OPENMP`](#librpa-bundled-elpa-openmp) | bool              | `OFF`      |
 | [`LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS`](#librpa-bundled-elpa-configure-args) | string | empty |
 | [`LIBRPA_BUNDLED_ELPA_LIBS`](#librpa-bundled-elpa-libs)     | string            | empty      |
-| [`LIBRPA_THIRDPARTY_DIR`](#librpa-thirdparty-dir) | path | source `thirdparty/` |
 | [`LIBRPA_THIRDPARTY_DOWNLOAD`](#librpa-thirdparty-download) | bool | `ON` |
-| [`LIBRPA_THIRDPARTY_MIRRORS`](#librpa-thirdparty-mirrors) | string | empty |
 | [`LIBRPA_THIRDPARTY_ARCHIVE_DIR`](#librpa-thirdparty-archive-dir) | path | empty |
 | [`GREENX_SOURCE_DIR`](#greenx-source-dir) | path | empty |
 | [`EXTERNAL_GREENX_DIR`](#external-greenx-dir) | path | empty |
@@ -168,11 +166,11 @@ The option name is retained for compatibility with existing build scripts. It no
 This option is mutually exclusive with
 [`LIBRPA_USE_EXTERNAL_ELPA`](#librpa-use-external-elpa).
 
-ELPA source and build directory paths must not contain whitespace. LibRPA checks both paths during configuration. Choose `LIBRPA_THIRDPARTY_DIR`, `ELPA_SOURCE_DIR` and the CMake build directory accordingly.
+ELPA source and build directory paths must not contain whitespace. LibRPA checks both paths during configuration. Choose the LibRPA checkout, `ELPA_SOURCE_DIR` and the CMake build directory accordingly.
 
 LibRPA builds managed ELPA through CMake's `ExternalProject` mechanism.
 After ELPA has been built in an existing build directory, changing compiler
-flags or `CMAKE_BUILD_TYPE` may not automatically reconfigure and rebuild ELPA.
+flags, `CMAKE_BUILD_TYPE` or source files may not automatically reconfigure and rebuild ELPA.
 Use a fresh build directory, or clean the managed ELPA sub-build, when those
 settings need to be applied to ELPA itself.
 
@@ -351,7 +349,7 @@ The default cache value is empty. In that case, LibRPA selects the level in this
 | Otherwise, LibComm status is `managed` or `pinned` | `MPI_THREAD_FUNNELED` |
 | Otherwise | `MPI_THREAD_MULTIPLE` |
 
-A parent LibComm target has status `target`. LibRPA does not infer its pinned status from the target name or include path. An explicit value takes precedence over the automatic selection.
+Modified managed LibComm headers have status `unpinned` and select `MPI_THREAD_MULTIPLE` automatically. A parent LibComm target has status `target`. LibRPA does not infer its pinned status from the target name or include path. An explicit value takes precedence over the automatic selection.
 
 ```sh
 cmake -S . -B build -DLIBRPA_MPI_THREAD_LEVEL=MPI_THREAD_FUNNELED
@@ -411,10 +409,10 @@ For an explicit path, LibRPA hashes the include tree on every configuration:
 | Match | Action and status |
 | --- | --- |
 | Pinned patched headers | Use the directory directly (`pinned`) |
-| Pinned pristine headers | Copy into managed storage, apply the LibRI patch and verify (`overlay`) |
+| Pinned pristine headers | Copy into managed storage, apply the LibRI patch and compare with the reference (`overlay` if unchanged) |
 | Any other headers | Use directly with a warning (`unpinned`) |
 
-An overlay never modifies the supplied directory. It requires a writable `LIBRPA_THIRDPARTY_DIR` when the patched copy is absent. It can be created with downloads disabled.
+An overlay never modifies the supplied directory. Local edits to an existing overlay remain in use with an `unpinned` warning. Creating the patched copy requires a writable `thirdparty/src/` directory in the LibRPA checkout. It can be created with downloads disabled.
 
 If no target or path is supplied, LibRPA prepares managed headers. A required compile probe instantiates `RI::LRI<int,int,3,double>` with the selected LibComm and cereal headers. Failure stops configuration and reports all three sources. The separate fine-grained-lock probe remains optional. Hartree support depends on `RI/physics/Hartree.h` in the resolved include directories.
 
@@ -431,7 +429,7 @@ An existing `LibComm::LibComm` target takes precedence. Otherwise, a nonempty CM
 
 Headers matching the pinned upstream tree are used directly (`pinned`). LibComm has no managed patch, so it does not need an overlay. Other headers are used with an `unpinned` warning. The required LibRI compile probe checks the selected combination.
 
-If no target or path is supplied, LibRPA prepares managed headers. Managed and pinned LibComm influence the automatic [MPI thread-level selection](#librpa-mpi-thread-level).
+If no target or path is supplied, LibRPA prepares managed headers. Unmodified managed and pinned LibComm influence the automatic [MPI thread-level selection](#librpa-mpi-thread-level).
 
 ```sh
 cmake -S . -B build -DLIBCOMM_INCLUDE_DIR=/path/to/LibComm/include
@@ -514,37 +512,17 @@ The finder looks for ELPA headers and a library. It also adds the Fortran module
 cmake -S . -B build -DLIBRPA_USE_EXTERNAL_ELPA=ON -DEXTERNAL_ELPA_DIR=/path/to/elpa
 ```
 
-(librpa-thirdparty-dir)=
-## `LIBRPA_THIRDPARTY_DIR`
-
-Shared directory for verified source trees and, by default, downloaded archives. The default is `thirdparty/` under the LibRPA source directory, including when LibRPA is a subdirectory of a parent project.
-
-| Subdirectory | Contents |
-| --- | --- |
-| `downloads/` | Default archive location, overridden by `LIBRPA_THIRDPARTY_ARCHIVE_DIR` |
-| `src/<Name>-<hash12>/` | Prepared trees, named using the first 12 characters of `TREE_SHA256` |
-
-Use an absolute path. Preparation needs write access when an archive or tree is missing. Completed trees can be shared across build directories. Compilation outputs remain in the build directories.
-
-The directory does not replace LibRPA's tracked manifest or patches. Those remain in the selected LibRPA checkout. Setting the directory alone does not prepare dependencies. Normal configuration prepares the selected components, while the preparation script defaults to all six.
-
-```sh
-cmake -S . -B build -DLIBRPA_THIRDPARTY_DIR=/path/to/deps
-```
-
-Set this cache option before `add_subdirectory(LibRPA)` in a parent project. Ignore `downloads/` and `src/` in the parent's chosen directory. A change to a tree hash selects a new source directory without removing the old one.
-
 (librpa-thirdparty-archive-dir)=
 ## `LIBRPA_THIRDPARTY_ARCHIVE_DIR`
 
-Shared archive directory. The cache default is empty. Resolution uses a nonempty CMake value, then the environment variable, then `${LIBRPA_THIRDPARTY_DIR}/downloads`. The common path rules above apply. The expanded default is not stored in the cache.
+Shared archive directory. The cache default is empty. Resolution uses a nonempty CMake value, then the environment variable, then `thirdparty/downloads/` in the LibRPA checkout. The common path rules above apply. The expanded default is not stored in the cache.
 
-Different LibRPA checkouts can share these versioned archives while keeping separate source directories. Local archives work with `LIBRPA_THIRDPARTY_DOWNLOAD=OFF`. Downloads use temporary files inside the archive directory and rename them after success.
+Different LibRPA checkouts can share these archives. Each checkout prepares its sources and patched copies in its own `thirdparty/src/` directory, including in parent projects. Both `thirdparty/downloads/` and `thirdparty/src/` are ignored by Git. Local archives work with `LIBRPA_THIRDPARTY_DOWNLOAD=OFF`. Downloads use temporary files inside the archive directory and rename them after success.
 
 If a download is needed, the directory must be writable. Select a writable directory or prefetch the archives elsewhere. Corrupt archives remain in place. Check the full path in the error before deleting and replacing a shared archive.
 
 ```sh
-export LIBRPA_THIRDPARTY_ARCHIVE_DIR=~/downloads/LibRPA_tarballs
+export LIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads"
 cmake -P cmake/LibRPAPrepareThirdparty.cmake
 ```
 
@@ -553,31 +531,17 @@ cmake -P cmake/LibRPAPrepareThirdparty.cmake
 
 Allow downloads of missing archives. Default: `ON`.
 
-With `OFF`, LibRPA can still use an existing verified tree or extract and patch a local archive. Source-path overlays also remain available. Missing inputs cause an error with instructions for connected preparation and manual archive placement.
+With `OFF`, configuration can use an existing source tree or verify, extract and patch a local archive. Source-path overlays also remain available. The preparation script checks every selected archive, including when its sources already exist. Missing inputs cause an error with instructions for connected preparation and manual archive placement.
 
-The option controls archive downloads by the managed-source helper, including `file://` mirror transfers. It does not disable tree verification and is not a general network restriction for other build tools.
+The option controls downloads from the upstream URLs in `thirdparty/manifest.cmake`. Archive hash checks and source-change warnings apply in both modes.
 
 ```sh
 cmake -S . -B build \
-  -DLIBRPA_THIRDPARTY_DIR=/path/to/prepared-deps \
+  -DLIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads" \
   -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF
 ```
 
 See {ref}`Offline installation <install-offline>` for preparation and transfer commands.
-
-(librpa-thirdparty-mirrors)=
-## `LIBRPA_THIRDPARTY_MIRRORS`
-
-Semicolon-separated URL prefixes, tried in order before the upstream URL. Default: empty. Each prefix must serve the manifest's `ARCHIVE` filename. HTTPS and local `file://` prefixes are supported.
-
-```sh
-cmake -S . -B build \
-  '-DLIBRPA_THIRDPARTY_MIRRORS=https://mirror.example.org/librpa;file:///srv/librpa-archives'
-```
-
-Quote the list to prevent the shell from interpreting its semicolons. A mirror is tried only when an archive is absent and downloads are enabled. Existing archives are reused. A corrupt cached archive is not automatically replaced by another mirror download.
-
-An upstream URL remains the final fallback. To prevent that fallback, prepare the cache first and configure with downloads disabled.
 
 (libddla-source-dir)=
 ## `LIBDDLA_SOURCE_DIR`
@@ -586,7 +550,7 @@ LibDDLA source directory for CUDA or HIP builds. A nonempty CMake value takes pr
 
 The directory must contain `include/ddla/ddla.h` and `CMakeLists.txt`. An invalid directory causes an error. LibRPA hashes the whole source tree. A match has status `pinned`, and a different hash produces an `unpinned` warning. Extra files, including Git metadata, can change this comparison.
 
-LibRPA uses the supplied source directly, without patches or an overlay. It builds LibDDLA in a separate ExternalProject to isolate GPU language configuration. Each top-level build has its own `_deps/libddla-build` and `_deps/libddla-install` directories. Changes to the child toolchain can require a fresh build directory.
+LibRPA uses the supplied source directly, without patches or an overlay. It builds LibDDLA in a separate ExternalProject to isolate GPU language configuration. Each top-level build has its own `_deps/libddla-build` and `_deps/libddla-install` directories. Use a fresh build directory after changes to the LibDDLA sources or child toolchain.
 
 The child receives `CMAKE_CXX_COMPILER`, `CMAKE_CXX_FLAGS`, `CMAKE_BUILD_TYPE`, `MPI_CXX_COMPILER` and `CMAKE_PREFIX_PATH`. Backend-specific variables are forwarded when set:
 

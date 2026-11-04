@@ -18,6 +18,13 @@ PATH_VARIABLES = ("LIBRI_INCLUDE_DIR", "LIBCOMM_INCLUDE_DIR", "CEREAL_INCLUDE_DI
 MODULE = Path(__file__).resolve().parents[1] / "cmake/LibRPAThirdparty.cmake"
 
 
+def copy_helper(checkout):
+    module = checkout / "cmake" / MODULE.name
+    module.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(MODULE, module)
+    return module
+
+
 def fixture_environment():
     environment = os.environ.copy()
     for variable in PATH_VARIABLES:
@@ -46,26 +53,25 @@ class ThirdpartyTest(unittest.TestCase):
         self.header.write_text("// patched\n")
         self.patched = tree_hash(self.upstream / "include")
         self.header.write_text("// upstream\n")
-        self.mirror = self.root / "mirror"
-        self.mirror.mkdir()
-        with tarfile.open(self.mirror / "fixture.tar.gz", "w:gz") as archive:
+        self.archives = self.root / "archives"
+        self.archives.mkdir()
+        with tarfile.open(self.archives / "fixture.tar.gz", "w:gz") as archive:
             archive.add(self.upstream, arcname="fixture")
-        self.patch = self.root / "thirdparty/patches/fix.patch"
+        self.checkout = self.root / "LibRPA"
+        self.module = copy_helper(self.checkout)
+        self.patch = self.checkout / "thirdparty/patches/fix.patch"
         self.patch.parent.mkdir(parents=True)
         self.patch.write_text(
             "--- a/include/vendor/header.hpp\n+++ b/include/vendor/header.hpp\n"
             "@@ -1 +1 @@\n-// upstream\n+// patched\n"
         )
-        self.storage = self.root / "managed"
+        self.storage = self.checkout / "thirdparty"
         self.final = self.storage / f"src/Fixture-{self.patched[:12]}"
         self.preamble = f'''
 cmake_minimum_required(VERSION 3.13)
-include("{MODULE}")
-set(LIBRPA_SOURCE_DIR "{self.root}")
-set(LIBRPA_THIRDPARTY_DIR "{self.storage}")
-set(LIBRPA_THIRDPARTY_MIRRORS "{self.mirror.as_uri()}")
-librpa_thirdparty_declare(Fixture VERSION 1 URL "file:///nonexistent/fixture.tar.gz"
-  ARCHIVE fixture.tar.gz HASH_SUBDIR include PATCHES fix.patch
+include("{self.module}")
+librpa_thirdparty_declare(Fixture VERSION 1 URL "{(self.archives / "fixture.tar.gz").as_uri()}"
+  ARCHIVE fixture.tar.gz ARCHIVE_SHA256 {hashlib.sha256((self.archives / "fixture.tar.gz").read_bytes()).hexdigest()} HASH_SUBDIR include PATCHES fix.patch
   PRISTINE_SHA256 {self.pristine} TREE_SHA256 {self.patched} LICENSE test)
 '''
 
@@ -114,7 +120,7 @@ if(NOT hash STREQUAL "{self.pristine}")
 endif()
 ''')
 
-    def test_prepare_repeat_and_tamper(self):
+    def test_prepare_repeat_and_local_edits(self):
         body = "librpa_thirdparty_prepare(Fixture source)\n"
         self.run_cmake(body)
         self.assertEqual(tree_hash(self.final / "include"), self.patched)
@@ -122,10 +128,63 @@ endif()
         self.assertNotIn("Downloading", output)
         header = self.final / "include/vendor/header.hpp"
         header.write_text("// local change\n")
-        output = self.run_cmake(body, success=False)
-        self.assertIn("managed directory was modified", output)
+        output = self.run_cmake("set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\n" + body + '''
+librpa_thirdparty_prepare(Fixture source status)
+if(NOT status STREQUAL "unpinned")
+  message(FATAL_ERROR "Modified managed source must be unpinned")
+endif()
+''')
+        self.assertIn("managed source differs from the pinned tree", " ".join(output.split()))
+        self.assertNotIn("Downloading", output)
         self.assertIn(self.patched, output)
         self.assertEqual(header.read_text(), "// local change\n")
+
+    def test_added_and_removed_managed_files(self):
+        body = 'librpa_thirdparty_prepare(Fixture source status)\n'
+        self.run_cmake(body)
+        added = self.final / "include/local.hpp"
+        added.write_text("// local addition\n")
+        output = self.run_cmake(body)
+        self.assertIn("unpinned", output)
+        self.assertTrue(added.exists())
+        added.unlink()
+        output = self.run_cmake(body)
+        self.assertNotIn("unpinned", output)
+        header = self.final / "include/vendor/header.hpp"
+        header.unlink()
+        output = self.run_cmake(body)
+        self.assertIn("unpinned", output)
+        self.assertFalse(header.exists())
+
+    def test_modified_overlay_reused_by_path_and_header_resolution(self):
+        body = f'librpa_thirdparty_use_path(Fixture "{self.upstream}/include" result status)\n'
+        self.run_cmake(body)
+        header = self.final / "include/vendor/header.hpp"
+        header.write_text("// edited overlay\n")
+        # Header targets need configure mode rather than cmake -P.
+        project = self.root / "project"
+        project.mkdir()
+        (project / "CMakeLists.txt").write_text(self.preamble + 'project(Headers NONE)\n' + body + '''
+if(NOT status STREQUAL "unpinned")
+  message(FATAL_ERROR "Modified overlay must be unpinned")
+endif()
+librpa_thirdparty_resolve_headers(Fixture Fixture::Fixture UNUSED_PATH
+  vendor/header.hpp resolved resolved_status)
+if(NOT resolved_status STREQUAL "unpinned" OR NOT resolved STREQUAL result)
+  message(FATAL_ERROR "Header resolution lost modified source status or path")
+endif()
+''')
+        result = subprocess.run(["cmake", "-S", str(project), "-B", str(self.root / "build")],
+                                capture_output=True, text=True, env=fixture_environment())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(header.read_text(), "// edited overlay\n")
+        self.assertEqual(tree_hash(self.upstream / "include"), self.pristine)
+
+    def test_prepared_tree_difference_warns(self):
+        self.patch.write_text(self.patch.read_text().replace("+// patched", "+// revised patch"))
+        output = self.run_cmake("librpa_thirdparty_prepare(Fixture source)\n")
+        self.assertIn("unpinned", output)
+        self.assertEqual((self.final / "include/vendor/header.hpp").read_text(), "// revised patch\n")
 
     def test_overlay_preserves_user_tree(self):
         body = f'''librpa_thirdparty_use_path(Fixture "{self.upstream}/include" result status)
@@ -184,7 +243,7 @@ endif()
 
     @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root can write read-only directories")
     def test_unwritable_overlay_directory(self):
-        self.storage.mkdir()
+        self.storage.mkdir(exist_ok=True)
         for blocked in (self.storage, self.storage / "src"):
             blocked.mkdir(exist_ok=True)
             blocked.chmod(0o555)
@@ -193,7 +252,7 @@ endif()
                     f'librpa_thirdparty_use_path(Fixture "{self.upstream}/include" result status)',
                     success=False)
                 self.assertIn(str(self.storage / "src"), " ".join(output.split()))
-                self.assertIn("An overlay needs a writable LIBRPA_THIRDPARTY_DIR", " ".join(output.split()))
+                self.assertIn("An overlay needs a writable thirdparty/src directory", " ".join(output.split()))
             finally:
                 blocked.chmod(0o755)
 
@@ -222,17 +281,16 @@ endif()
         self.assertEqual(os.readlink(result / "alias"), "include")
         self.assertEqual(tree_hash(result), patched)
 
-    def test_failed_download_cleanup_and_mirror_retry(self):
-        missing = (self.root / "missing").as_uri()
-        output = self.run_cmake(f'''set(LIBRPA_THIRDPARTY_MIRRORS "{missing}")
+    def test_failed_download_cleanup_and_retry(self):
+        missing = (self.root / "missing.tar.gz").as_uri()
+        output = self.run_cmake(f'''set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_URL "{missing}")
 librpa_thirdparty_prepare(Fixture source)
 ''', success=False)
         self.assertIn("Missing third-party component Fixture", output)
+        self.assertIn(missing, output)
         self.assertFalse(list((self.storage / "downloads").iterdir()))
         self.assertFalse(self.final.exists())
-        self.run_cmake(f'''set(LIBRPA_THIRDPARTY_MIRRORS "{missing};{self.mirror.as_uri()}")
-librpa_thirdparty_prepare(Fixture source)
-''')
+        self.run_cmake("librpa_thirdparty_prepare(Fixture source)\n")
         self.assertEqual(tree_hash(self.final / "include"), self.patched)
         self.assertFalse(list((self.storage / "downloads").glob("*.tmp-*")))
 
@@ -243,29 +301,46 @@ librpa_thirdparty_prepare(Fixture source)
         self.assertIn("LibRPAPrepareThirdparty.cmake", output)
         self.assertIn("Alternatively", output)
         (self.storage / "downloads").mkdir()
-        shutil.copy2(self.mirror / "fixture.tar.gz", self.storage / "downloads")
+        shutil.copy2(self.archives / "fixture.tar.gz", self.storage / "downloads")
         self.patch.write_text(self.patch.read_text().replace("-// upstream", "-// bad context"))
         output = self.run_cmake(body, success=False)
         self.assertIn("patch failed", output)
         self.assertFalse(list((self.storage / "src").glob(".tmp-*")))
         self.assertFalse(self.final.exists())
 
+    def test_download_hash_mismatch_cleanup(self):
+        bad_archive = self.root / "bad.tar.gz"
+        # Same extracted files, different archive bytes: the archive hash controls acceptance.
+        with tarfile.open(bad_archive, "w") as archive:
+            archive.add(self.upstream, arcname="fixture")
+        output = self.run_cmake(f'''set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_URL "{bad_archive.as_uri()}")
+librpa_thirdparty_prepare(Fixture source)
+''', success=False)
+        self.assertIn("archive SHA256 mismatch", output)
+        self.assertFalse(list((self.storage / "downloads").iterdir()))
+        self.assertFalse(self.final.exists())
+        self.run_cmake("librpa_thirdparty_prepare(Fixture source)\n")
+        self.assertEqual(tree_hash(self.final / "include"), self.patched)
+        self.assertEqual((self.storage / "downloads/fixture.tar.gz").read_bytes(),
+                         (self.archives / "fixture.tar.gz").read_bytes())
+        self.assertFalse(list((self.storage / "downloads").glob("*.tmp-*")))
+
     def test_separate_archive_directory_and_precedence(self):
         # Only the selected directory has the archive, and downloads are disabled.
         body = "set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\nlibrpa_thirdparty_prepare(Fixture source)\n"
         environment = dict(fixture_environment(), LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.root / "wrong"))
-        output = self.run_cmake(body, definitions=[f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={self.mirror}"],
+        output = self.run_cmake(body, definitions=[f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={self.archives}"],
                                 env=environment)
-        self.assertIn(str(self.mirror), output)
+        self.assertIn(str(self.archives), output)
         self.assertTrue(self.final.is_dir())
         self.assertFalse((self.storage / "downloads").exists())
-        shutil.rmtree(self.storage)
-        environment["LIBRPA_THIRDPARTY_ARCHIVE_DIR"] = str(self.mirror)
+        shutil.rmtree(self.storage / "src")
+        environment["LIBRPA_THIRDPARTY_ARCHIVE_DIR"] = str(self.archives)
         self.run_cmake(body, env=environment)
         self.assertTrue(self.final.is_dir())
 
     def test_nonempty_relative_archive_path(self):
-        environment = dict(fixture_environment(), LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.mirror))
+        environment = dict(fixture_environment(), LIBRPA_THIRDPARTY_ARCHIVE_DIR=str(self.archives))
         output = self.run_cmake("librpa_thirdparty_archive_dir(resolved)", success=False,
                                 definitions=["-DLIBRPA_THIRDPARTY_ARCHIVE_DIR:PATH=OFF"], env=environment)
         self.assertIn("Supply an absolute path", " ".join(output.split()))
@@ -276,20 +351,85 @@ librpa_thirdparty_prepare(Fixture source)
         self.run_cmake(body)
         archive = archives / "fixture.tar.gz"
         timestamp = archive.stat().st_mtime_ns
-        self.storage = self.root / "second managed"
-        output = self.run_cmake(f'set(LIBRPA_THIRDPARTY_DIR "{self.storage}")\n' + body)
+        second = self.root / "second checkout"
+        module = copy_helper(second)
+        shutil.copytree(self.checkout / "thirdparty/patches", second / "thirdparty/patches")
+        self.preamble = self.preamble.replace(str(self.module), str(module))
+        output = self.run_cmake("set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\n" + body)
         self.assertNotIn("Downloading", output)
         self.assertEqual(archive.stat().st_mtime_ns, timestamp)
-        self.assertTrue((self.storage / self.final.relative_to(self.final.parents[1])).is_dir())
+        self.assertTrue((second / "thirdparty/src" / self.final.name).is_dir())
+        self.assertTrue(self.final.is_dir())
 
-    def test_archive_default_tracks_managed_directory(self):
-        self.run_cmake(f'''librpa_thirdparty_archive_dir(first)
-set(LIBRPA_THIRDPARTY_DIR "{self.root}/changed")
-librpa_thirdparty_archive_dir(second)
-if(NOT second STREQUAL "{self.root}/changed/downloads" OR first STREQUAL second)
-  message(FATAL_ERROR "Archive default did not follow the managed directory")
+    def test_archive_default_is_checkout_downloads(self):
+        self.run_cmake(f'''librpa_thirdparty_archive_dir(archives)
+if(NOT archives STREQUAL "{self.checkout}/thirdparty/downloads")
+  message(FATAL_ERROR "Unexpected archive default: ${{archives}}")
 endif()
 ''')
+
+    def test_parent_project_uses_checkout_sources(self):
+        parent = self.root / "parent"
+        parent.mkdir()
+        (parent / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
+project(Parent NONE)
+add_subdirectory("{self.checkout}" dependencies)
+''')
+        (self.checkout / "CMakeLists.txt").write_text(self.preamble + f'''
+librpa_thirdparty_prepare(Fixture source)
+if(NOT source STREQUAL "{self.final}")
+  message(FATAL_ERROR "Source directory is outside the LibRPA checkout: ${{source}}")
+endif()
+''')
+        result = subprocess.run(["cmake", "-S", str(parent), "-B", str(self.root / "build"),
+                                 f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={self.archives}",
+                                 "-DLIBRPA_THIRDPARTY_DOWNLOAD=OFF"], cwd=self.root,
+                                capture_output=True, text=True, env=fixture_environment())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(tree_hash(self.final / "include"), self.patched)
+        self.assertFalse((parent / "thirdparty").exists())
+        self.assertFalse((self.root / "build/thirdparty").exists())
+
+    def test_offline_archive_transfer(self):
+        # The connected and offline machines have independent archive locations.
+        downloads = self.root / "connected Downloads"
+        self.run_cmake(f'''set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "{downloads}")
+librpa_thirdparty_prepare(Fixture source)
+''')
+        original_preamble = self.preamble
+        for custom in (False, True):
+            with self.subTest(custom=custom):
+                checkout = self.root / f"offline-{custom}" / "LibRPA"
+                module = copy_helper(checkout)
+                shutil.copytree(self.checkout / "thirdparty/patches", checkout / "thirdparty/patches")
+                archives = checkout.parent / "Downloads" if custom else checkout / "thirdparty/downloads"
+                archives.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(downloads / "fixture.tar.gz", archives)
+                self.preamble = original_preamble.replace(str(self.module), str(module))
+                body = 'set(LIBRPA_THIRDPARTY_DOWNLOAD OFF)\n'
+                if custom:
+                    body += f'set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "{archives}")\n'
+                output = self.run_cmake(body + 'librpa_thirdparty_prepare(Fixture source)\n')
+                self.assertNotIn("Downloading", output)
+                self.assertEqual(tree_hash(checkout / "thirdparty/src" / self.final.name / "include"), self.patched)
+                self.assertFalse((archives / "src").exists())
+
+    def test_preparation_script_populates_archives_with_existing_sources(self):
+        self.run_cmake("librpa_thirdparty_prepare(Fixture source)\n")
+        header = self.final / "include/vendor/header.hpp"
+        header.write_text("// local changes\n")
+        script = self.checkout / "cmake/LibRPAPrepareThirdparty.cmake"
+        shutil.copy2(MODULE.parent / script.name, script)
+        declaration = self.preamble[self.preamble.index("librpa_thirdparty_declare"):]
+        (self.storage / "manifest.cmake").write_text(declaration)
+        downloads = self.root / "Downloads"
+        command = ["cmake", f"-DLIBRPA_THIRDPARTY_ARCHIVE_DIR={downloads}", "-P", str(script)]
+        result = subprocess.run(command, capture_output=True, text=True, env=fixture_environment())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual((downloads / "fixture.tar.gz").read_bytes(),
+                         (self.archives / "fixture.tar.gz").read_bytes())
+        self.assertEqual(header.read_text(), "// local changes\n")
+        self.assertIn("unpinned", result.stdout + result.stderr)
 
     @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root can write read-only directories")
     def test_unwritable_archive_directory(self):
@@ -304,9 +444,9 @@ endif()
         self.assertIn("prefetch", output)
 
     def test_corrupt_shared_archive_preserved(self):
-        archive = self.mirror / "fixture.tar.gz"
+        archive = self.archives / "fixture.tar.gz"
         archive.write_text("not a tarball")
-        body = f'set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "{self.mirror}")\nlibrpa_thirdparty_prepare(Fixture source)\n'
+        body = f'set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "{self.archives}")\nlibrpa_thirdparty_prepare(Fixture source)\n'
         output = self.run_cmake(body, success=False)
         self.assertIn(str(archive), " ".join(output.split()))
         self.assertIn("delete it and configure again", " ".join(output.split()))
@@ -317,7 +457,7 @@ endif()
         with tarfile.open(archive, "w:gz") as tar:
             tar.add(self.upstream, arcname="fixture")
         output = self.run_cmake(body.replace("librpa_thirdparty_prepare", 'set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_PATCHES "")\nlibrpa_thirdparty_prepare'), success=False)
-        self.assertIn("prepared tree hash mismatch", output)
+        self.assertIn("archive SHA256 mismatch", output)
         self.assertIn(str(archive), " ".join(output.split()))
         self.assertTrue(archive.is_file())
 
@@ -344,7 +484,6 @@ class PathResolutionTest(unittest.TestCase):
             invocation.mkdir()
             (project / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
 project(Paths NONE)
-set(LIBRPA_THIRDPARTY_DIR "{root}/managed" CACHE PATH "")
 include("{MODULE}")
 librpa_thirdparty_path(${{CHECK_VARIABLE}} resolved)
 if(NOT resolved STREQUAL "{invocation}/relative")
@@ -377,7 +516,6 @@ endif()
             project = root / "CMakeLists.txt"
             project.write_text(f'''cmake_minimum_required(VERSION 3.18)
 project(Paths NONE)
-set(LIBRPA_THIRDPARTY_DIR "{root}/managed" CACHE PATH "")
 include("{MODULE}")
 file(WRITE "${{CMAKE_BINARY_DIR}}/resolved.txt" "")
 foreach(variable {' '.join(PATH_VARIABLES)})
@@ -426,9 +564,8 @@ add_custom_target(check_paths ALL COMMAND "${{CMAKE_COMMAND}}" -E echo "Paths re
             digest = tree_hash(header.parent.parent)
             (project / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
 project(Headers NONE)
-set(LIBRPA_THIRDPARTY_DIR "{root}/managed" CACHE PATH "")
 include("{MODULE}")
-librpa_thirdparty_declare(Fixture VERSION 1 URL unused ARCHIVE unused
+librpa_thirdparty_declare(Fixture VERSION 1 URL unused ARCHIVE unused ARCHIVE_SHA256 unused
   HASH_SUBDIR include TREE_SHA256 {digest} LICENSE test)
 librpa_thirdparty_path(LIBRI_INCLUDE_DIR checked)
 if(NOT EXISTS "${{checked}}/vendor/header.hpp")
@@ -467,7 +604,7 @@ include("{MODULE.parent.parent}/thirdparty/ELPA/CMakeLists.txt")
                         output = " ".join((result.stdout + result.stderr).split())
                         self.assertIn("ELPA source builds do not support whitespace", output)
                         self.assertIn(" ".join(str(source if kind == "source" else build).split()), output)
-                        self.assertIn("LIBRPA_THIRDPARTY_DIR", output)
+                        self.assertIn("LibRPA checkout (or ELPA_SOURCE_DIR)", output)
 
 
 class GreenXResolutionTest(unittest.TestCase):
@@ -477,6 +614,8 @@ class GreenXResolutionTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="librpa greenx ")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
+        self.checkout = self.root / "LibRPA"
+        self.module = copy_helper(self.checkout)
         self.prefix = self.root / "installation"
         self.modules = self.prefix / "include/greenX/GNU-13.4.0"
         for component, module in (("TimeFrequency", "gx_minimax"), ("common", "kinds")):
@@ -497,8 +636,7 @@ set_target_properties(greenX::LibGXMiniMax PROPERTIES
     def configure(self, body, success=True):
         (self.root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
 project(Resolution NONE)
-set(LIBRPA_THIRDPARTY_DIR "{self.root}/managed" CACHE PATH "")
-include("{MODULE}")
+include("{self.module}")
 set(CMAKE_Fortran_COMPILER_ID GNU)
 set(CMAKE_Fortran_COMPILER_VERSION 13.4.0)
 {body}
@@ -522,21 +660,27 @@ add_library(LibGXMiniMax INTERFACE)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" DESTINATION share/greenx)
 ''')
         digest = tree_hash(source)
-        managed = self.root / f"managed/src/greenX-{digest[:12]}"
+        managed = self.checkout / f"thirdparty/src/greenX-{digest[:12]}"
         shutil.copytree(source, managed)
-        body = f'''librpa_thirdparty_declare(greenX VERSION 1234567 URL unused ARCHIVE unused
+        body = f'''librpa_thirdparty_declare(greenX VERSION 1234567 URL unused ARCHIVE unused ARCHIVE_SHA256 unused
   TREE_SHA256 {digest} LICENSE test)
 '''
         self.configure(body)
         cache = (self.root / "build/CMakeCache.txt").read_text()
         prefix = next(line.split("=", 1)[1] for line in cache.splitlines()
                       if line.startswith("CMAKE_INSTALL_PREFIX:"))
-        self.assertFalse(Path(prefix).is_relative_to(self.root / "managed"))
+        self.assertFalse(Path(prefix).is_relative_to(self.checkout / "thirdparty"))
         subprocess.run(["cmake", "--install", str(self.root / "build"),
                         "--prefix", str(self.root / "install")], check=True, capture_output=True)
         self.assertTrue((self.root / "install/share/greenx/CMakeLists.txt").is_file())
         self.configure(body)
         self.assertEqual(tree_hash(managed), digest)
+        with (managed / "CMakeLists.txt").open("a") as source_file:
+            source_file.write("# local edit\n")
+        output = self.configure(body)
+        self.assertIn("greenX=unpinned", output)
+        self.assertIn(f"(source: {managed})", output)
+        self.assertTrue((managed / "CMakeLists.txt").read_text().endswith("# local edit\n"))
 
     def test_parent_target_with_external_option_off(self):
         for target in ("LibGXMiniMax", "greenX::LibGXMiniMax"):

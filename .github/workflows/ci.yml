@@ -72,7 +72,7 @@ jobs:
         with:
           path: thirdparty/downloads
           key: thirdparty-${{ hashFiles('thirdparty/manifest.cmake') }}
-      - name: Prepare verified third-party sources
+      - name: Verify third-party archives and prepare sources
         run: cmake -P cmake/LibRPAPrepareThirdparty.cmake
       - name: Install python dependency
         run: |

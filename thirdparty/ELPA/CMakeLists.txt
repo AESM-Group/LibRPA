@@ -2,7 +2,7 @@
 set(_elpa_binary_dir "${CMAKE_CURRENT_BINARY_DIR}/build-${LIBRPA_BUNDLED_ELPA_VERSION}")
 foreach(_elpa_path IN ITEMS "${_elpa_source_dir}" "${_elpa_binary_dir}")
   if(_elpa_path MATCHES "[ \t\r\n]")
-    message(FATAL_ERROR "ELPA source builds do not support whitespace in paths: '${_elpa_path}'. Use a LIBRPA_THIRDPARTY_DIR (or ELPA_SOURCE_DIR) and a CMake build directory without spaces or other whitespace.")
+    message(FATAL_ERROR "ELPA source builds do not support whitespace in paths: '${_elpa_path}'. Use a LibRPA checkout (or ELPA_SOURCE_DIR) and a CMake build directory without spaces or other whitespace.")
   endif()
 endforeach()
 

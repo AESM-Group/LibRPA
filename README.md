@@ -72,17 +72,18 @@ as shown in [Installation](docs/user_guide/install.md), or adapt a script under
 [`examples/build`](examples/build). See [Compile Options](docs/user_guide/compile_options.md)
 for defaults and dependency selection.
 
-To prepare all six source dependencies on a connected machine:
+To prepare the dependencies and save their archives on a connected machine:
 
 ```bash
-cmake -DLIBRPA_THIRDPARTY_DIR=/path/to/deps \
+cmake -DLIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads" \
   -P cmake/LibRPAPrepareThirdparty.cmake
 ```
 
-Copy that directory to the build machine with symbolic links preserved. Add
-`-DLIBRPA_THIRDPARTY_DIR=/path/to/deps -DLIBRPA_THIRDPARTY_DOWNLOAD=OFF`
-to its configuration command. See the installation guide for subset preparation
-and archive-only caches.
+Upload the downloaded archives to `LibRPA/thirdparty/downloads/` on the build
+machine, then configure with `-DLIBRPA_THIRDPARTY_DOWNLOAD=OFF`. For a different
+archive location on that machine, also set `LIBRPA_THIRDPARTY_ARCHIVE_DIR`.
+CMake prepares the sources in each checkout's `thirdparty/src/`. See the
+installation guide for examples and component selection.
 
 ## Usage
 

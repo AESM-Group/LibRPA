@@ -11,7 +11,7 @@
 
 ### Added
 
-- Added `LIBRPA_THIRDPARTY_DIR`, `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for shared archives, `LIBRPA_THIRDPARTY_DOWNLOAD`, `LIBRPA_THIRDPARTY_MIRRORS`, and an offline preparation script with mandatory tree verification.
+- Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and an offline preparation script with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
 - Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibRI/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `EXTERNAL_GREENX_DIR` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
 
 ### Changed

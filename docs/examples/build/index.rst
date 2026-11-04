@@ -9,10 +9,11 @@ recipes.
 Depending on your local environment, you may need to adjust compiler commands,
 library paths, MPI settings, and CMake options accordingly.
 
-CMake prepares pinned source dependencies when their archives or verified trees
-are absent. For an offline build, prepare the cache first as described in
-:doc:`../../user_guide/install`. Pass ``LIBRPA_THIRDPARTY_DIR`` and
-``LIBRPA_THIRDPARTY_DOWNLOAD=OFF`` in the script's CMake command.
+CMake prepares source dependencies in the checkout's ``thirdparty/src/``.
+For an offline build, upload the archives as described in
+:doc:`../../user_guide/install`. Add ``LIBRPA_THIRDPARTY_DOWNLOAD=OFF`` to
+the script's CMake command. Archives in ``thirdparty/downloads/`` use the
+default location; set ``LIBRPA_THIRDPARTY_ARCHIVE_DIR`` for another location.
 Check explicit header paths in each script: they take precedence over managed
 headers, and an invalid path stops configuration.
 

@@ -1,6 +1,10 @@
 # Maintaining third-party dependencies
 
-The tracked `thirdparty/manifest.cmake` declares the version, URL, archive filename, patches, license and expected tree hash of each component. Header-only libraries are hashed over `include/`; LibDDLA, ELPA and greenX are hashed over the whole extracted tree. Archives are not hashed because generated upstream archives can change byte representation without changing file contents.
+The tracked `thirdparty/manifest.cmake` declares each component's version, URL, archive filename, patches, license, archive SHA-256 and reference tree hashes.
+
+`ARCHIVE_SHA256` covers the compressed archive bytes. Downloads must match before they enter the cache. Cached archives must match before extraction. A failed download check removes the temporary file and stops preparation. A cached archive mismatch stops preparation and leaves that archive unchanged. Regenerated upstream archives can have different bytes even when their extracted files match. Review such a change before updating `ARCHIVE_SHA256`.
+
+Tree hashes identify source versions and detect local changes. A difference produces a warning and status `unpinned`, and configuration continues with those sources. Header-only libraries are hashed over `include/`; LibDDLA, ELPA and greenX are hashed over the whole extracted tree.
 
 ## Tree hash definition
 
@@ -21,12 +25,12 @@ Use the CMake helper as the authoritative definition for all trees, including th
 
 ## Updating a component
 
-1. Download the selected upstream archive into a fresh scratch directory and extract it without running its scripts. Check the version and license. Preserve symbolic links and original line endings.
+1. Download the selected upstream archive into a fresh scratch directory. Record its SHA-256 with `shasum -a 256 ARCHIVE`, then extract it without running its scripts. Check the version and license. Preserve symbolic links and original line endings.
 2. Compare it with the currently selected tree. Keep only required portability and integration changes; do not carry unrelated formatting or generated files.
 3. Generate `-p1` patches with `a/` and `b/` paths relative to the archive root. Record the source, reason, upstream submission status and license in the patch header and `thirdparty/patches/README.md`.
 4. Apply the patches to a fresh upstream tree. Compute pristine and patched hashes with `cmake/LibRPAThirdparty.cmake`, and independently cross-check a header tree with the shell command above.
 5. Update the declaration's full version, URL, archive name, patch list and hashes. Update the license list in `docs/develop/licensing.md`, then run `python3 utilities/update_readme_licensing_list.py`.
-6. Prepare sources into an empty dependency directory. Test online download, local mirrors, cached archives with downloads disabled, repeated configuration, and rejection of modified managed trees. For LibRI, greenX and ELPA, also check pristine-path overlays and verify that the original tree is unchanged.
+6. Prepare sources in a fresh LibRPA checkout. Test upstream downloads, cached archives with downloads disabled, repeated configuration, archive hash rejection, and warnings that preserve modified managed trees. For LibRI, greenX and ELPA, also check pristine-path overlays and verify that the original tree is unchanged.
 7. Run `python3 utilities/test_thirdparty.py` to check helper failure paths, overlays, concurrent preparation and directory-symlink handling.
 8. Build with and without LibRI, run unit and numerical regression tests, and run the QSGW, Hartree and cRPA verification scripts used in CI. Check parent targets and explicit paths. For ELPA and greenX, verify the source hashes again after building.
 
@@ -39,31 +43,31 @@ librpa_thirdparty_tree_sha256(hash "/path/to/tree/include")
 message("${hash}")
 ```
 
-Run it with `cmake -P hash.cmake`. Do not edit a managed tree to update a dependency: configuration rejects changed contents. Work on a separate tree and use path mode while developing.
+Run it with `cmake -P hash.cmake`. You can edit a managed tree during development. Configuration warns about differences in the declared hash scope and preserves the changes. This comparison does not need Git tracking. A separate Git checkout with an explicit source path is useful when you want to track and commit dependency changes. To distribute an update, record it in the manifest and patches.
 
 ## Preparation and concurrent builds
 
-`cmake/LibRPAPrepareThirdparty.cmake` runs the same preparation functions as configuration, in script mode. The user procedure is in {ref}`Offline installation <install-offline>`.
+`cmake/LibRPAPrepareThirdparty.cmake` ensures that each selected archive is available, then prepares the sources. It populates the selected archive directory even when the sources already exist. Normal configuration reuses existing sources directly. The user procedure is in {ref}`Offline installation <install-offline>`.
 
-The archive directory can be outside `LIBRPA_THIRDPARTY_DIR`; see {ref}`LIBRPA_THIRDPARTY_ARCHIVE_DIR <librpa-thirdparty-archive-dir>` for its resolution. Its derived default stays uncached, so it follows `LIBRPA_THIRDPARTY_DIR`. Downloads use temporary files in that directory before renaming, so other configurations cannot read partial downloads. Shared archives are preserved when extraction or hash verification fails.
+Managed sources and patched copies always use `thirdparty/src/` in the LibRPA checkout. Archives default to `thirdparty/downloads/` in the same checkout. You can select a separate archive directory with {ref}`LIBRPA_THIRDPARTY_ARCHIVE_DIR <librpa-thirdparty-archive-dir>`. Its derived default stays uncached. Downloads use temporary files in that directory before renaming, so other configurations cannot read partial downloads. Shared archives are preserved when extraction or hash verification fails.
 
 Whole-tree path overlays use `file(COPY)` without `FOLLOW_SYMLINK_CHAIN`. This preserves directory symbolic links on macOS and Linux. The copied tree must match the original hash before patches are applied. The user tree remains unchanged. Keep Git metadata outside a tree that should match the manifest; `.git` is not excluded from the hash.
 
-Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `LIBRPA_THIRDPARTY_DIR/src` directory. The supplied tree keeps its contents and permissions.
+Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `thirdparty/src/` directory in the LibRPA checkout. The supplied tree keeps its contents and permissions.
 
-Each preparation uses a separate temporary directory. Only a verified tree is renamed into its content-addressed final location. Concurrent configurations verify a tree published by another process; no filesystem lock is required. Build outputs must stay in build directories. In particular, copy greenX's Python directory to scratch space before installing it, because Python packaging writes build files into its source directory.
+Each preparation uses a separate temporary directory. After extraction and patch application, the prepared tree is renamed into the directory selected by the manifest tree hash. Concurrent configurations reuse a tree published by another process; no filesystem lock is required. The name identifies the reference version; local edits do not rename the directory. Reuse compares its contents with the reference hash and warns on differences. Normal configuration reuses existing trees and overlays, preserving local edits. The preparation script also ensures that their archives are available. Build outputs must stay in build directories. In particular, copy greenX's Python directory to scratch space before installing it, because Python packaging writes build files into its source directory.
 
 (thirdparty-parent-projects)=
 ## Parent-project integration
 
-A parent can let LibRPA prepare dependencies while keeping its checkout free of generated source trees. Set the cache directory before adding LibRPA:
+A parent can let LibRPA prepare dependencies in `LibRPA/thirdparty/src/`. Set an archive directory before adding LibRPA to share downloads with other checkouts:
 
 ```cmake
 cmake_minimum_required(VERSION 3.18)
 project(HostCode LANGUAGES CXX Fortran)
 
-set(LIBRPA_THIRDPARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/dependencies/librpa"
-    CACHE PATH "Shared LibRPA source cache")
+set(LIBRPA_THIRDPARTY_ARCHIVE_DIR "$ENV{HOME}/Downloads"
+    CACHE PATH "Shared dependency archives")
 set(LIBRPA_ENABLE_DRIVER OFF CACHE BOOL "Build the LibRPA driver")
 set(LIBRPA_ENABLE_TEST OFF CACHE BOOL "Build LibRPA tests")
 set(ENABLE_GREENX_CTEST OFF CACHE BOOL "Register GreenX tests")
@@ -75,7 +79,7 @@ target_link_libraries(host PRIVATE rpa_lib)
 
 Source-built greenX keeps the parent installation prefix, including the default prefix. It does not install into the managed source tree.
 
-This example assumes that `LibRPA/` and `main.cpp` are in the parent source directory. Configure the parent with its compiler, MPI and math-library settings. Ignore `dependencies/librpa/downloads/` and `dependencies/librpa/src/` in the parent's repository. An existing cache value takes precedence over these `set(... CACHE ...)` defaults.
+This example assumes that `LibRPA/` and `main.cpp` are in the parent source directory. Configure the parent with its compiler, MPI and math-library settings. LibRPA's `.gitignore` excludes `thirdparty/downloads/` and `thirdparty/src/`. An existing cache value takes precedence over these `set(... CACHE ...)` defaults.
 
 ### Header targets
 
@@ -119,6 +123,6 @@ Use `rpa_lib` to link a C or C++ consumer. With `LIBRPA_ENABLE_FORTRAN_BIND=ON`,
 
 Existing `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR`, `CEREAL_INCLUDE_DIR` and `LIBDDLA_PATH` settings remain supported. An environment value is now saved in the cache when the cache entry is empty, so a selection persists after the variable is unset. See {ref}`Compile Options <librpa-how-to-set-options>` for how to clear a selection.
 
-The old `thirdparty/LibRI`, `thirdparty/LibComm`, `thirdparty/cereal`, `thirdparty/LibDDLA` and `thirdparty/greenX` source paths no longer exist. Replace scripts that copy those directories with the preparation script or explicit external paths. Do not hard-code `src/<Name>-<hash12>` paths: a manifest update changes them. Preserve symbolic links when transferring a prepared cache.
+The old `thirdparty/LibRI`, `thirdparty/LibComm`, `thirdparty/cereal`, `thirdparty/LibDDLA` and `thirdparty/greenX` source paths no longer exist. Replace scripts that copy those directories with the preparation script or explicit external paths. Do not hard-code `thirdparty/src/<Name>-<hash12>` paths: a manifest update changes them. For offline builds, transfer the archives and prepare the sources in the destination checkout.
 
 `LIBRPA_USE_BUNDLED_ELPA` and its related option names remain supported, but now build supplied source paths or downloaded managed sources. The tracked `thirdparty/ELPA` directory contains only LibRPA's build wrapper. A dependency cache contains sources and archives, not compiler-specific installed libraries. Each build directory creates its own compiled dependencies.

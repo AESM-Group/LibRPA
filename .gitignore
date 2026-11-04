@@ -114,6 +114,6 @@ cache/
 CLAUDE.local.md
 AGENTS.local.md
 
-# Managed third-party archives and verified sources
+# Managed third-party archives and prepared sources
 /thirdparty/downloads/
 /thirdparty/src/
