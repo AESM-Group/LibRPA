@@ -180,7 +180,7 @@ export LIBRPA_THIRDPARTY_ARCHIVE_DIR=~/downloads/LibRPA_tarballs
 cmake -P cmake/LibRPAPrepareThirdparty.cmake
 ```
 
-A nonempty CMake value overrides this environment variable. Local archives in the selected directory also work with downloads disabled. Build outputs remain in the build directory. Multiple build directories can share this source cache. A hash change selects a new directory and leaves earlier trees in place.
+A nonempty CMake value overrides this environment variable. When selected during configuration, the environment path is saved in the cache for later configurations. Standalone `cmake -P` preparation does not write a persistent cache. Local archives in the selected directory also work with downloads disabled. Build outputs remain in the build directory. Multiple build directories can share this source cache. A hash change selects a new directory and leaves earlier trees in place.
 
 (install-dependency-sources)=
 ## Choosing dependency sources
@@ -209,7 +209,7 @@ Whole-tree source paths follow the same hash rules as header paths: `pinned`, `o
 (install-local-dependencies)=
 ## Local dependencies and parent projects
 
-For LibRI, LibComm and cereal, the selection order is: existing parent target, explicit include directory, then managed headers. A nonempty CMake path variable takes precedence over its environment variable.
+For LibRI, LibComm and cereal, the selection order is: existing parent target, explicit include directory, then managed headers. A nonempty CMake path variable takes precedence over its environment variable. An environment path selected for an empty cache entry is saved there, with a status message. Later configurations keep the saved path even when the environment variable is absent.
 
 ```sh
 cmake -S . -B build \

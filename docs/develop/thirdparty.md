@@ -45,7 +45,7 @@ Run it with `cmake -P hash.cmake`. Do not edit a managed tree to update a depend
 
 Run `cmake -P cmake/LibRPAPrepareThirdparty.cmake` on a connected machine to prepare every component, or select `-DCOMPONENTS="LibRI;LibComm;cereal;greenX"`. The `LIBRPA_THIRDPARTY_DIR`, `LIBRPA_THIRDPARTY_ARCHIVE_DIR`, `LIBRPA_THIRDPARTY_DOWNLOAD` and `LIBRPA_THIRDPARTY_MIRRORS` settings also work in script mode. Copy the prepared directory to offline machines and disable downloads there.
 
-The source directory and archive directory can be separate. `LIBRPA_THIRDPARTY_ARCHIVE_DIR` uses a nonempty CMake value, then its environment variable, then `${LIBRPA_THIRDPARTY_DIR}/downloads`. Its cache default stays empty. Downloads use temporary files in that directory before renaming, so other configurations cannot read partial downloads. Shared archives are preserved when extraction or hash verification fails.
+The source directory and archive directory can be separate. `LIBRPA_THIRDPARTY_ARCHIVE_DIR` uses a nonempty CMake value, then its environment variable, then `${LIBRPA_THIRDPARTY_DIR}/downloads`. Its cache default is empty. An environment value is saved in the cache when selected. The derived downloads-directory default stays uncached. Downloads use temporary files in that directory before renaming, so other configurations cannot read partial downloads. Shared archives are preserved when extraction or hash verification fails.
 
 Whole-tree path overlays use `file(COPY)` without `FOLLOW_SYMLINK_CHAIN`. This preserves directory symbolic links on macOS and Linux. The copied tree must match the original hash before patches are applied. The user tree remains unchanged. Keep Git metadata outside a tree that should match the manifest; `.git` is not excluded from the hash.
 
@@ -115,7 +115,7 @@ Use `rpa_lib` to link a C or C++ consumer. With `LIBRPA_ENABLE_FORTRAN_BIND=ON`,
 
 ## Migration from vendored sources
 
-Existing `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR`, `CEREAL_INCLUDE_DIR` and `LIBDDLA_PATH` settings remain supported. Check both the environment and the CMake cache when changing dependency selection. An empty header-path cache value permits an environment fallback.
+Existing `LIBRI_INCLUDE_DIR`, `LIBCOMM_INCLUDE_DIR`, `CEREAL_INCLUDE_DIR` and `LIBDDLA_PATH` settings remain supported. Check both the environment and the CMake cache when changing dependency selection. When an empty path cache entry takes its value from the environment, LibRPA saves that value and reports its origin. Automatic reconfiguration then keeps the selection without the environment variable. To clear a selection, unset its environment variable and remove its cache entry with `cmake -U NAME -S . -B build`.
 
 The old `thirdparty/LibRI`, `thirdparty/LibComm`, `thirdparty/cereal`, `thirdparty/LibDDLA` and `thirdparty/greenX` source paths no longer exist. Replace scripts that copy those directories with the preparation script or explicit external paths. Do not hard-code `src/<Name>-<hash12>` paths: a manifest update changes them. Preserve symbolic links when transferring a prepared cache.
 

@@ -52,3 +52,5 @@ Update the manifest, regenerate any necessary patches, compute pristine and patc
 Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `LIBRPA_THIRDPARTY_DIR/src` directory. The supplied tree keeps its contents and permissions.
 
 Dependency include, source, installation and archive paths use `PATH` cache entries. Untyped relative `-D` values on the first configuration resolve against the CMake invocation directory. Use absolute paths for environment values and typed or later cache values. Remaining relative values are rejected.
+
+When a dependency path cache entry is empty, a selected environment path is saved in the cache and reported. A nonempty cache value takes precedence. To clear it, unset the environment variable and run `cmake -U NAME -S . -B build`. Standalone `cmake -P` preparation does not persist a cache.

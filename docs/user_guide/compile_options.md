@@ -8,7 +8,7 @@ Run the examples below from the LibRPA source directory. Use `-DNAME=value` with
 cmake -S . -B build -DLIBRPA_USE_LIBRI=ON
 ```
 
-CMake cache values persist in that build directory. Use a separate directory when changing compilers or MPI installations. To remove a path override, remove its cache entry and unset its environment variable. An empty header-path cache value still permits a nonempty environment variable to supply the path.
+CMake cache values persist in that build directory. Use a separate directory when changing compilers or MPI installations. To remove a path override, remove its cache entry and unset its environment variable. When a dependency path cache entry is empty, LibRPA imports a nonempty environment value into the cache and reports its origin. The saved path remains active on later configurations without that environment variable. A nonempty cache value takes precedence.
 
 Header include paths, compiled-dependency source and installation paths, and `LIBRPA_THIRDPARTY_ARCHIVE_DIR` use `PATH` cache entries. On the first configuration, untyped relative `-DNAME=value` paths resolve against the directory where CMake is invoked. Supply absolute paths for environment values, typed `-DNAME:PATH=value` values and later cache updates. Any remaining relative value causes an error before use. Header checks and resolution use the same path. `LIBRPA_THIRDPARTY_DIR` retains its existing relative-path behavior.
 

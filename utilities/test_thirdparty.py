@@ -368,6 +368,50 @@ endif()
                             self.assertIn(variable, output)
 
 
+    def test_environment_paths_persist_and_cache_takes_precedence(self):
+        with tempfile.TemporaryDirectory(prefix="librpa-environment-") as temporary:
+            root = Path(temporary)
+            build = root / "build"
+            project = root / "CMakeLists.txt"
+            project.write_text(f'''cmake_minimum_required(VERSION 3.18)
+project(Paths NONE)
+set(LIBRPA_THIRDPARTY_DIR "{root}/managed" CACHE PATH "")
+include("{MODULE}")
+file(WRITE "${{CMAKE_BINARY_DIR}}/resolved.txt" "")
+foreach(variable {' '.join(PATH_VARIABLES)})
+  librpa_thirdparty_path(${{variable}} resolved)
+  file(APPEND "${{CMAKE_BINARY_DIR}}/resolved.txt" "${{variable}}=${{resolved}}\n")
+endforeach()
+add_custom_target(check_paths ALL COMMAND "${{CMAKE_COMMAND}}" -E echo "Paths retained")
+''')
+            command = ["cmake", "-S", str(root), "-B", str(build)]
+            environment = fixture_environment()
+            environment.update({v: str(root / "environment" / v) for v in PATH_VARIABLES})
+            def run(arguments, env):
+                result = subprocess.run(arguments, capture_output=True, text=True, env=env)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                return result.stdout + result.stderr
+            output = run(command + [f"-D{v}:PATH=" for v in PATH_VARIABLES], environment)
+            for variable in PATH_VARIABLES:
+                self.assertIn(f"{variable}: using and caching path from environment:", output)
+                self.assertIn(f"{variable}:PATH={environment[variable]}", (build / "CMakeCache.txt").read_text())
+            saved = (build / "resolved.txt").read_text()
+            project.write_text(project.read_text() + "\n# Trigger automatic reconfiguration.\n")
+            output = run(["cmake", "--build", str(build)], fixture_environment())
+            self.assertIn("Configuring done", output)
+            self.assertEqual((build / "resolved.txt").read_text(), saved)
+            changed = dict(environment)
+            changed.update({v: str(root / "changed" / v) for v in PATH_VARIABLES})
+            output = run(command, changed)
+            self.assertNotIn("using and caching path from environment", output)
+            self.assertEqual((build / "resolved.txt").read_text(), saved)
+            run(command + [f"-D{v}:PATH={root}/override/{v}" for v in PATH_VARIABLES], environment)
+            resolved = (build / "resolved.txt").read_text()
+            for variable in PATH_VARIABLES:
+                self.assertIn(f"{variable}={root}/override/{variable}", resolved)
+            run(command + [f"-U{v}" for v in PATH_VARIABLES], fixture_environment())
+            self.assertEqual((build / "resolved.txt").read_text(), "".join(f"{v}=\n" for v in PATH_VARIABLES))
+
     def test_relative_header_path_uses_invocation_directory(self):
         with tempfile.TemporaryDirectory(prefix="librpa-headers-") as temporary:
             root = Path(temporary)

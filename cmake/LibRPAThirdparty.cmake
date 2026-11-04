@@ -13,17 +13,23 @@ set(LIBRPA_THIRDPARTY_DIR "${LIBRPA_SOURCE_DIR}/thirdparty" CACHE PATH "Shared m
 option(LIBRPA_THIRDPARTY_DOWNLOAD "Download missing third-party archives" ON)
 set(LIBRPA_THIRDPARTY_MIRRORS "" CACHE STRING "URL prefixes tried before upstream URLs")
 
-# Keep the empty cache default so changing the managed directory also changes
-# the default archive location. Do not cache environment-derived paths.
+# Preserve environment selections across automatic reconfiguration. Keep the
+# derived archive default uncached so it follows the managed directory.
 function(librpa_thirdparty_path variable out)
   set(_path "${${variable}}")
-  if("${_path}" STREQUAL "")
+  set(_from_environment FALSE)
+  if("${_path}" STREQUAL "" AND NOT "$ENV{${variable}}" STREQUAL "")
     set(_path "$ENV{${variable}}")
+    set(_from_environment TRUE)
   endif()
   if(NOT "${_path}" STREQUAL "")
     if(NOT IS_ABSOLUTE "${_path}")
       message(FATAL_ERROR "${variable}='${_path}' is relative. Supply an absolute path. Untyped -D values resolve against the CMake invocation directory; environment values must be absolute.")
     endif()
+  endif()
+  if(_from_environment)
+    set(${variable} "${_path}" CACHE PATH "Explicit third-party dependency path" FORCE)
+    message(STATUS "${variable}: using and caching path from environment: ${_path}")
   endif()
   set(${out} "${_path}" PARENT_SCOPE)
 endfunction()
