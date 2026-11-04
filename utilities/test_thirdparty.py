@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Offline integration checks for managed dependency preparation (no compilers needed)."""
+"""Offline integration checks for managed dependency preparation and include selection.
+
+The include-selection check compiles a small probe project. LibRPA itself is not built.
+"""
 import hashlib
 import os
 from pathlib import Path
@@ -708,6 +711,53 @@ endif()
                                      "-DLIBRI_INCLUDE_DIR=relative"], cwd=invocation,
                                     capture_output=True, text=True, env=fixture_environment())
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+class IncludePrecedenceTest(unittest.TestCase):
+    @unittest.skipIf(os.name == "nt", "CPATH is not used by MSVC")
+    def test_selected_header_wins_over_cpath(self):
+        with tempfile.TemporaryDirectory(prefix="librpa-include-precedence-") as temporary:
+            root = Path(temporary)
+            selected = root / "selected"
+            ambient = root / "ambient"
+            (selected / "vendor").mkdir(parents=True)
+            (ambient / "vendor").mkdir(parents=True)
+            (selected / "vendor/header.hpp").write_text("#define SELECTED_VALUE 17\n")
+            (ambient / "vendor/header.hpp").write_text("#define SELECTED_VALUE 99\n")
+            (root / "probe.cpp").write_text(
+                "#include <vendor/header.hpp>\n"
+                'static_assert(SELECTED_VALUE == 17, "ambient dependency header was selected");\n'
+                "int main() { return 0; }\n")
+            (root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
+project(IncludePrecedence CXX)
+include("{MODULE}")
+if(APPLY_FIX)
+  librpa_thirdparty_use_plain_includes()
+endif()
+add_library(Dependency::Dependency INTERFACE IMPORTED GLOBAL)
+set_target_properties(Dependency::Dependency PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES "{selected}")
+add_executable(probe probe.cpp)
+target_link_libraries(probe PRIVATE Dependency::Dependency)
+''')
+            environment = fixture_environment()
+            environment["CPATH"] = str(ambient)
+
+            def configure_and_build(apply_fix):
+                build = root / ("build-fixed" if apply_fix else "build-unfixed")
+                result = subprocess.run(
+                    ["cmake", "-S", str(root), "-B", str(build),
+                     f"-DAPPLY_FIX={'ON' if apply_fix else 'OFF'}"],
+                    capture_output=True, text=True, env=environment)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                return subprocess.run(["cmake", "--build", str(build)],
+                                      capture_output=True, text=True, env=environment)
+
+            unfixed = configure_and_build(False)
+            self.assertNotEqual(unfixed.returncode, 0)
+            self.assertIn("ambient dependency header was selected", unfixed.stdout + unfixed.stderr)
+            fixed = configure_and_build(True)
+            self.assertEqual(fixed.returncode, 0, fixed.stdout + fixed.stderr)
 
 
 class ELPABuildOptionsTest(unittest.TestCase):

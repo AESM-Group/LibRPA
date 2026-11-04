@@ -316,6 +316,15 @@ function(librpa_thirdparty_warn_installed name prefix managed_hint source_variab
   message(WARNING "${name}: using a prebuilt installation (${prefix}). Prebuilt libraries may be incompatible with the compilers and flags used for LibRPA. Prefer the managed source (${managed_hint}), then a parent-project target, then ${source_variable}.")
 endfunction()
 
+# Imported targets export their INTERFACE_INCLUDE_DIRECTORIES as SYSTEM.
+# GCC and Clang search CPATH before -isystem, so an ambient dependency can
+# override the headers selected by librpa_thirdparty_resolve_headers while the
+# configure probes, which use -I, still pass.  Preserve ordinary include
+# precedence for the LibRPA targets that compile against the selected headers.
+function(librpa_thirdparty_use_plain_includes)
+  set(CMAKE_NO_SYSTEM_FROM_IMPORTED ON PARENT_SCOPE)
+endfunction()
+
 # Resolve header-only dependencies without searching unrelated system paths.
 function(librpa_thirdparty_resolve_headers name target variable marker out status)
   if(TARGET ${target})

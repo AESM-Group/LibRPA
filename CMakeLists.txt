@@ -541,6 +541,9 @@ librpa_keep_cxx_includes_explicit(
   "${LibRI_INCLUDE_DIR}"
 )
 
+# Keep the selected dependency headers ahead of an ambient CPATH.
+librpa_thirdparty_use_plain_includes()
+
 if(LIBRPA_ENABLE_TEST)
   # FetchContent_Declare(
   #   googletest
