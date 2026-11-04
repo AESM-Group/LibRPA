@@ -71,6 +71,8 @@ add_executable(host main.cpp)
 target_link_libraries(host PRIVATE rpa_lib)
 ```
 
+Source-built greenX keeps the parent installation prefix, including the default prefix. It does not install into the managed source tree.
+
 This example assumes that `LibRPA/` and `main.cpp` are in the parent source directory. Configure the parent with its compiler, MPI and math-library settings. Ignore `dependencies/librpa/downloads/` and `dependencies/librpa/src/` in the parent's repository. An existing cache value takes precedence over these `set(... CACHE ...)` defaults.
 
 ### Header targets

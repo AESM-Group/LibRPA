@@ -89,6 +89,8 @@ else()
 endif()
 
 if(_greenx_status MATCHES "^(managed|pinned|overlay|unpinned)$")
+  # Keep the prefix selected by LibRPA or its parent project.
+  set(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT OFF)
   add_subdirectory("${_greenx_source_dir}" "${CMAKE_CURRENT_BINARY_DIR}/thirdparty/greenx-build")
   set(LIBRPA_GREENX_TARGET LibGXMiniMax)
 endif()

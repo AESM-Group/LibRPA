@@ -271,6 +271,7 @@ set_target_properties(greenX::LibGXMiniMax PROPERTIES
     def configure(self, body, success=True):
         (self.root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
 project(Resolution NONE)
+set(LIBRPA_THIRDPARTY_DIR "{self.root}/managed" CACHE PATH "")
 include("{MODULE}")
 set(CMAKE_Fortran_COMPILER_ID GNU)
 set(CMAKE_Fortran_COMPILER_VERSION 13.4.0)
@@ -283,6 +284,33 @@ message(STATUS "Summary: ${{LIBRPA_THIRDPARTY_SUMMARY}}")
         output = " ".join((result.stdout + result.stderr).split())
         self.assertEqual(result.returncode == 0, success, output)
         return output
+
+    def test_managed_source_keeps_parent_install_prefix(self):
+        source = self.root / "greenx"
+        source.mkdir()
+        (source / "CMakeLists.txt").write_text('''project(greenX NONE)
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  set(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/install" CACHE PATH "" FORCE)
+endif()
+add_library(LibGXMiniMax INTERFACE)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" DESTINATION share/greenx)
+''')
+        digest = tree_hash(source)
+        managed = self.root / f"managed/src/greenX-{digest[:12]}"
+        shutil.copytree(source, managed)
+        body = f'''librpa_thirdparty_declare(greenX VERSION 1234567 URL unused ARCHIVE unused
+  TREE_SHA256 {digest} LICENSE test)
+'''
+        self.configure(body)
+        cache = (self.root / "build/CMakeCache.txt").read_text()
+        prefix = next(line.split("=", 1)[1] for line in cache.splitlines()
+                      if line.startswith("CMAKE_INSTALL_PREFIX:"))
+        self.assertFalse(Path(prefix).is_relative_to(self.root / "managed"))
+        subprocess.run(["cmake", "--install", str(self.root / "build"),
+                        "--prefix", str(self.root / "install")], check=True, capture_output=True)
+        self.assertTrue((self.root / "install/share/greenx/CMakeLists.txt").is_file())
+        self.configure(body)
+        self.assertEqual(tree_hash(managed), digest)
 
     def test_parent_target_with_external_option_off(self):
         for target in ("LibGXMiniMax", "greenX::LibGXMiniMax"):
