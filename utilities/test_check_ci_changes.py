@@ -2,10 +2,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
+from urllib.error import URLError
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from check_ci_changes import build_required, needs_build
+from check_ci_changes import build_required, needs_build, scheduled_build_required
 
 
 class BuildPathsTest(unittest.TestCase):
@@ -86,6 +88,105 @@ class BuildDiffTest(unittest.TestCase):
 
     def test_empty_diff(self):
         self.assertFalse(self.push_build(self.base))
+
+
+class EditedPrBuildTest(unittest.TestCase):
+    def setUp(self):
+        self.event = {"action": "edited", "pull_request": {
+            "number": 92, "head": {"sha": "head"}, "body": "Tier: H",
+        }}
+        self.environ = {
+            "GITHUB_REPOSITORY": "owner/repo", "GITHUB_SHA": "merge",
+            "GITHUB_RUN_ID": "42",
+        }
+        self.run = {
+            "id": 41, "head_sha": "head", "status": "completed",
+            "conclusion": "success", "pull_requests": [],
+            "referenced_workflows": [{
+                "path": "owner/repo/.github/workflows/ci-oneapi.yml@merge",
+                "sha": "merge", "ref": "refs/pull/92/merge",
+            }],
+        }
+        self.job = {
+            "name": "oneAPI / ONEAPI", "status": "completed", "conclusion": "success",
+        }
+        self.api = Mock(side_effect=lambda path, **kwargs: (
+            {"workflow_runs": [self.run]} if "scheduler.yml" in path
+            else {"jobs": [self.job]}
+        ))
+        diff = patch("check_ci_changes.build_required", return_value=True)
+        self.diff = diff.start()
+        self.addCleanup(diff.stop)
+
+    def decision(self):
+        return scheduled_build_required(
+            self.event, environ=self.environ, get_json=self.api,
+        )
+
+    def test_description_edit_reuses_successful_build(self):
+        self.assertFalse(self.decision())
+
+    def test_tier_correction_builds_when_no_success_exists(self):
+        self.api.return_value = {"workflow_runs": []}
+        self.api.side_effect = None
+        self.assertTrue(self.decision())
+
+    def test_unsuccessful_or_skipped_job_does_not_skip_build(self):
+        for conclusion in ("skipped", "failure", "cancelled", None):
+            with self.subTest(conclusion=conclusion):
+                self.job["conclusion"] = conclusion
+                self.assertTrue(self.decision())
+
+    def test_other_job_success_does_not_skip_build(self):
+        self.job["name"] = "Checks / checks"
+        self.assertTrue(self.decision())
+
+    def test_other_head_or_current_run_does_not_skip_build(self):
+        self.run["head_sha"] = "other-head"
+        self.assertTrue(self.decision())
+        self.run["head_sha"] = "head"
+        self.run["id"] = 42
+        self.assertTrue(self.decision())
+
+    def test_changed_base_or_other_pr_does_not_skip_build(self):
+        self.environ["GITHUB_SHA"] = "new-merge"
+        self.assertTrue(self.decision())
+        self.environ["GITHUB_SHA"] = "merge"
+        self.event["pull_request"]["number"] = 93
+        self.assertTrue(self.decision())
+
+    def test_missing_workflow_revision_does_not_skip_build(self):
+        self.run["referenced_workflows"] = []
+        self.assertTrue(self.decision())
+
+    def test_api_failure_keeps_build_enabled(self):
+        self.api.side_effect = URLError("unavailable")
+        self.assertTrue(self.decision())
+
+    def test_non_edit_events_do_not_query_history(self):
+        for action in ("opened", "synchronize", "reopened"):
+            with self.subTest(action=action):
+                self.event["action"] = action
+                self.assertTrue(self.decision())
+        self.event = {"before": "old", "after": "new"}
+        self.assertTrue(self.decision())
+        self.api.assert_not_called()
+
+    def test_documentation_only_does_not_query_history(self):
+        self.diff.return_value = False
+        self.assertFalse(self.decision())
+        self.api.assert_not_called()
+
+    def test_run_and_job_pagination_finds_earlier_success(self):
+        self.api.side_effect = [
+            {"workflow_runs": [dict(self.run, id=42)] * 100},
+            {"workflow_runs": [self.run]},
+            {"jobs": [dict(self.job, name="other")] * 100},
+            {"jobs": [self.job]},
+        ]
+        self.assertFalse(self.decision())
+        self.assertIn("page=2", self.api.call_args_list[1].args[0])
+        self.assertIn("page=2", self.api.call_args_list[3].args[0])
 
 
 if __name__ == "__main__":

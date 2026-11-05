@@ -34,6 +34,9 @@ jobs:
 
   changes:
     name: Build selection
+    permissions:
+      contents: read
+      actions: read
     needs: tier
     if: >-
       ${{ !cancelled() && (needs.tier.result == 'success' ||
@@ -48,6 +51,8 @@ jobs:
           fetch-depth: 0
       - name: Check whether the changes need a build
         id: changes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python utilities/check_ci_changes.py >> "$GITHUB_OUTPUT"
 
   oneapi:

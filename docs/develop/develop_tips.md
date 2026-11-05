@@ -50,7 +50,10 @@ If Risk tier fails, Checks and CI build jobs are skipped. If Checks fails,
 CI build jobs are skipped. A push to `master` skips Risk tier because it has no
 PR description. Editing a PR description
 runs the checks again and can start the build after the tier is corrected.
-It also restarts the build if the checks already passed.
+For a description edit, Build selection reuses a successful oneAPI job from
+the same PR head and merge commit. A changed base therefore needs a new build.
+Skipped, failed, and cancelled jobs do not count as successful builds. If the
+Actions API cannot verify an earlier success, the build runs again.
 
 CI build jobs are skipped when a change has only these files:
 
