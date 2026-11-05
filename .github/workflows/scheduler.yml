@@ -1,0 +1,60 @@
+name: CI
+
+# Schedule checks and build jobs in dependency order.
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+# Cancel a pull request run when a new commit arrives. On master, a run that
+# started does not stop, and the next run waits in a queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  tier:
+    name: Risk tier
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/risk-tier.yml
+
+  checks:
+    name: Checks
+    needs: tier
+    # A push has no PR description, so a skipped tier permits the next jobs.
+    if: >-
+      ${{ !cancelled() && (needs.tier.result == 'success' ||
+          (github.event_name == 'push' && needs.tier.result == 'skipped')) }}
+    uses: ./.github/workflows/checks.yml
+
+  changes:
+    name: Build selection
+    needs: tier
+    if: >-
+      ${{ !cancelled() && (needs.tier.result == 'success' ||
+          (github.event_name == 'push' && needs.tier.result == 'skipped')) }}
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.changes.outputs.build }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check whether the changes need a build
+        id: changes
+        run: python utilities/check_ci_changes.py >> "$GITHUB_OUTPUT"
+
+  oneapi:
+    name: oneAPI
+    needs: [checks, changes]
+    # Override the implicit success() because tier is skipped on push.
+    if: >-
+      ${{ !cancelled() && needs.checks.result == 'success' &&
+          needs.changes.result == 'success' && needs.changes.outputs.build == 'true' }}
+    uses: ./.github/workflows/ci-oneapi.yml
