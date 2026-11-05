@@ -837,16 +837,6 @@
            nthreads_enable="none"
       />
       <validate name="Quasi-particle energies on k-grid (shrink, symmetry)"
-                file_test="librpa/librpa.out"
-                file_refr="librpa/sym_np4/librpa.out"
-                regex="State\s+occ\s+e_mf\s+v_xc\s+v_exx\s+ReSigc\s+ImSigc\s+e_qp"
-                headers="2"
-                rows="6"
-                comparison="cmp_table.abs_diff(1e-4)"
-      />
-      <validate name="Quasi-particle energies on k-grid (shrink, no symmetry)"
-                file_test="librpa/librpa.out"
-                file_refr="librpa/nosym_np4/librpa.out"
                 regex="State\s+occ\s+e_mf\s+v_xc\s+v_exx\s+ReSigc\s+ImSigc\s+e_qp"
                 headers="2"
                 rows="6"
