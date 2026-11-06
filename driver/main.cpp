@@ -341,10 +341,14 @@ int main(int argc, char **argv)
             }
             double freemem;
             auto flag = get_node_free_mem(freemem);
+            // All node leaders must reach the collective print, whatever flag is on each node
+            char msg_freemem[64] = "";
             if (flag == 0)
             {
-                lib_printf("Free memory on node %5d [GB]: %8.3f\n", mpi_comm_inter_h.myid, freemem);
+                std::snprintf(msg_freemem, sizeof(msg_freemem), "Free memory on node %5d [GB]: %8.3f\n",
+                              mpi_comm_inter_h.myid, freemem);
             }
+            printf_comm_coll(mpi_comm_inter_h, "%s", msg_freemem);
         }
         lib_printf_root("Common data parsed, task %s will begin\n", driver_params.task.c_str());
         lib_printf_root("%s: %s\n", driver_params.task.c_str(), get_task_string(task).c_str());

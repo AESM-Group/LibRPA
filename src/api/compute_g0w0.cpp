@@ -919,8 +919,9 @@ void librpa_int::api::build_gw_sigma_for_task(
         {
             profiler.start("g0w0_restore_compressed_full_q",
                            "Restore compressed Wc to full q grid");
-            lib_printf("Restoring compressed Wc from %zu representatives to %zu full q points\n",
-                       chi0.active_qpoints().size(), pds->pbc.klist.size());
+            printf_comm_root(pds->comm_h,
+                             "Restoring compressed Wc from %zu representatives to %zu full q points\n",
+                             chi0.active_qpoints().size(), pds->pbc.klist.size());
             for (auto &freq_q : Wc_freq_q)
                 freq_q.second = restore_symmetry_dense_wq_map(
                     freq_q.second, pds->pbc, chi0.qpoint_view(), pds->symmetry_context,

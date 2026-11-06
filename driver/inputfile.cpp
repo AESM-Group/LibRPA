@@ -206,20 +206,20 @@ static void parse_crpa_parameters(const InputParser &parser, driver::DriverParam
     parse_qsgw_double(parser, "crpa_pdos_max_ev", params.crpa_pdos_max_ev);
     parse_qsgw_double(parser, "crpa_pdos_step_ev", params.crpa_pdos_step_ev);
     parse_qsgw_double(parser, "crpa_pdos_sigma_ev", params.crpa_pdos_sigma_ev);
-    for (auto item :
-         {std::pair<const char *, std::string *>{"crpa_overlap_file", &params.crpa_overlap_file},
-          {"crpa_species_labels", &params.crpa_species_labels},
-          {"crpa_correlated_species", &params.crpa_correlated_species},
-          {"crpa_ligand_species", &params.crpa_ligand_species},
-          {"crpa_parent_orbitals", &params.crpa_parent_orbitals},
-          {"crpa_output_orbitals", &params.crpa_output_orbitals},
-          {"crpa_response_mode", &params.crpa_response_mode},
-          {"crpa_output_format", &params.crpa_output_format}})
+    for (auto item : std::initializer_list<std::pair<const char *, std::string *>>{
+             {"crpa_overlap_file", &params.crpa_overlap_file},
+             {"crpa_species_labels", &params.crpa_species_labels},
+             {"crpa_correlated_species", &params.crpa_correlated_species},
+             {"crpa_ligand_species", &params.crpa_ligand_species},
+             {"crpa_parent_orbitals", &params.crpa_parent_orbitals},
+             {"crpa_output_orbitals", &params.crpa_output_orbitals},
+             {"crpa_response_mode", &params.crpa_response_mode},
+             {"crpa_output_format", &params.crpa_output_format}})
         get_last_assigned_value(parser, item.first, *item.second);
-    for (auto item : {std::pair<const char *, std::vector<double> *>{
-                          "crpa_response_windows_ha", &params.crpa_response_windows_ha},
-                      {"crpa_orbital_windows_ha", &params.crpa_orbital_windows_ha},
-                      {"crpa_real_frequencies_ev", &params.crpa_real_frequencies_ev}})
+    for (auto item : std::initializer_list<std::pair<const char *, std::vector<double> *>>{
+             {"crpa_response_windows_ha", &params.crpa_response_windows_ha},
+             {"crpa_orbital_windows_ha", &params.crpa_orbital_windows_ha},
+             {"crpa_real_frequencies_ev", &params.crpa_real_frequencies_ev}})
     {
         std::string text;
         if (!get_last_assigned_value(parser, item.first, text)) continue;
@@ -233,9 +233,9 @@ static void parse_crpa_parameters(const InputParser &parser, driver::DriverParam
         if (!stream.eof())
             throw std::runtime_error(std::string(item.first) + " contains an invalid number");
     }
-    for (auto item : {std::pair<const char *, std::vector<int> *>{"crpa_response_bands",
-                                                                  &params.crpa_response_bands},
-                      {"crpa_orbital_bands", &params.crpa_orbital_bands}})
+    for (auto item : std::initializer_list<std::pair<const char *, std::vector<int> *>>{
+             {"crpa_response_bands", &params.crpa_response_bands},
+             {"crpa_orbital_bands", &params.crpa_orbital_bands}})
     {
         std::string text;
         if (!get_last_assigned_value(parser, item.first, text)) continue;

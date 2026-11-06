@@ -754,8 +754,8 @@ void Exx::build(const LibrpaParallelRouting routing,
         && !symmetry_ctx.spin_operations.empty();
     if (use_symmetry_exx)
     {
-        global::lib_printf(
-            "Reducing EXX real-space contractions with irreducible sectors\n");
+        printf_comm_root(
+            comm_h, "Reducing EXX real-space contractions with irreducible sectors\n");
         exx_libri.set_symmetry(false, {});
         exx_libri_cplx.set_symmetry(false, {});
         if (use_complex_exx_r)
@@ -828,7 +828,8 @@ void Exx::build(const LibrpaParallelRouting routing,
             coul_mat, symmetry_ctx, Rlist.size());
     if (use_input_exx_coulomb_restore)
     {
-        global::lib_printf(
+        printf_comm_root(
+            comm_h,
             "Restoring EXX auxiliary Coulomb blocks from the irreducible sector to the full real-space sector before LibRI contraction\n");
         for (const auto& I_JRV : coul_mat)
         {
@@ -1006,7 +1007,7 @@ void Exx::build(const LibrpaParallelRouting routing,
     release_free_mem();
     global::profiler.stop("build_real_space_exx_2_2");
     global::profiler.stop("build_real_space_exx_2");
-    global::lib_printf("Task %4d: V setup for EXX\n", comm_h.myid);
+    printf_comm_coll(comm_h, "Task %4d: V setup for EXX\n", comm_h.myid);
     // cout << V_libri << endl;
 
     // initialize density matrix
@@ -1082,7 +1083,7 @@ void Exx::build(const LibrpaParallelRouting routing,
                 // exx_libri.set_Ds({}, libri_threshold_D);
                 global::profiler.stop("build_real_space_exx_libri_set_Ds");
                 global::profiler.stop("build_real_space_exx_3");
-                global::lib_printf("Task %4d: DM setup for EXX\n", comm_h.myid);
+                printf_comm_coll(comm_h, "Task %4d: DM setup for EXX\n", comm_h.myid);
 
                 global::profiler.start("build_real_space_exx_4", "Call libRI Hexx calculation");
                 if (use_complex_exx_r)
@@ -1092,8 +1093,8 @@ void Exx::build(const LibrpaParallelRouting routing,
                 global::profiler.stop("build_real_space_exx_4");
                 release_free_mem();
 
-                global::lib_printf(
-                    "Task %4d: cal_Hs elapsed time: %f\n", comm_h.myid,
+                printf_comm_coll(
+                    comm_h, "Task %4d: cal_Hs elapsed time: %f\n", comm_h.myid,
                     global::profiler.get_wall_time_last("build_real_space_exx_4"));
                 // print_keys(global::ofs_myid, exx_libri.Hs);
                 // ofs_myid << "exx_libri.Hs:\n" << exx_libri.Hs << endl;
@@ -1129,7 +1130,8 @@ void Exx::build(const LibrpaParallelRouting routing,
                                      << get_num_keys(Hs) << std::endl;
                     if (use_symmetry_exx)
                     {
-                        global::lib_printf(
+                        printf_comm_root(
+                            comm_h,
                             "Restoring the symmetry-filtered LibRI EXX blocks to the full AO real-space sector\n");
                     }
                     for (const auto &I_JR_exx : Hs)
@@ -1210,7 +1212,8 @@ void Exx::build(const LibrpaParallelRouting routing,
         }
         if (defer_spinor_exx_restore)
         {
-            global::lib_printf(
+            printf_comm_root(
+                comm_h,
                 "Restoring the four spinor EXX channels jointly from the irreducible sector\n");
             std::array<symmetry_rspace_block_map_t, 4> blocks_ir;
             for (std::size_t channel = 0; channel != 4; ++channel)
@@ -1561,8 +1564,8 @@ void Exx::build_KS_blacs(const std::map<int, std::map<int, std::map<int, Complex
         is_rspace_redist_for_KS_ = true;
         is_rspace_redist_blacs_ = true;
         global::profiler.stop("exx_build_KS_blacs_redist");
-        global::lib_printf("Task %4d: tensor communicate elapsed time: %f\n", comm_h.myid,
-                           global::profiler.get_wall_time_last("exx_build_KS_blacs_redist"));
+        printf_comm_coll(comm_h, "Task %4d: tensor communicate elapsed time: %f\n", comm_h.myid,
+                         global::profiler.get_wall_time_last("exx_build_KS_blacs_redist"));
     }
     else if (!use_klocal_rotation)
     {
