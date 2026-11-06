@@ -212,6 +212,23 @@ const SymmetryKStar& find_symmetry_kstar_for_kpoint(const std::vector<SymmetryKS
 const SymmetryKStar& find_symmetry_kstar_for_ibz_kpoint(const SymmetryContext& ctx,
                                                     const Vector3_Order<double>& k_ibz);
 
+/*!
+ * @brief Which k-point form a reader supplied, decided from exact list lengths.
+ *
+ * A reader either hands over one k-point per k-star (a symmetry-reduced list) or
+ * every k-point of the Born-von Karman cell.  The two forms are told apart by
+ * exact length matching, not by an inequality: a list that matches neither count
+ * is reported instead of being treated as the nearer of the two.
+ */
+enum class KPointInputForm
+{
+    Reduced,       //!< one k-point per k-star
+    FullGrid,      //!< every k-point of the Born-von Karman cell
+};
+
+KPointInputForm classify_kpoint_input_form(const SymmetryContext& ctx,
+                                           const PeriodicBoundaryData& pbc);
+
 symmetry_kstar_representative_indices_t build_symmetry_full_grid_kstar_representative_indices(
     const SymmetryContext& ctx,
     const std::vector<Vector3_Order<double>>& kfrac_list);
