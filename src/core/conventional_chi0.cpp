@@ -361,38 +361,30 @@ void Chi0::build_chi0_q_conventional(LibrpaParallelRouting routing, const Cs_LRI
     const auto cs = collect_cs(comm_h, Cs, needed_atoms, atbasis_wfc, atbasis_abf);
     if (comm_h.is_root()) global::lib_printf("Build chi0 by direct k-space band summation\n");
 
-    // Process one k, one q and one initial band at a time. Only pairs with
-    // different weights enter the products, which removes the
-    // unoccupied-unoccupied block.
+    // Process one q and one initial band at a time. Only pairs with different
+    // weights enter the products, which removes the unoccupied-unoccupied block.
     const std::size_t nw = frequencies.size();
-    const std::size_t n_local_q = local_iqs.size();
     std::vector<double> odd_max(qpoints.size(), 0.0), even_max(qpoints.size(), 0.0);
     error.clear();
-    // The Im part of the response is accumulated at the first frequency only.
-    std::vector<atom_mapping<ComplexMatrix>::pair_t_old> odd(n_local_q);
-    for (std::size_t i = 0; i < n_local_q; ++i)
+    for (const int iq : local_iqs)
     {
-        for (const auto &[I, J] : pairs) odd[i][I][J].create(atbasis_abf[I], atbasis_abf[J]);
+        const auto &q = qpoints[iq];
+        // The Im part of the response is accumulated at the first frequency only.
+        atom_mapping<ComplexMatrix>::pair_t_old odd;
+        for (const auto &[I, J] : pairs) odd[I][J].create(atbasis_abf[I], atbasis_abf[J]);
         // A rank without atom pairs must keep chi0_q empty for the energy routines.
         if (!pairs.empty())
             for (const double omega : frequencies)
             {
-                auto &blocks = chi0_q[omega][qpoints[local_iqs[i]]];
+                auto &blocks = chi0_q[omega][q];
                 for (const auto &[I, J] : pairs)
                     blocks[I][J].create(atbasis_abf[I], atbasis_abf[J]);
             }
-    }
-    for (int k = 0; k < nk; ++k)
-    {
-        // The transforms are made only when a transition needs them. The one
-        // at -k serves all q.
-        std::optional<FourierCs> reverse;
-        for (std::size_t i = 0; i < n_local_q; ++i)
+        for (int k = 0; k < nk; ++k)
         {
-            const int iq = local_iqs[i];
-            const auto &q = qpoints[iq];
             const int kq = kq_indices[iq][k];
-            std::optional<FourierCs> forward;
+            // The transforms are made only when a transition needs them.
+            std::optional<FourierCs> forward, reverse;
             for (int s = 0; s < mf.get_n_spins(); ++s)
             {
                 const auto &left = wfc.at(s).at(0).at(k);
@@ -406,10 +398,11 @@ void Chi0::build_chi0_q_conventional(LibrpaParallelRouting routing, const Cs_LRI
                             weights[s](k, n) != weights[s](kq, m))
                             final_bands.push_back(m);
                     if (final_bands.empty()) continue;
-                    if (!reverse)
-                        reverse = fourier_cs(cs, atbasis_wfc, atbasis_abf, pbc, -pbc.klist[k]);
                     if (!forward)
+                    {
                         forward = fourier_cs(cs, atbasis_wfc, atbasis_abf, pbc, pbc.klist[kq]);
+                        reverse = fourier_cs(cs, atbasis_wfc, atbasis_abf, pbc, -pbc.klist[k]);
+                    }
 
                     const int n_final = static_cast<int>(final_bands.size());
                     ComplexMatrix right_transpose(right.nc, n_final);
@@ -448,16 +441,11 @@ void Chi0::build_chi0_q_conventional(LibrpaParallelRouting routing, const Cs_LRI
                         for (int mu = 0; mu < vertex.nr; ++mu)
                             for (int im = 0; im < n_final; ++im)
                                 scaled(mu, im) = vertex(mu, im) * factors[im].imag();
-                        odd[i][I][J] += scaled * dagger;
+                        odd[I][J] += scaled * dagger;
                     }
                 }
             }
         }
-    }
-    for (std::size_t i = 0; i < n_local_q; ++i)
-    {
-        const int iq = local_iqs[i];
-        const auto &q = qpoints[iq];
         for (const auto &[I, J] : pairs)
         {
             for (const double omega : frequencies)
@@ -468,7 +456,7 @@ void Chi0::build_chi0_q_conventional(LibrpaParallelRouting routing, const Cs_LRI
                         error = "Conventional chi0: non-finite response matrix";
             }
             const auto &even = chi0_q[frequencies[0]][q][I][J];
-            const auto &part = odd[i][I][J];
+            const auto &part = odd[I][J];
             for (int j = 0; j < part.size; ++j)
             {
                 if (!std::isfinite(std::abs(part.c[j])))
