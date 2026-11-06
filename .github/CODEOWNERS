@@ -16,7 +16,6 @@
 /CMakeLists.txt         @minyez @userchba
 /src/CMakeLists.txt     @minyez @userchba
 /cmake/                 @minyez @userchba
-/cmake.inc              @minyez @userchba
 /.gitmodules            @minyez @userchba
 /thirdparty/            @minyez @userchba
 

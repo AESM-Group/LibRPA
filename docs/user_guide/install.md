@@ -118,6 +118,34 @@ For a complete list of compile options, please refer to the
 
 ## Troubleshooting
 
+### Migration from `cmake.inc`
+
+LibRPA no longer loads `cmake.inc`. Setting `LIBRPA_USE_CMAKE_INC=ON`
+stops configuration and prints migration instructions.
+
+Move your compiler settings, flags, and library settings to an initial cache
+file, using `set(... CACHE <type> <description>)` for each entry:
+
+```cmake
+set(CMAKE_CXX_COMPILER "mpicxx" CACHE FILEPATH "C++ compiler")
+set(CMAKE_Fortran_COMPILER "mpifort" CACHE FILEPATH "Fortran compiler")
+set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type")
+set(SCALAPACK_DIR "/path/to/scalapack" CACHE PATH "ScaLAPACK installation")
+```
+
+Load this file with CMake's `-C` option:
+
+```bash
+cmake -B build -C initial-cache.cmake
+
+# Remove the old option when reusing an existing build directory.
+cmake -B build -C initial-cache.cmake -U LIBRPA_USE_CMAKE_INC
+```
+
+The `-U` argument clears the old option from the cache. You can leave an
+existing `LIBRPA_USE_CMAKE_INC=OFF` entry in place.
+Use a new build directory if you change compilers.
+
 ### `std::filesystem` link errors with Intel compilers
 
 When building LibRPA with Intel compilers, the final link step may fail with errors similar to
