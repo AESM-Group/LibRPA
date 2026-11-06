@@ -2546,7 +2546,7 @@ compute_Wc_freq_q(
         }
 
         // truncated (cutoff) Coulomb
-        Matz Vqcut_all(range_all, range_all);
+        Matz Vqcut_all(range_all, range_all, MAJOR::COL);
         for (auto &Mu_NuqVq : coulmat_wc)
         {
             auto Mu = Mu_NuqVq.first;

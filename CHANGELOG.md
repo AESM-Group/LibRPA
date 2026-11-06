@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed mixed matrix layouts in the dense LAPACK screened-interaction path (`use_scalapack_gw_wc = false`), present in v0.5.0 through v0.9.0. The mismatch caused an assertion failure and could give incorrect complex screened interactions when assertions were disabled. The numerical error depends on the input ([#66](https://github.com/AESM-Group/LibRPA/issues/66)).
+
 ## [0.9.0] - 2026-10-31
 
 ### Breaking changes
