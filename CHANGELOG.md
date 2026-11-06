@@ -14,6 +14,9 @@
   `minimax`.
 - Rejected frequency-only grids and `chi0_method = conventional` at the start
   of GW and cRPA calculations.
+- Stopped RPA energy calculations at the start in builds without LibRI when
+  `use_scalapack_ecrpa = true` with the `atompair` or `libri` routing. They
+  previously stopped after the response was built.
 
 ### Fixed
 

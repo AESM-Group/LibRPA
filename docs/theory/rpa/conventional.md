@@ -70,10 +70,17 @@ Pairs with $w_{sn\mathbf{k}}=w_{sm,\mathbf{k}+\mathbf{q}}$ make no contribution
 and are skipped. For an insulator, the cost of the response then scales as
 $N_q N_k N_s N_{\rm occ} N_{\rm unocc} N_{\rm aux}^2 N_\omega$.
 
-The code processes one q point and one initial band at a time, and keeps only
-the transition densities of the current band. Each rank collects the RI
-coefficients of the atoms in its blocks with MPI. A block held on several ranks
-is used once.
+The Fourier transform of the RI coefficients to $\mathbf{k}+\mathbf{q}$ and to
+$-\mathbf{k}$ adds a term that does not depend on the bands. It is one pass over
+the local RI coefficients for each pair of k and q points, and one for each k
+point. The code makes a transform only when a transition needs it.
+
+The code processes one k point, one q point and one initial band at a time, and
+keeps only the transition densities of the current band and the two transformed
+RI coefficients. Each rank holds the response of its atom blocks at all of its q
+points and frequencies, as in the space-time method, and the imaginary part at
+the first frequency. Each rank collects the RI coefficients of the atoms in its
+blocks with MPI. A block held on several ranks is used once.
 
 With the `atompair` and `libri` routings, MPI ranks share the upper-triangular
 auxiliary atom blocks, and each rank loops over all q points, k points and bands.

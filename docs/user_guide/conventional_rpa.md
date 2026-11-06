@@ -55,7 +55,7 @@ The method works with all `parallel_routing` values, and with builds without
 LibRI. With `atompair` and `libri`, MPI ranks share the atom pairs. With `rtau`,
 they share the q points. In a build without LibRI, set
 `use_scalapack_ecrpa = false` with `atompair`, because the ScaLAPACK energy
-routine needs LibRI.
+routine needs LibRI. Otherwise the calculation stops at the start.
 
 ## Requirements
 
