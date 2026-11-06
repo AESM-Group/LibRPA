@@ -1042,8 +1042,8 @@ void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
                                                atpairs_gf.size() * Rlist_gf.size());
             this->IJRs_gf_local = librpa_int::dispatch_vector_prod(
                 atpairs_gf, Rlist_gf, comm_h.myid, comm_h.nprocs, true, true);
-            global::lib_printf("| Number of GFs IJR on Proc %4d: %zu\n", comm_h.myid,
-                                           this->IJRs_gf_local.size());
+            printf_comm_coll(comm_h, "| Number of GFs IJR on Proc %4d: %zu\n", comm_h.myid,
+                             this->IJRs_gf_local.size());
         }
         else
         {
@@ -3009,7 +3009,7 @@ void Chi0::build_chi0_q_space_time_atom_pair_routing(const Cs_LRI &Cs,
 
     profiler.start("atom_pair_routing", "Loop over atom pairs");
     //auto tot_pair = dispatch_vector(atpairs_ABF, librpa_int::mpi_comm_global_h.myid, para_mpi.get_size(), false);
-    lib_printf("Number of atom pairs on Proc %4d: %zu\n", comm_h.myid, atpairs_ABF.size());
+    printf_comm_coll(comm_h, "Number of atom pairs on Proc %4d: %zu\n", comm_h.myid, atpairs_ABF.size());
     comm_h.barrier();
     omp_lock_t chi0_lock;
     omp_init_lock(&chi0_lock);

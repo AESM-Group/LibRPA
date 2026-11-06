@@ -1413,7 +1413,7 @@ size_t read_Vq_row(ReaderContext &ctx, const string &dir_path, const string &vq_
                                std::to_string(reader_version));
     }
 
-    if (should_output()) cout << "Begin READ_Vq_Row" << endl;
+    if (ctx.comm.is_root() && should_output()) cout << "Begin READ_Vq_Row" << endl;
     const auto &basis_aux = target_coulomb_basis(ctx, use_shrink_basis);
     std::set<int> local_I_set;
     for(auto &lap:local_atpair)

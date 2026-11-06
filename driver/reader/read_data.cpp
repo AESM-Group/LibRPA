@@ -1089,7 +1089,8 @@ void read_velocity_abacus(ReaderContext &ctx, const MeanField &mf, const string 
         });
         if (file != files.end())
         {
-            std::cout << "* Read ABACUS velocity file: " << *file << std::endl;
+            if (ctx.comm.is_root())
+                std::cout << "* Read ABACUS velocity file: " << *file << std::endl;
             read_velocity(ctx, *file, mf, velocity);
             return;
         }
