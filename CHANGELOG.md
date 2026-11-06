@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Breaking changes
+
+- Removed automatic loading of `cmake.inc` and the `LIBRPA_USE_CMAKE_INC` build option. Use CMake `-C` initial cache files or `-D` arguments instead ([#85](https://github.com/AESM-Group/LibRPA/issues/85)).
+
 ## [0.9.0] - 2026-10-31
 
 ### Breaking changes

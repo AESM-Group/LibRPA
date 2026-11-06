@@ -8,7 +8,6 @@
 | [`LIBRPA_USE_LIBRI_GPU`](#librpa-use-libri-gpu)             | bool              | `OFF`      |
 | [`LIBRPA_USE_CUDA`](#librpa-use-cuda)                       | bool              | `OFF`      |
 | [`LIBRPA_USE_HIP`](#librpa-use-hip)                         | bool              | `OFF`      |
-| [`LIBRPA_USE_CMAKE_INC`](#librpa-use-cmake-inc)             | bool              | `OFF`      |
 | [`LIBRPA_USE_EXTERNAL_GREENX`](#librpa-use-external-greenx) | bool              | `OFF`      |
 | [`LIBRPA_ENABLE_FORTRAN_BIND`](#librpa-enable-fortran-bind) | bool              | `OFF`      |
 | [`LIBRPA_FORTRAN_DP`](#librpa-fortran-dp)                   | string or integer | `c_double` |
@@ -238,13 +237,6 @@ Example:
 cmake -DLIBRPA_USE_BUNDLED_ELPA=ON \
       -DLIBRPA_BUNDLED_ELPA_LIBS="-L/path/to/lib -lscalapack -llapack -lblas"
 ```
-
-(librpa-use-cmake-inc)=
-## `LIBRPA_USE_CMAKE_INC`
-
-When enabled, the `cmake.inc` file is used to initialize compilers and other build options.
-
-**Deprecated**. It is recommended to use standard CMake command-line options such as `-C` or `-D` to specify custom variables.
 
 (librpa-use-external-greenx)=
 ## `LIBRPA_USE_EXTERNAL_GREENX`
