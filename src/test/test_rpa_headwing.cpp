@@ -4690,6 +4690,55 @@ void test_wq_to_wr_full_grid_k_input_restores_from_ibz_stars()
     }
 }
 
+void test_wq_to_wr_full_grid_k_input_rejects_unresolved_representatives()
+{
+    // A full-BZ k list whose k-stars cannot be folded onto distinct
+    // representative k-points must be reported, not silently treated as a
+    // reduced input.  Falling through would walk the grid mapping once per
+    // member k-point and repeat every star, inflating W(R) without a warning.
+    const auto pbc_full = make_wq_full_pbc();
+    auto ctx = make_two_atom_inversion_context(pbc_full);
+    assert(ctx.kstars.size() < pbc_full.kfrac_list.size());
+
+    // Collapse every star onto the same representative k-point so the shared
+    // builder cannot resolve a distinct index per star and returns an empty list.
+    for (auto& star : ctx.kstars)
+    {
+        star.k_ibz = pbc_full.kfrac_list.at(0);
+    }
+    assert(librpa_int::build_symmetry_full_grid_kstar_representative_indices(
+               ctx, pbc_full.kfrac_list)
+               .empty());
+
+    AtomicBasis basis_abf(std::vector<std::size_t>{1, 1});
+    basis_abf.set_l_shells({{0}, {0}});
+
+    atom_mapping<std::map<Vector3_Order<double>, matrix_m<std::complex<double>>>>::pair_t_old
+        wq_ibz;
+    if (librpa_int::global::mpi_comm_global_h.is_root())
+    {
+        add_scalar_wq_blocks(wq_ibz, pbc_full.klist.at(0),
+                             scalar_wq_to_blocks({{0, {{0, {1.5, 0.0}}}},
+                                                  {1, {{1, {1.5, 0.0}}}}}));
+    }
+
+    const TFGrids dummy_tfg;
+    bool raised = false;
+    std::string message;
+    try
+    {
+        librpa_int::FT_Wc_q2R(librpa_int::global::mpi_comm_global_h, basis_abf, ctx, wq_ibz,
+                              dummy_tfg, pbc_full, pbc_full.Rlist, false, "", true);
+    }
+    catch (const std::exception& ex)
+    {
+        raised = true;
+        message = ex.what();
+    }
+    assert(raised);
+    assert(message.find("no usable k-star representatives") != std::string::npos);
+}
+
 void test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(const BlacsCtxtHandler &blacs_h)
 {
     const auto pbc_full = make_wq_full_pbc();
@@ -5034,6 +5083,7 @@ int main(int argc, char *argv[])
         test_wq_to_wr_symmetry_reduced_q_matches_full_bz();
         test_wq_to_wr_symmetry_collective_handles_empty_local_rank();
         test_wq_to_wr_full_grid_k_input_restores_from_ibz_stars();
+        test_wq_to_wr_full_grid_k_input_rejects_unresolved_representatives();
         test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(blacs_h);
         test_gamma_only_dense_wq_fourier_weight_scales_as_inverse_bvk_cells();
         test_abf_space_wing_rewrite_matches_coulomb_basis(blacs_h);
