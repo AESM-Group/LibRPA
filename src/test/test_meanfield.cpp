@@ -947,8 +947,12 @@ void test_gf_band_mask()
     }
     const std::vector<Vector3_Order<double>> ks{{0, 0, 0}};
     const std::vector<Vector3_Order<int>> Rs{{0, 0, 0}};
-    for (const std::vector<bool> &mask : {std::vector<bool>{}, {true, false, false}, {false, true, true},
-                                         {false, true, false}, {false, false, false}})
+    for (const std::vector<bool> &mask :
+         std::initializer_list<std::vector<bool>>{{},
+                                                  {true, false, false},
+                                                  {false, true, true},
+                                                  {false, true, false},
+                                                  {false, false, false}})
         for (double tau : {-0.5, 0.5})
         {
             const auto single = mf.get_gf_cplx_imagtime(0, 0, 0, 0, tau, mask);
