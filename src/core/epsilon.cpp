@@ -569,9 +569,8 @@ static bool can_use_symmetry_qstar_wr_restore(
     {
         return ctx.kstar_grid_mapping.size() == pbc.kfrac_list.size();
     }
-    return ctx.kstars.size() == pbc.kfrac_list.size()
-           && ctx.kstar_grid_mapping.size() == ctx.kstars.size()
-           && pbc.klist.size() < static_cast<std::size_t>(pbc.get_n_cells_bvk());
+    // The reduced form already guarantees one k-point per k-star.
+    return ctx.kstar_grid_mapping.size() == ctx.kstars.size();
 }
 
 /// @brief Select the grid-mapping entry that carries each k-star's representative q-point.
