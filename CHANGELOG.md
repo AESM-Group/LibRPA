@@ -56,6 +56,7 @@
 
 ### Fixed
 
+- Fixed mixed matrix layouts in the dense LAPACK screened-interaction path (`use_scalapack_gw_wc = false`), present in v0.5.0 through v0.9.0. The mismatch caused an assertion failure and could give incorrect complex screened interactions when assertions were disabled. The numerical error depends on the input ([#66](https://github.com/AESM-Group/LibRPA/issues/66)).
 - Ignored Git metadata (`.git` file or directory) at the root of a user-supplied source path when computing third-party tree hashes. A submodule or clone at the pinned commit now has status `pinned` and not `unpinned`. Overlay copies leave out the root `.git`, so patching works for a submodule.
 - Detected parent greenX targets automatically, avoiding duplicate targets.
 - Corrected the LibDDLA revision in the license list to `0d576d4`.
