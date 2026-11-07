@@ -565,12 +565,10 @@ static bool can_use_symmetry_qstar_wr_restore(
     {
         return false;
     }
-    if (symmetry_qstar_wr_uses_full_grid_kpoints(ctx, pbc))
-    {
-        return ctx.kstar_grid_mapping.size() == pbc.kfrac_list.size();
-    }
-    // The reduced form already guarantees one k-point per k-star.
-    return ctx.kstar_grid_mapping.size() == ctx.kstars.size();
+    // `generate_kstar_grid_mapping` sizes the mapping to this k list and throws
+    // when a k-star is unmatched, so this single invariant states that the
+    // mapping belongs to the k list the caller passed.
+    return ctx.kstar_grid_mapping.size() == pbc.kfrac_list.size();
 }
 
 /// @brief Select the grid-mapping entry that carries each k-star's representative q-point.
@@ -717,6 +715,7 @@ static abf_rspace_complex_block_map_t accumulate_symmetry_full_wr_from_ibz_q(
             "K-star grid mapping does not provide one representative per k-star");
     }
 
+    std::size_t stars_without_blocks = 0;
     for (const auto* star_entry : star_entries)
     {
         const auto& star_mapping = *star_entry;
@@ -728,8 +727,19 @@ static abf_rspace_complex_block_map_t accumulate_symmetry_full_wr_from_ibz_q(
             collect_symmetry_abf_ibz_blocks_for_q(Wc_q, q_ibz_internal);
         auto blocks_ibz =
             gather_symmetry_ibz_blocks_collective(comm_h, blocks_ibz_local, atom_nabf);
-        if (local_target_pairs.empty() || blocks_ibz.empty())
+        if (blocks_ibz.empty())
         {
+            // `blocks_ibz` is identical on every rank after the collective
+            // gather, so this count is rank-independent. A star whose
+            // representative carries no Wc(q) block is dropped from `W(R)`
+            // without any other sign, which is what this count exposes.
+            ++stars_without_blocks;
+            continue;
+        }
+        if (local_target_pairs.empty())
+        {
+            // This rank owns no target atom pairs, so the star contributes
+            // nothing here; other ranks still accumulate it.
             continue;
         }
         const auto rotation_atom_pairs =
@@ -787,12 +797,12 @@ static abf_rspace_complex_block_map_t accumulate_symmetry_full_wr_from_ibz_q(
         }
     }
 
-    if (star_entries.size() == ctx.kstars.size()
-        && ctx.kstar_grid_mapping.size() != ctx.kstars.size())
+    if (stars_without_blocks != 0)
     {
         librpa_int::global::lib_printf_root(
-            "Full-BZ k-star restore matched %zu / %zu representative q-points\n",
-            star_entries.size(), ctx.kstars.size());
+            "K-star restore skipped %zu of %zu k-stars because their representative q-point "
+            "carries no Wc(q) block; `W(R)` lacks their screening\n",
+            stars_without_blocks, ctx.kstars.size());
     }
 
     return convert_dense_rspace_blocks_to_row_major(blocks_by_R_full);
