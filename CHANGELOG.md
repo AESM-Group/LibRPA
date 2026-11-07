@@ -22,6 +22,11 @@
 
 - Fixed the `map::at` failure of RPA energies with `parallel_routing = rtau` for
   more than one q point on more than one MPI rank.
+- Restored the full-BZ `W(R)` reconstruction for the auxiliary-basis shrink
+  path when the k list holds every Brillouin-zone member, which is how the
+  FHI-aims reader exports its SCF k-points. Both k-point forms, the reduced
+  (IBZ) list and the full-Brillouin-zone list, are now accepted and reach the
+  same accumulation.
 
 ## [0.9.0] - 2026-10-31
 

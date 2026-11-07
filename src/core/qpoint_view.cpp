@@ -54,14 +54,20 @@ SymmetryQPointView build_symmetry_qpoint_view(const SymmetryContext& ctx,
                                               const PeriodicBoundaryData& pbc,
                                               const bool use_symmetry)
 {
-    const bool symmetry_reduced_input =
-        static_cast<int>(pbc.klist.size()) < pbc.get_n_cells_bvk();
+    // Decided by exact list lengths; a list that matches neither count is
+    // reported by classify_kpoint_input_form instead of being treated as the
+    // nearer of the two.  When symmetry is off, only the full-grid form can
+    // reproduce every member q-point on its own.
+    const auto input_form = classify_kpoint_input_form(ctx, pbc);
+    const bool symmetry_reduced_input = input_form == KPointInputForm::Reduced;
     if (!use_symmetry)
     {
         if (symmetry_reduced_input)
         {
             throw LIBRPA_RUNTIME_ERROR(
-                "Symmetry-reduced k-point input requires use_symmetry_rpa/use_symmetry_gw");
+                "K-point input lists one k-point per k-star, so the full q grid can only be "
+                "recovered with symmetry; enable use_symmetry_rpa/use_symmetry_gw or supply "
+                "every k-point of the Brillouin zone");
         }
         return build_pbc_qpoint_view(pbc);
     }

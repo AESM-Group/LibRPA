@@ -1,0 +1,1090 @@
+Initialized LibRPA global environment at [2026-11-07 22:21:48.099]
+Total number of tasks    :     4
+Total number of nodes    :     1
+Maximal number of threads:   1
+MPI thread support level : MPI_THREAD_FUNNELED
+MPI tasks information:
+| Proc    0 of Size    4: HuanjingdeMacBook-Air.local
+| Proc    1 of Size    4: HuanjingdeMacBook-Air.local
+| Proc    2 of Size    4: HuanjingdeMacBook-Air.local
+| Proc    3 of Size    4: HuanjingdeMacBook-Air.local
+| Global ID of master process of node     0 :     0
+
+LibRPA CMake build info:
+| Build type               : Release
+| Build time               : Nov  7 2026 22:13:52
+| Source code directory    : /tmp/unify3/src
+| Source code Git reference: refs/heads/pr/aims-shrink-sym-v2
+| Source code Git hash     : 56fa84a532f48e96cdb202e0194730f63dbdff8a
+| C++ compiler             : /opt/homebrew/bin/g++-15
+| C++ compiler flags       :   -fopenmp
+| Fortran compiler         : /opt/homebrew/bin/gfortran-15
+| Fortran compiler flags   : 
+| GreenX commit hash       : c90d131
+| Use LibRI                : ON
+| LibRI include directory  : /tmp/unify3/thirdparty/LibRI/include
+| LibComm include directory: /tmp/unify3/thirdparty/LibComm/include
+
+===== Begin driver parameters  =====
+task = g0w0
+constants_choice = internal
+input_preset = fhi-aims
+input_dir = ../dataset/
+prefix_lri_coeff = Cs_data
+prefix_lri_coeff_shrink = Cs_shrinked_data
+prefix_lri_coeff_hartree = 
+prefix_shrink_sinvS = shrink_sinvS_
+prefix_coul_full = coulomb_mat
+prefix_coul_hartree = 
+hartree_fn_reference = 
+prefix_sternheimer_chi0 = v1_sternheimer_chi0_iq_
+fn_sternheimer_qpoints = 
+fn_sternheimer_partial_manifest = 
+fn_sternheimer_symmetry_routes = 
+fn_sternheimer_qstar_routes = 
+prefix_sternheimer_reconstructed = 
+prefix_sternheimer_kresolved = 
+prefix_sternheimer_symmetry_diagnostic = 
+prefix_coul_cut = coulomb_cut
+prefix_eigvecs_scf = KS_eigenvector
+fn_stru = stru_out
+fn_bz_sampling = bz_sampling_out
+fn_basis = basis_out
+fn_basis_wfc = basis_wfc_out
+fn_basis_aux = basis_aux_out
+fn_basis_aux_shrink = basis_aux_shrink_out
+fn_eigocc_scf = band_out
+fn_dielfunc = dielecfunc_out
+fn_vxc_scf = vxc_out
+prefix_velocity = mommat_ks_kpt_
+fn_band_kpath_info = band_kpath_info
+output_level = info
+use_spinor_wfc = false
+use_rpa_gamma = true
+sternheimer_matrix_only = false
+output_energy_qp = false
+output_gw_spec_func = false
+output_hamgnn = false
+use_pyatb = false
+version_coul_reader = -1
+version_lri_reader = -1
+sternheimer_iq = 1
+sternheimer_qweight = 1
+cs_R_threshold = 1e-06
+i_state_low = 0
+i_state_high = 999999
+g0w0_headwing_velocity = file
+===== End driver parameters    =====
+
+===== Begin control parameters =====
+output_dir = librpa.d/
+restart_from_dir = <output_dir>
+tfgrids_type = minimax
+anacon_tfgrids_type = unset
+parallel_routing = libri
+chi0_method = auto
+rpa_headwing_mode = qavg
+nfreq = 6
+n_bands_chi0 = -1
+n_bands_sigc = -1
+n_bands_exclude_chi0 = 0
+n_bands_exclude_sigc = 0
+n_params_anacon = -1
+n_params_anacon_resample = -1
+anacon_nfreq = -1
+option_qpe_solver = 0
+option_dielect_func = 0
+option_bvk_remap = 1
+rpa_headwing_body_start = 0
+qpe_solver_n_iter_max = 10000
+libri_chi0_collect_s0_chunk = 0
+istate_ref_hedin_shift = -1
+ifreq_output_wc_start = 0
+ifreq_output_wc_end = -1
+istate_output_mat_start = 0
+istate_output_mat_end = -1
+libri_chi0_collect_max_bytes = 0
+gf_R_threshold = 0
+vq_threshold = 0
+minimax_emin = -1
+minimax_emax = -1
+minimax_regulation = 0
+sqrt_coulomb_threshold = 0
+libri_chi0_threshold_C = 0
+libri_chi0_threshold_G = 0
+libri_exx_threshold_C = 0
+libri_exx_threshold_D = 0
+libri_exx_threshold_V = 0
+libri_g0w0_threshold_C = 0
+libri_g0w0_threshold_G = 0
+libri_g0w0_threshold_Wc = 0
+qpe_solver_thres = 1e-06
+qpe_solver_damp_factor = 0.1
+sf_gf_omega_shift = 0.01
+sf_sigc_omega_shift = 0.01
+debug = false
+replace_w_head = true
+use_fullcoul_eps = true
+use_fullcoul_exx = false
+use_fullcoul_wc = false
+use_symmetry_exx = true
+use_symmetry_gw = true
+use_symmetry_rpa = true
+output_abacus_gw_gf = false
+use_shrink_abfs = true
+use_shrink_chi = true
+use_scalapack_ecrpa = true
+use_scalapack_gw_wc = true
+use_cholesky_gw_wc = false
+use_gpu_replace_scalapack = false
+use_elpa_sqrt_coulomb = false
+use_kpara_scf_eigvec = false
+read_sigc_mat_rf = false
+output_gw_sigc_ks_kf = false
+output_gw_sigc_ks_mat_kf = false
+output_exx_ks_mat_k = false
+output_exx_mat_k = false
+output_exx_mat_r = false
+output_gw_sigc_mat_kf = false
+output_gw_sigc_mat_rf = false
+output_gw_sigc_mat_rt = false
+output_wc_rf = false
+output_wc_rf_atom_pair = true
+use_qpe_adaptive_damp = false
+use_qpe_legacy_update = false
+override_qpe_solver_nan = false
+use_hedin_shift = false
+===== End control parameters   =====
+
+Mean-field dimensions set:
+| number of spins           : 1
+| number of k-points        : 27
+| number of bands           : 6
+| number of NAOs            : 6
+| number of spin components : 1
+Internal two-level (SCF k-points/matrix block) parallelization for eigenvectors set:
+| processes per k-point      : 1
+| processes per matrix block : 4
+Mean-field eigenvalues and occupation numbers set:
+| Minimal transition energy (Ha):       0.2290346643
+| Maximal transition energy (Ha):       3.3563547767
+| Fermi level               (Ha):      -0.3313497200
+Reading structure file: ../dataset/stru_out
+Lattice vectors (Bohr): latt
+               0         3.41356         3.41356
+         3.41356               0         3.41356
+         3.41356         3.41356               0
+Reciprocal lattice vectors (2PI Bohr^-1): G
+       -0.146475        0.146475        0.146475
+        0.146475       -0.146475        0.146475
+        0.146475        0.146475       -0.146475
+Consistency check: latt * G.T
+               1               0               0
+               0               1               0
+               0               0               1
+Atom positions read (Cartesian in Bohr | fractional):
+ia    1:    0.0000000    0.0000000    0.0000000 |    0.0000000    0.0000000    0.0000000
+ia    2:   -1.7067786   -1.7067786   -1.7067786 |   -0.2500000   -0.2500000   -0.2500000
+
+Reading Brillouin zone sampling file: ../dataset/bz_sampling_out
+kgrids:   3   3   3
+k-points read (Cartesian in 2Pi Bohr^-1 | fractional):
+ik    1:    0.0000000    0.0000000    0.0000000 |    0.0000000    0.0000000    0.0000000
+ik    2:    0.0488249    0.0488249   -0.0488249 |    0.0000000    0.0000000    0.3333333
+ik    3:    0.0976498    0.0976498   -0.0976498 |    0.0000000    0.0000000    0.6666667
+ik    4:    0.0488249   -0.0488249    0.0488249 |    0.0000000    0.3333333    0.0000000
+ik    5:    0.0976498   -0.0000000    0.0000000 |    0.0000000    0.3333333    0.3333333
+ik    6:    0.1464748    0.0488249   -0.0488249 |    0.0000000    0.3333333    0.6666667
+ik    7:    0.0976498   -0.0976498    0.0976498 |    0.0000000    0.6666667    0.0000000
+ik    8:    0.1464748   -0.0488249    0.0488249 |    0.0000000    0.6666667    0.3333333
+ik    9:    0.1952997   -0.0000000    0.0000000 |    0.0000000    0.6666667    0.6666667
+ik   10:   -0.0488249    0.0488249    0.0488249 |    0.3333333    0.0000000    0.0000000
+ik   11:    0.0000000    0.0976498    0.0000000 |    0.3333333    0.0000000    0.3333333
+ik   12:    0.0488249    0.1464748   -0.0488249 |    0.3333333    0.0000000    0.6666667
+ik   13:    0.0000000   -0.0000000    0.0976498 |    0.3333333    0.3333333    0.0000000
+ik   14:    0.0488249    0.0488249    0.0488249 |    0.3333333    0.3333333    0.3333333
+ik   15:    0.0976498    0.0976498    0.0000000 |    0.3333333    0.3333333    0.6666667
+ik   16:    0.0488249   -0.0488249    0.1464748 |    0.3333333    0.6666667    0.0000000
+ik   17:    0.0976498   -0.0000000    0.0976498 |    0.3333333    0.6666667    0.3333333
+ik   18:    0.1464748    0.0488249    0.0488249 |    0.3333333    0.6666667    0.6666667
+ik   19:   -0.0976498    0.0976498    0.0976498 |    0.6666667    0.0000000    0.0000000
+ik   20:   -0.0488249    0.1464748    0.0488249 |    0.6666667    0.0000000    0.3333333
+ik   21:    0.0000000    0.1952997    0.0000000 |    0.6666667    0.0000000    0.6666667
+ik   22:   -0.0488249    0.0488249    0.1464748 |    0.6666667    0.3333333    0.0000000
+ik   23:    0.0000000    0.0976498    0.0976498 |    0.6666667    0.3333333    0.3333333
+ik   24:    0.0488249    0.1464748    0.0488249 |    0.6666667    0.3333333    0.6666667
+ik   25:    0.0000000   -0.0000000    0.1952997 |    0.6666667    0.6666667    0.0000000
+ik   26:    0.0488249    0.0488249    0.1464748 |    0.6666667    0.6666667    0.3333333
+ik   27:    0.0976498    0.0976498    0.0976498 |    0.6666667    0.6666667    0.6666667
+Hint: full k-point list is copied from parsed k-points.
+R-points to compute: 27
+    1 -     5 : ( -1,  -1,  -1) ( -1,  -1,   0) ( -1,  -1,   1) ( -1,   0,  -1) ( -1,   0,   0)
+    6 -    10 : ( -1,   0,   1) ( -1,   1,  -1) ( -1,   1,   0) ( -1,   1,   1) (  0,  -1,  -1)
+   11 -    15 : (  0,  -1,   0) (  0,  -1,   1) (  0,   0,  -1) (  0,   0,   0) (  0,   0,   1)
+   16 -    20 : (  0,   1,  -1) (  0,   1,   0) (  0,   1,   1) (  1,  -1,  -1) (  1,  -1,   0)
+   21 -    25 : (  1,  -1,   1) (  1,   0,  -1) (  1,   0,   0) (  1,   0,   1) (  1,   1,  -1)
+   26 -    27 : (  1,   1,   0) (  1,   1,   1)
+
+SCF k-point to Coulomb q-point mapping:
+  ik:          k_1          k_2          k_3      iq
+   1:    0.0000000    0.0000000    0.0000000
+   2:    0.0000000    0.0000000    0.3333333
+   3:    0.0000000    0.0000000    0.6666667 ->    2
+   4:    0.0000000    0.3333333    0.0000000
+   5:    0.0000000    0.3333333    0.3333333
+   6:    0.0000000    0.3333333    0.6666667
+   7:    0.0000000    0.6666667    0.0000000 ->    4
+   8:    0.0000000    0.6666667    0.3333333 ->    6
+   9:    0.0000000    0.6666667    0.6666667 ->    5
+  10:    0.3333333    0.0000000    0.0000000
+  11:    0.3333333    0.0000000    0.3333333
+  12:    0.3333333    0.0000000    0.6666667
+  13:    0.3333333    0.3333333    0.0000000
+  14:    0.3333333    0.3333333    0.3333333
+  15:    0.3333333    0.3333333    0.6666667
+  16:    0.3333333    0.6666667    0.0000000
+  17:    0.3333333    0.6666667    0.3333333
+  18:    0.3333333    0.6666667    0.6666667
+  19:    0.6666667    0.0000000    0.0000000 ->   10
+  20:    0.6666667    0.0000000    0.3333333 ->   12
+  21:    0.6666667    0.0000000    0.6666667 ->   11
+  22:    0.6666667    0.3333333    0.0000000 ->   16
+  23:    0.6666667    0.3333333    0.3333333 ->   18
+  24:    0.6666667    0.3333333    0.6666667 ->   17
+  25:    0.6666667    0.6666667    0.0000000 ->   13
+  26:    0.6666667    0.6666667    0.3333333 ->   15
+  27:    0.6666667    0.6666667    0.6666667 ->   14
+
+Reading basis information file: ../dataset/basis_out
+Basis convention set:
+| Bloch phase      : -1
+| Bloch r_atom     : 0
+| angular order    : 0
+| RSH coeff m < 0  : 0
+| RSH coeff m > 0  : 0
+Wave-function basis functions set:
+| total number of basis: 6
+Auxiliary basis functions set:
+| total number of basis: 464
+
+KS eigenvector reader: binary v1
+Successfully read eigenvector files
+Loading RI file from directory: ../dataset/
+Evenly distributed Cs and V for LibRI
+LRI coefficient reader (Cs_data): binary v1
+Finished Cs filtering
+Finished Cs parsing
+Reading shrink auxiliary basis information file: ../dataset/basis_out_shrink
+Shrink auxiliary basis functions set:
+| total number of basis: 19
+LRI coefficient reader (Cs_shrinked_data): binary v1
+Finished Cs filtering
+Finished Cs parsing
+sinvS: ASCII legacy files detected
+sinvS: ASCII legacy files detected
+sinvS: ASCII legacy files detected
+sinvS: ASCII legacy files detected
+Auxiliary basis compression summary:
++------+----------------+----------------+
+| type | large ABF/atom | small ABF/atom |
++------+----------------+----------------+
+|    1 |            254 |             18 |
+|    2 |            210 |              1 |
++------+----------------+----------------+
+Coulomb reader (coulomb_mat): binary v1
+| Process     0: coulomb_mat read. Wall/CPU time [min]:       0.0000       0.0000
+| Process     1: coulomb_mat read. Wall/CPU time [min]:       0.0000       0.0000
+| Process     2: coulomb_mat read. Wall/CPU time [min]:       0.0000       0.0000
+| Process     3: coulomb_mat read. Wall/CPU time [min]:       0.0000       0.0000
+| Process     0: Cs with             10 non-zero keys from local atpair size       1. Data memory:       0.51 MB. Wall/CPU time [min]:       0.0000       0.0000
+| Process     1: Cs with              9 non-zero keys from local atpair size       0. Data memory:       0.46 MB. Wall/CPU time [min]:       0.0000       0.0000
+| Process     2: Cs with             15 non-zero keys from local atpair size       1. Data memory:       0.48 MB. Wall/CPU time [min]:       0.0000       0.0000
+| Process     3: Cs with             74 non-zero keys from local atpair size       1. Data memory:       0.48 MB. Wall/CPU time [min]:       0.0000       0.0000
+Actual parallel routing used: libri
+Initialization finished, Wall/CPU time [min]:       0.0000       0.0000
+Free memory on node     0 [GB]:    3.550
+Common data parsed, task g0w0 will begin
+g0w0: One-shot GW for quasi-paricle energies
+Coulomb reader (coulomb_cut): binary v1
+Reading dielectric function for head correction
+* Success: Read DFT xc potential, solve quasi-particle equation
+Grid type: Minimax time-frequency grids
+Grid size: 6
+Frequency node & weight: 
+ 0      0.0670684449863075      0.1383692705929032
+ 1      0.2280874268978109      0.1946725249028992
+ 2      0.4859959576197489      0.3416120596076808
+ 3      0.9733473284115390      0.6806341473864440
+ 4      2.0185623461782916      1.5696236013122924
+ 5      5.0256475057796655      5.7988725168287019
+Time node & weight: 
+ 0      0.0855406571855044      0.2223098316233960
+ 1      0.4767983905301021      0.5795003344689071
+ 2      1.3087527977658850      1.1333638865376914
+ 3      2.8904848469433868      2.1349193625620986
+ 4      5.8858078306222339      4.0807727281152504
+ 5     11.8331415636438031      8.5546136017732692
+t->f transform: 
+
+ Cosine transform matrix (row: freq, col: time)
+nr = 6, nc = 6
+ 4.46195e-01 1.15216e+00 2.27366e+00 4.15202e+00 7.64367e+00 1.14344e+01
+ 4.40316e-01 1.16910e+00 2.12235e+00 3.49101e+00 1.44672e+00 -1.27101e+01
+ 4.50597e-01 1.10174e+00 1.89787e+00 4.65157e-01 -6.60717e+00 3.42425e+00
+ 4.35454e-01 1.07159e+00 5.33624e-01 -3.36547e+00 1.72544e+00 -5.64547e-01
+ 4.47681e-01 6.00414e-01 -1.58164e+00 6.90396e-01 -2.20926e-01 1.06611e-01
+ 3.75599e-01 -4.95237e-01 1.53298e-01 -4.83858e-02 2.43365e-02 -1.80109e-02
+
+ Sine transform matrix (row: freq, col: time)
+nr = 6, nc = 6
+ -3.26838e-02 1.74500e-01 -1.32197e-01 1.54340e+00 1.49637e+00 1.70110e+01
+ 4.65056e-02 -2.23393e-02 1.02703e+00 1.81083e+00 9.87958e+00 1.33131e+00
+ -2.40472e-02 4.34314e-01 9.26132e-01 5.21043e+00 -3.73624e-01 -4.22339e+00
+ 8.70525e-02 3.16080e-01 2.70630e+00 -4.13342e-02 -2.03762e+00 1.90184e+00
+ 1.41305e-02 1.22059e+00 2.90541e-01 -9.99404e-01 8.36217e-01 -7.27892e-01
+ 2.80993e-01 3.51281e-01 -4.06355e-01 3.06893e-01 -2.54907e-01 2.43813e-01
+f->t transform: 
+
+ Cosine transform matrix (row: time, col: freq)
+nr = 6, nc = 6
+ 4.41261e-02 6.16537e-02 1.09397e-01 2.13811e-01 5.00935e-01 1.56151e+00
+ 4.38779e-02 6.21353e-02 1.04422e-01 1.98133e-01 2.61814e-01 -7.91993e-01
+ 4.40889e-02 5.83892e-02 8.99708e-02 5.33015e-02 -3.52052e-01 1.29045e-01
+ 4.28842e-02 5.04078e-02 1.26603e-02 -1.72622e-01 8.37953e-02 -2.49585e-02
+ 4.12487e-02 1.10536e-02 -8.84162e-02 4.68472e-02 -1.53489e-02 8.07815e-03
+ 2.93988e-02 -4.59677e-02 2.18218e-02 -7.53376e-03 3.89761e-03 -3.11467e-03
+
+Chi0 method: space-time
+Total count of GFs IJR: 108
+| Number of GFs IJR on Proc    0: 27
+| Number of GFs IJR on Proc    1: 27
+| Number of GFs IJR on Proc    2: 27
+| Number of GFs IJR on Proc    3: 27
+Use LibRI for chi0
+Reducing chi0 real-space blocks with symmetry irreducible sectors
+Green's Function sums over all states.
+chi0s for time point 0.085541, spin 0. CPU time: 0.125351 (tensor), 0.186714 (trans). Wall time 0.351673
+Green's Function sums over all states.
+chi0s for time point 0.476798, spin 0. CPU time: 0.134221 (tensor), 0.204705 (trans). Wall time 0.367692
+Green's Function sums over all states.
+chi0s for time point 1.308753, spin 0. CPU time: 0.174979 (tensor), 0.190151 (trans). Wall time 0.423431
+Green's Function sums over all states.
+chi0s for time point 2.890485, spin 0. CPU time: 0.150794 (tensor), 0.207681 (trans). Wall time 0.450883
+Green's Function sums over all states.
+chi0s for time point 5.885808, spin 0. CPU time: 0.174696 (tensor), 0.257082 (trans). Wall time 0.514336
+Green's Function sums over all states.
+chi0s for time point 11.833142, spin 0. CPU time: 0.147902 (tensor), 0.203914 (trans). Wall time 0.355075
+
+Computing EXX orbital energy using LibRI
+Reducing EXX real-space contractions with irreducible sectors
+Task    0: V setup for EXX
+Task    1: V setup for EXX
+Task    2: V setup for EXX
+Task    3: V setup for EXX
+Task    0: DM setup for EXX
+Task    1: DM setup for EXX
+Task    2: DM setup for EXX
+Task    3: DM setup for EXX
+Task    0: cal_Hs elapsed time: 0.010437
+Task    1: cal_Hs elapsed time: 0.010435
+Task    2: cal_Hs elapsed time: 0.010438
+Task    3: cal_Hs elapsed time: 0.010437
+Restoring the symmetry-filtered LibRI EXX blocks to the full AO real-space sector
+Calculating Wc using ScaLAPACK
+Time for Wc initialization (seconds, Wall/CPU): 0.000103 0.000101
+Computing Wc(q), 1 / 4, q=(0.000000, 0.000000, 0.000000)
+Time to prepare sqrt root of Coulomb for Wc(q) (seconds, Wall/CPU): 0.005994 0.002647
+Time to prepare sqrt root of Coulomb for Epsilon(q) (seconds, Wall/CPU): 0.000679 0.000679
+Time for Wc(i_q=1, i_omega=1) (seconds, Wall/CPU): 0.000826 0.000589
+Time for Wc(i_q=1, i_omega=2) (seconds, Wall/CPU): 0.000660 0.000641
+Time for Wc(i_q=1, i_omega=3) (seconds, Wall/CPU): 0.000541 0.000547
+Time for Wc(i_q=1, i_omega=4) (seconds, Wall/CPU): 0.000618 0.000593
+Time for Wc(i_q=1, i_omega=5) (seconds, Wall/CPU): 0.000556 0.000559
+Time for Wc(i_q=1, i_omega=6) (seconds, Wall/CPU): 0.000535 0.000521
+Computing Wc(q), 2 / 4, q=(0.000000, 0.000000, 0.333333)
+Time to prepare sqrt root of Coulomb for Wc(q) (seconds, Wall/CPU): 0.003569 0.001221
+Time to prepare sqrt root of Coulomb for Epsilon(q) (seconds, Wall/CPU): 0.000780 0.000761
+Time for Wc(i_q=2, i_omega=1) (seconds, Wall/CPU): 0.000608 0.000588
+Time for Wc(i_q=2, i_omega=2) (seconds, Wall/CPU): 0.000772 0.000768
+Time for Wc(i_q=2, i_omega=3) (seconds, Wall/CPU): 0.000586 0.000551
+Time for Wc(i_q=2, i_omega=4) (seconds, Wall/CPU): 0.000602 0.000605
+Time for Wc(i_q=2, i_omega=5) (seconds, Wall/CPU): 0.000472 0.000459
+Time for Wc(i_q=2, i_omega=6) (seconds, Wall/CPU): 0.000466 0.000463
+Computing Wc(q), 3 / 4, q=(0.000000, 0.333333, 0.333333)
+Time to prepare sqrt root of Coulomb for Wc(q) (seconds, Wall/CPU): 0.000901 0.000881
+Time to prepare sqrt root of Coulomb for Epsilon(q) (seconds, Wall/CPU): 0.000730 0.000724
+Time for Wc(i_q=3, i_omega=1) (seconds, Wall/CPU): 0.000488 0.000479
+Time for Wc(i_q=3, i_omega=2) (seconds, Wall/CPU): 0.000539 0.000536
+Time for Wc(i_q=3, i_omega=3) (seconds, Wall/CPU): 0.000558 0.000548
+Time for Wc(i_q=3, i_omega=4) (seconds, Wall/CPU): 0.000561 0.000567
+Time for Wc(i_q=3, i_omega=5) (seconds, Wall/CPU): 0.000476 0.000477
+Time for Wc(i_q=3, i_omega=6) (seconds, Wall/CPU): 0.000500 0.000493
+Computing Wc(q), 4 / 4, q=(0.000000, 0.333333, 0.666667)
+Time to prepare sqrt root of Coulomb for Wc(q) (seconds, Wall/CPU): 0.000808 0.000810
+Time to prepare sqrt root of Coulomb for Epsilon(q) (seconds, Wall/CPU): 0.000823 0.000793
+Time for Wc(i_q=4, i_omega=1) (seconds, Wall/CPU): 0.000483 0.000463
+Time for Wc(i_q=4, i_omega=2) (seconds, Wall/CPU): 0.000531 0.000528
+Time for Wc(i_q=4, i_omega=3) (seconds, Wall/CPU): 0.000495 0.000484
+Time for Wc(i_q=4, i_omega=4) (seconds, Wall/CPU): 0.000489 0.000485
+Time for Wc(i_q=4, i_omega=5) (seconds, Wall/CPU): 0.000534 0.000537
+Time for Wc(i_q=4, i_omega=6) (seconds, Wall/CPU): 0.000457 0.000446
+Time for Wc computation (seconds, Wall/CPU): 0.028128 0.021908
+Restoring compressed Wc from 4 representatives to 27 full q points
+Calculating correlation self-energy by space-time method
+Using real tensor
+Converting Wc(q,w) -> W(q,t)
+Task    0: distributing 6 {I, J, R, tau} on 1 threads
+Task    1: distributing 0 {I, J, R, tau} on 1 threads
+Task    2: distributing 6 {I, J, R, tau} on 1 threads
+Task    3: distributing 6 {I, J, R, tau} on 1 threads
+Done converting Wc q,w -> q,t
+Time for Fourier transform of Wc in GW (seconds, Wall/CPU): 0.002418 0.001960
+Converting Wc(q) -> W(R)
+Task    0: distributing 27 {I, J, R} on 1 threads
+Task    1: distributing 0 {I, J, R} on 1 threads
+Task    2: distributing 54 {I, J, R} on 1 threads
+Task    3: distributing 27 {I, J, R} on 1 threads
+Done converting Wc q -> R
+Converting Wc(q) -> W(R)
+Task    0: distributing 27 {I, J, R} on 1 threads
+Task    1: distributing 0 {I, J, R} on 1 threads
+Task    2: distributing 54 {I, J, R} on 1 threads
+Task    3: distributing 27 {I, J, R} on 1 threads
+Done converting Wc q -> R
+Converting Wc(q) -> W(R)
+Task    0: distributing 27 {I, J, R} on 1 threads
+Task    1: distributing 0 {I, J, R} on 1 threads
+Task    2: distributing 54 {I, J, R} on 1 threads
+Task    3: distributing 27 {I, J, R} on 1 threads
+Done converting Wc q -> R
+Converting Wc(q) -> W(R)
+Task    0: distributing 27 {I, J, R} on 1 threads
+Task    1: distributing 0 {I, J, R} on 1 threads
+Task    2: distributing 54 {I, J, R} on 1 threads
+Task    3: distributing 27 {I, J, R} on 1 threads
+Done converting Wc q -> R
+Converting Wc(q) -> W(R)
+Task    0: distributing 27 {I, J, R} on 1 threads
+Task    1: distributing 0 {I, J, R} on 1 threads
+Task    2: distributing 54 {I, J, R} on 1 threads
+Task    3: distributing 27 {I, J, R} on 1 threads
+Done converting Wc q -> R
+Converting Wc(q) -> W(R)
+Task    0: distributing 27 {I, J, R} on 1 threads
+Task    1: distributing 0 {I, J, R} on 1 threads
+Task    2: distributing 54 {I, J, R} on 1 threads
+Task    3: distributing 27 {I, J, R} on 1 threads
+Done converting Wc q -> R
+Time for Fourier transform of Wc in GW (seconds, Wall/CPU): 4.491203 4.090055
+Reducing GW real-space self-energy outputs with symmetry irreducible sectors
+Time for LibRI G0W0 setup (seconds, Wall/CPU): 0.158246 0.137628
+Time for Green's function, i_spin 1 i_tau 1 (seconds, Wall/CPU): 0.001548 0.001197
+Task    0. libRI G0W0, spin 0, time grid     0.085541. Wc size 27, GF size 27. Wall time 0.212784
+Task    1. libRI G0W0, spin 0, time grid     0.085541. Wc size 0, GF size 27. Wall time 0.314632
+Task    2. libRI G0W0, spin 0, time grid     0.085541. Wc size 54, GF size 27. Wall time 0.238281
+Task    3. libRI G0W0, spin 0, time grid     0.085541. Wc size 27, GF size 27. Wall time 0.219682
+Task    0. libRI G0W0, spin 0, time grid    -0.085541. Wc size 27, GF size 27. Wall time 0.247402
+Task    1. libRI G0W0, spin 0, time grid    -0.085541. Wc size 0, GF size 27. Wall time 0.325151
+Task    2. libRI G0W0, spin 0, time grid    -0.085541. Wc size 54, GF size 27. Wall time 0.258337
+Task    3. libRI G0W0, spin 0, time grid    -0.085541. Wc size 27, GF size 27. Wall time 0.236286
+Time for Green's function, i_spin 1 i_tau 2 (seconds, Wall/CPU): 0.001025 0.001024
+Task    0. libRI G0W0, spin 0, time grid     0.476798. Wc size 27, GF size 27. Wall time 0.216435
+Task    1. libRI G0W0, spin 0, time grid     0.476798. Wc size 0, GF size 27. Wall time 0.235947
+Task    2. libRI G0W0, spin 0, time grid     0.476798. Wc size 54, GF size 27. Wall time 0.275726
+Task    3. libRI G0W0, spin 0, time grid     0.476798. Wc size 27, GF size 27. Wall time 0.304681
+Task    0. libRI G0W0, spin 0, time grid    -0.476798. Wc size 27, GF size 27. Wall time 0.255915
+Task    1. libRI G0W0, spin 0, time grid    -0.476798. Wc size 0, GF size 27. Wall time 0.305458
+Task    2. libRI G0W0, spin 0, time grid    -0.476798. Wc size 54, GF size 27. Wall time 0.241998
+Task    3. libRI G0W0, spin 0, time grid    -0.476798. Wc size 27, GF size 27. Wall time 0.277203
+Time for Green's function, i_spin 1 i_tau 3 (seconds, Wall/CPU): 0.000800 0.000799
+Task    0. libRI G0W0, spin 0, time grid     1.308753. Wc size 27, GF size 27. Wall time 0.280817
+Task    1. libRI G0W0, spin 0, time grid     1.308753. Wc size 0, GF size 27. Wall time 0.314112
+Task    2. libRI G0W0, spin 0, time grid     1.308753. Wc size 54, GF size 27. Wall time 0.216626
+Task    3. libRI G0W0, spin 0, time grid     1.308753. Wc size 27, GF size 27. Wall time 0.260366
+Task    0. libRI G0W0, spin 0, time grid    -1.308753. Wc size 27, GF size 27. Wall time 0.223798
+Task    1. libRI G0W0, spin 0, time grid    -1.308753. Wc size 0, GF size 27. Wall time 0.258310
+Task    2. libRI G0W0, spin 0, time grid    -1.308753. Wc size 54, GF size 27. Wall time 0.255530
+Task    3. libRI G0W0, spin 0, time grid    -1.308753. Wc size 27, GF size 27. Wall time 0.247060
+Time for Green's function, i_spin 1 i_tau 4 (seconds, Wall/CPU): 0.000692 0.000693
+Task    0. libRI G0W0, spin 0, time grid     2.890485. Wc size 27, GF size 27. Wall time 0.217334
+Task    1. libRI G0W0, spin 0, time grid     2.890485. Wc size 0, GF size 27. Wall time 0.275857
+Task    2. libRI G0W0, spin 0, time grid     2.890485. Wc size 54, GF size 27. Wall time 0.224241
+Task    3. libRI G0W0, spin 0, time grid     2.890485. Wc size 27, GF size 27. Wall time 0.217266
+Task    0. libRI G0W0, spin 0, time grid    -2.890485. Wc size 27, GF size 27. Wall time 0.213356
+Task    1. libRI G0W0, spin 0, time grid    -2.890485. Wc size 0, GF size 27. Wall time 0.318929
+Task    2. libRI G0W0, spin 0, time grid    -2.890485. Wc size 54, GF size 27. Wall time 0.278595
+Task    3. libRI G0W0, spin 0, time grid    -2.890485. Wc size 27, GF size 27. Wall time 0.258966
+Time for Green's function, i_spin 1 i_tau 5 (seconds, Wall/CPU): 0.000706 0.000706
+Task    0. libRI G0W0, spin 0, time grid     5.885808. Wc size 27, GF size 27. Wall time 0.222045
+Task    1. libRI G0W0, spin 0, time grid     5.885808. Wc size 0, GF size 27. Wall time 0.259345
+Task    2. libRI G0W0, spin 0, time grid     5.885808. Wc size 54, GF size 27. Wall time 0.254708
+Task    3. libRI G0W0, spin 0, time grid     5.885808. Wc size 27, GF size 27. Wall time 0.288316
+Task    0. libRI G0W0, spin 0, time grid    -5.885808. Wc size 27, GF size 27. Wall time 0.220364
+Task    1. libRI G0W0, spin 0, time grid    -5.885808. Wc size 0, GF size 27. Wall time 0.275181
+Task    2. libRI G0W0, spin 0, time grid    -5.885808. Wc size 54, GF size 27. Wall time 0.216994
+Task    3. libRI G0W0, spin 0, time grid    -5.885808. Wc size 27, GF size 27. Wall time 0.202818
+Time for Green's function, i_spin 1 i_tau 6 (seconds, Wall/CPU): 0.001190 0.000976
+Task    0. libRI G0W0, spin 0, time grid    11.833142. Wc size 27, GF size 27. Wall time 0.228232
+Task    1. libRI G0W0, spin 0, time grid    11.833142. Wc size 0, GF size 27. Wall time 0.242099
+Task    2. libRI G0W0, spin 0, time grid    11.833142. Wc size 54, GF size 27. Wall time 0.250495
+Task    3. libRI G0W0, spin 0, time grid    11.833142. Wc size 27, GF size 27. Wall time 0.276860
+Task    0. libRI G0W0, spin 0, time grid   -11.833142. Wc size 27, GF size 27. Wall time 0.243370
+Task    1. libRI G0W0, spin 0, time grid   -11.833142. Wc size 0, GF size 27. Wall time 0.268047
+Task    2. libRI G0W0, spin 0, time grid   -11.833142. Wc size 54, GF size 27. Wall time 0.279771
+Task    3. libRI G0W0, spin 0, time grid   -11.833142. Wc size 27, GF size 27. Wall time 0.268376
+Task    0: tensor communicate elapsed time: 0.001376
+Task    1: tensor communicate elapsed time: 0.008797
+Task    2: tensor communicate elapsed time: 0.003920
+Task    3: tensor communicate elapsed time: 0.007500
+Printing quasi-particle energy [unit: eV]
+
+spin  1, k-point    1: (0.00000, 0.00000, 0.00000) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.98736        -28.66729        -44.57593          5.88966         -2.91137        -64.00635
+    2          2.00000        -16.47364        -12.13199        -18.38015          4.85644         -0.11805        -17.86537
+    3          0.00000          8.82322        -12.89716        -16.02155         -3.86403         -0.22095          1.83480
+    4          0.00000         11.98758         -9.99269         -4.11446         -4.53749         -1.03114         13.32831
+    5          0.00000         11.98758         -9.99269         -4.11446         -4.53749         -1.03114         13.32831
+    6          0.00000         11.98758         -9.99269         -4.11446         -4.53749         -1.03114         13.32831
+
+spin  1, k-point    2: (0.00000, 0.00000, 0.33333) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.86614        -28.88047        -44.77503          5.88928         -2.85746        -63.87141
+    2          2.00000        -14.57950        -11.53946        -16.31139          3.85561         -0.15089        -15.49582
+    3          0.00000         -2.94589        -10.13970         -6.69352         -3.03289         -0.07309         -2.53260
+    4          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    5          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    6          0.00000         14.09837        -12.18383        -11.75391         -4.22153         -0.62123         10.30675
+
+spin  1, k-point    3: (0.00000, 0.00000, 0.66667) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.86614        -28.88047        -44.77503          5.88928         -2.85746        -63.87141
+    2          2.00000        -14.57950        -11.53946        -16.31139          3.85561         -0.15089        -15.49582
+    3          0.00000         -2.94589        -10.13970         -6.69352         -3.03289         -0.07309         -2.53260
+    4          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    5          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    6          0.00000         14.09837        -12.18383        -11.75391         -4.22153         -0.62123         10.30675
+
+spin  1, k-point    4: (0.00000, 0.33333, 0.00000) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.86614        -28.88047        -44.77503          5.88928         -2.85746        -63.87141
+    2          2.00000        -14.57950        -11.53946        -16.31139          3.85561         -0.15089        -15.49582
+    3          0.00000         -2.94589        -10.13970         -6.69352         -3.03289         -0.07309         -2.53260
+    4          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    5          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    6          0.00000         14.09837        -12.18383        -11.75391         -4.22153         -0.62123         10.30675
+
+spin  1, k-point    5: (0.00000, 0.33333, 0.33333) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.82786        -28.95533        -44.84660          5.89282         -2.82948        -63.82631
+    2          2.00000        -13.90555        -11.56754        -16.04512          3.61334         -0.12725        -14.76979
+    3          0.00000          2.29326        -11.34622        -10.82174         -2.95544         -0.15366         -0.13769
+    4          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    5          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    6          0.00000          9.75345        -10.35892        -10.69232         -3.26568         -0.42822          6.15437
+
+spin  1, k-point    6: (0.00000, 0.33333, 0.66667) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point    7: (0.00000, 0.66667, 0.00000) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.86614        -28.88047        -44.77503          5.88928         -2.85746        -63.87141
+    2          2.00000        -14.57950        -11.53946        -16.31139          3.85561         -0.15089        -15.49582
+    3          0.00000         -2.94589        -10.13970         -6.69352         -3.03289         -0.07309         -2.53260
+    4          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    5          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    6          0.00000         14.09837        -12.18383        -11.75391         -4.22153         -0.62123         10.30675
+
+spin  1, k-point    8: (0.00000, 0.66667, 0.33333) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point    9: (0.00000, 0.66667, 0.66667) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.82786        -28.95533        -44.84660          5.89282         -2.82948        -63.82631
+    2          2.00000        -13.90555        -11.56754        -16.04512          3.61334         -0.12725        -14.76979
+    3          0.00000          2.29326        -11.34622        -10.82174         -2.95544         -0.15366         -0.13769
+    4          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    5          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    6          0.00000          9.75345        -10.35892        -10.69232         -3.26568         -0.42822          6.15437
+
+spin  1, k-point   10: (0.33333, 0.00000, 0.00000) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.86614        -28.88047        -44.77503          5.88928         -2.85746        -63.87141
+    2          2.00000        -14.57950        -11.53946        -16.31139          3.85561         -0.15089        -15.49582
+    3          0.00000         -2.94589        -10.13970         -6.69352         -3.03289         -0.07309         -2.53260
+    4          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    5          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    6          0.00000         14.09837        -12.18383        -11.75391         -4.22153         -0.62123         10.30675
+
+spin  1, k-point   11: (0.33333, 0.00000, 0.33333) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.82786        -28.95533        -44.84660          5.89282         -2.82948        -63.82631
+    2          2.00000        -13.90555        -11.56754        -16.04512          3.61334         -0.12725        -14.76979
+    3          0.00000          2.29326        -11.34622        -10.82174         -2.95544         -0.15366         -0.13769
+    4          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    5          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    6          0.00000          9.75345        -10.35892        -10.69232         -3.26568         -0.42822          6.15437
+
+spin  1, k-point   12: (0.33333, 0.00000, 0.66667) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   13: (0.33333, 0.33333, 0.00000) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.82786        -28.95533        -44.84660          5.89282         -2.82948        -63.82631
+    2          2.00000        -13.90555        -11.56754        -16.04512          3.61334         -0.12725        -14.76979
+    3          0.00000          2.29326        -11.34622        -10.82174         -2.95544         -0.15366         -0.13769
+    4          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    5          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    6          0.00000          9.75345        -10.35892        -10.69232         -3.26568         -0.42822          6.15437
+
+spin  1, k-point   14: (0.33333, 0.33333, 0.33333) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.86614        -28.88047        -44.77503          5.88928         -2.85746        -63.87141
+    2          2.00000        -14.57950        -11.53946        -16.31139          3.85561         -0.15089        -15.49582
+    3          0.00000         -2.94589        -10.13970         -6.69352         -3.03289         -0.07309         -2.53260
+    4          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    5          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    6          0.00000         14.09837        -12.18383        -11.75391         -4.22153         -0.62123         10.30675
+
+spin  1, k-point   15: (0.33333, 0.33333, 0.66667) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   16: (0.33333, 0.66667, 0.00000) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   17: (0.33333, 0.66667, 0.33333) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   18: (0.33333, 0.66667, 0.66667) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   19: (0.66667, 0.00000, 0.00000) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.86614        -28.88047        -44.77503          5.88928         -2.85746        -63.87141
+    2          2.00000        -14.57950        -11.53946        -16.31139          3.85561         -0.15089        -15.49582
+    3          0.00000         -2.94589        -10.13970         -6.69352         -3.03289         -0.07309         -2.53260
+    4          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    5          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    6          0.00000         14.09837        -12.18383        -11.75391         -4.22153         -0.62123         10.30675
+
+spin  1, k-point   20: (0.66667, 0.00000, 0.33333) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   21: (0.66667, 0.00000, 0.66667) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.82786        -28.95533        -44.84660          5.89282         -2.82948        -63.82631
+    2          2.00000        -13.90555        -11.56754        -16.04512          3.61334         -0.12725        -14.76979
+    3          0.00000          2.29326        -11.34622        -10.82174         -2.95544         -0.15366         -0.13769
+    4          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    5          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    6          0.00000          9.75345        -10.35892        -10.69232         -3.26568         -0.42822          6.15437
+
+spin  1, k-point   22: (0.66667, 0.33333, 0.00000) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   23: (0.66667, 0.33333, 0.33333) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   24: (0.66667, 0.33333, 0.66667) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   25: (0.66667, 0.66667, 0.00000) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.82786        -28.95533        -44.84660          5.89282         -2.82948        -63.82631
+    2          2.00000        -13.90555        -11.56754        -16.04512          3.61334         -0.12725        -14.76979
+    3          0.00000          2.29326        -11.34622        -10.82174         -2.95544         -0.15366         -0.13769
+    4          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    5          0.00000          4.05100         -9.44252         -4.10528         -3.80521         -0.48778          5.58304
+    6          0.00000          9.75345        -10.35892        -10.69232         -3.26568         -0.42822          6.15437
+
+spin  1, k-point   26: (0.66667, 0.66667, 0.33333) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.78351        -29.13109        -45.04084          5.94223         -2.73454        -63.75103
+    2          2.00000        -12.13266        -11.93561        -15.91479          3.22184         -0.02906        -12.89001
+    3          0.00000         -5.90031         -8.36419         -3.76628         -3.06340         -0.02198         -4.36580
+    4          0.00000          5.66395         -9.60624         -4.16536         -3.77807         -0.52698          7.32677
+    5          0.00000         10.16671        -11.39932         -5.18921         -4.96252         -1.19431         11.41430
+    6          0.00000         37.34371        -10.62515        -88.27593         -0.65543         -0.33467        -40.96251
+
+spin  1, k-point   27: (0.66667, 0.66667, 0.66667) 
+----------------------------------------------------------------------------------------------------------------------------
+State              occ             e_mf             v_xc            v_exx           ReSigc           ImSigc             e_qp
+----------------------------------------------------------------------------------------------------------------------------
+    1          2.00000        -53.86614        -28.88047        -44.77503          5.88928         -2.85746        -63.87141
+    2          2.00000        -14.57950        -11.53946        -16.31139          3.85561         -0.15089        -15.49582
+    3          0.00000         -2.94589        -10.13970         -6.69352         -3.03289         -0.07309         -2.53260
+    4          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    5          0.00000          9.63248         -9.85385         -3.48388         -4.24370         -0.87290         11.75876
+    6          0.00000         14.09837        -12.18383        -11.75391         -4.22153         -0.62123         10.30675
+
+Band analysis on the k-grid
+Band analysis, spin  1
+Bands of occupation:    2
+Warning! Spin 1: 12 higher empty GW states lie below the mean-field Fermi level (-9.0164852 eV); possible RI error. These states are excluded from the CBM search.
+Lowest offending state: band 6, k-point 6: (0.00000, 0.33333, 0.66667), e_qp = -40.9625087 eV
+GW VBM: k-point   16: (0.33333, 0.66667, 0.00000)
+GW CBM: k-point    6: (0.00000, 0.33333, 0.66667)
+GW bandgap(eV):    8.5242086
+
+EXX VBM: k-point   20: (0.66667, 0.00000, 0.33333)
+EXX CBM: k-point    8: (0.00000, 0.66667, 0.33333)
+EXX bandgap(eV):   14.8094458
+
+DFT VBM: k-point   22: (0.66667, 0.33333, 0.00000)
+DFT CBM: k-point    8: (0.00000, 0.66667, 0.33333)
+DFT bandgap(eV):    6.2323507
+Loaded band k-path file ../dataset/band_kpath_info, starting band calculation
+Band k-points to compute:
+    1    0.5000000    0.5000000    0.5000000
+    2    0.4642857    0.4642857    0.4642857
+    3    0.4285714    0.4285714    0.4285714
+    4    0.3928571    0.3928571    0.3928571
+    5    0.3571429    0.3571429    0.3571429
+    6    0.3214286    0.3214286    0.3214286
+    7    0.2857143    0.2857143    0.2857143
+    8    0.2500000    0.2500000    0.2500000
+    9    0.2142857    0.2142857    0.2142857
+   10    0.1785714    0.1785714    0.1785714
+   11    0.1428571    0.1428571    0.1428571
+   12    0.1071429    0.1071429    0.1071429
+   13    0.0714286    0.0714286    0.0714286
+   14    0.0357143    0.0357143    0.0357143
+   15    0.0000000    0.0000000    0.0000000
+   16    0.0000000    0.0000000    0.0000000
+   17    0.0357143    0.0000000    0.0357143
+   18    0.0714286    0.0000000    0.0714286
+   19    0.1071429    0.0000000    0.1071429
+   20    0.1428571    0.0000000    0.1428571
+   21    0.1785714    0.0000000    0.1785714
+   22    0.2142857    0.0000000    0.2142857
+   23    0.2500000    0.0000000    0.2500000
+   24    0.2857143    0.0000000    0.2857143
+   25    0.3214286    0.0000000    0.3214286
+   26    0.3571429    0.0000000    0.3571429
+   27    0.3928571    0.0000000    0.3928571
+   28    0.4285714    0.0000000    0.4285714
+   29    0.4642857    0.0000000    0.4642857
+   30    0.5000000    0.0000000    0.5000000
+build_sigc_matrix_KS_band: constructing self-energy matrix for band k-path with BLACS
+Band analysis along the k-path
+Band analysis, spin  1
+Bands of occupation:    2
+Warning! Spin 1: 22 higher empty GW states lie below the mean-field Fermi level (-9.0164852 eV); possible RI error. These states are excluded from the CBM search.
+Lowest offending state: band 6, k-point 22: (0.21429, 0.00000, 0.21429), e_qp = -366.9491944 eV
+GW VBM: k-point   26: (0.35714, 0.00000, 0.35714)
+GW CBM: k-point    7: (0.28571, 0.28571, 0.28571)
+GW bandgap(eV):  -14.1388905
+
+EXX VBM: k-point   24: (0.28571, 0.00000, 0.28571)
+EXX CBM: k-point    9: (0.21429, 0.21429, 0.21429)
+EXX bandgap(eV):  -48.9441439
+
+DFT VBM: k-point   30: (0.50000, 0.00000, 0.50000)
+DFT CBM: k-point    1: (0.50000, 0.50000, 0.50000)
+DFT bandgap(eV):    5.9595398
+Finalizing LibRPA global environment at [2026-11-07 22:22:00.424]
+Entry                                             #calls       CPU time (s)       Wall time (s)     
+----------------------------------------------------------------------------------------------------
+Total for driver                                  1            10.9358            12.3253           
+ Driver Read Input Parameters                     1             0.0002             0.0002           
+ Driver Read Task-Common Input Data               1             0.0313             0.0327           
+  DFT SCF eigenvalues/occupations                 1              0.0003             0.0005          
+   api_set_scf_dimension                          1               0.0001             0.0001         
+   api_set_wg_ekb_efermi                          1               0.0000             0.0000         
+  Structure                                       1              0.0002             0.0005          
+   api_set_latvec_and_G                           1               0.0001             0.0001         
+   api_set_atoms                                  1               0.0000             0.0000         
+   api_set_symmetry_operations                    1               0.0000             0.0000         
+  BZ sampling                                     1              0.0004             0.0006          
+   api_set_kgrids_kvec                            1               0.0001             0.0001         
+   api_set_kq_mapping                             1               0.0001             0.0001         
+  Basis (wave-function and auxiliary)             1              0.0002             0.0002          
+   api_set_basis_convention                       1               0.0000             0.0000         
+   api_set_ao_basis_wfc                           1               0.0000             0.0000         
+   api_set_ao_basis_aux                           1               0.0000             0.0000         
+  SCF eigenvectors                                1              0.0007             0.0008          
+   api_set_wfc_packed                             27              0.0001             0.0001         
+  driver_read_ri                                  1              0.0294             0.0300          
+   driver_read_Cs                                 1               0.0010             0.0011         
+    handle_Cs_file_dry                            1                0.0001             0.0001        
+    handle_Cs_file                                1                0.0003             0.0005        
+     api_set_lri_coeff                            10                0.0002             0.0003       
+   api_set_ao_basis_aux_shrink                    1               0.0001             0.0001         
+   read_Cs_shrink                                 1               0.0008             0.0009         
+    handle_Cs_file_dry                            1                0.0001             0.0001        
+    handle_Cs_file                                1                0.0000             0.0000        
+     api_set_lri_coeff_shrink                     9                 0.0000             0.0000       
+   Load shrink transformation                     1               0.0261             0.0264         
+    handle_sinvS_file                             1                0.0259             0.0262        
+   driver_read_Vq                                 1               0.0013             0.0013         
+    read_Vq_row_v1                                1                0.0008             0.0008        
+     api_set_aux_bare_coulomb_k_atom_pair_packed  14                0.0000             0.0000       
+ G0W0 quasi-particle calculation                  1             10.9002            12.2877          
+  Load truncated Coulomb                          1              0.0013             0.0014          
+   read_Vq_row_v1                                 1               0.0008             0.0008         
+    api_set_aux_cut_coulomb_k_atom_pair_packed    14               0.0000             0.0000        
+  Load DFT xc potential                           1              0.0002             0.0002          
+  api_build_g0w0_sigma                            1              10.8283            12.2090         
+   initialize_ds_tfgrids                          1               0.0172             0.0120         
+   initialize_ds_atpairs_local                    1               0.0000             0.0000         
+   redistribute_coulomb_blacs2ap                  1               0.0000             0.0000         
+   initialize_ds_chi0                             1               0.2417             0.2817         
+   Build response function chi0                   1               2.1986             2.5120         
+    Loop over LibRI                               1                2.1899             2.5019        
+     create_chi0_q_blocks                         1                 0.0002             0.0002       
+     chi0_libri_routing_set_parallel              1                 0.0004             0.0011       
+     Set Cs                                       1                 0.0055             0.0112       
+     build_gf_Rt_libri_serial                     12                0.0053             0.0057       
+     chi0_set_Gs                                  6                 0.0189             0.0201       
+     chi0_cal_entry_wait                          6                 0.0015             0.0015       
+     Call cal_chi0s                               6                 0.7350             0.8245       
+     chi0_libri_routing_free_gf                   6                 0.0004             0.0004       
+     chi0_collect_entry_wait                      6                 0.0501             0.0550       
+     Collect R blocks                             6                 0.0958             0.1235       
+      chi0_collect_comm_map2                      6                  0.0846             0.1083      
+     Restore chi0 full real-space sector          6                 0.8624             0.9481       
+     chi0_libri_routing_ft_Rq                     6                 0.0446             0.0472       
+     Do shrink transformation                     6                 0.3281             0.4206       
+     chi0_libri_routing_ft_tw                     6                 0.0002             0.0002       
+     chi0_tau_malloc_trim                         6                 0.0186             0.0188       
+   Build exchange self-energy                     1               0.0805             0.0812         
+    initialize_ds_exx                             1                0.0624             0.0626        
+    Fourier transform truncated Coulomb           1                0.0006             0.0006        
+    g0w0_exx_real_work                            1                0.0174             0.0180        
+     Prepare C libRI object                       1                 0.0012             0.0013       
+     Prepare V libRI object                       1                 0.0015             0.0016       
+      build_real_space_exx_2_1                    1                  0.0000             0.0000      
+      build_real_space_exx_2_2                    1                  0.0014             0.0014      
+     build_real_space_exx_prepare_index           1                 0.0001             0.0003       
+      index_scheduler_init_pairs_unordered_map    1                  0.0000             0.0000      
+      index_scheduler_ids_rc                      1                  0.0000             0.0000      
+      index_scheduler_compute_map                 1                  0.0000             0.0000      
+      index_scheduler_flatten                     1                  0.0000             0.0000      
+     Prepare DM libRI object                      1                 0.0023             0.0024       
+      exx_build_dmat_libri_kserial                1                  0.0009             0.0009      
+      build_real_space_exx_libri_set_Ds           1                  0.0014             0.0014      
+     Call libRI Hexx calculation                  1                 0.0102             0.0104       
+     build_real_space_exx_5                       1                 0.0002             0.0002       
+   Build screened interaction                     1               0.0748             0.0841         
+    compute_Wc_freq_q_blacs_init                  1                0.0001             0.0001        
+    compute_Wc_freq_q_work                        1                0.0219             0.0281        
+     Prepare sqrt of truncated Coulomb            4                 0.0056             0.0113       
+      Setup libRI object                          4                  0.0000             0.0000      
+      libRI Communicate                           4                  0.0011             0.0011      
+      Collect 2D-block from IJ                    4                  0.0003             0.0003      
+      Perform square root                         4                  0.0040             0.0096      
+       power_hemat_blacs_real                     1                   0.0022             0.0055     
+        power_hemat_blacs_1                       1                    0.0002             0.0011    
+        power_hemat_blacs_2                       1                    0.0018             0.0040    
+        power_hemat_blacs_3                       1                    0.0000             0.0000    
+        power_hemat_blacs_4                       1                    0.0001             0.0001    
+       power_hemat_blacs                          3                   0.0017             0.0041     
+        power_hemat_blacs_1                       3                    0.0002             0.0004    
+        power_hemat_blacs_2                       3                    0.0011             0.0033    
+        power_hemat_blacs_3                       3                    0.0001             0.0001    
+        power_hemat_blacs_4                       3                    0.0000             0.0000    
+        power_hemat_blacs_5                       3                    0.0001             0.0001    
+     Prepare sqrt of bare Coulomb                 4                 0.0030             0.0030       
+      power_hemat_blacs_real                      1                  0.0004             0.0004      
+       power_hemat_blacs_1                        1                   0.0000             0.0000     
+       power_hemat_blacs_2                        1                   0.0003             0.0003     
+       power_hemat_blacs_3                        1                   0.0000             0.0000     
+       power_hemat_blacs_4                        1                   0.0000             0.0000     
+      power_hemat_blacs                           3                  0.0012             0.0013      
+       power_hemat_blacs_1                        3                   0.0001             0.0001     
+       power_hemat_blacs_2                        3                   0.0007             0.0008     
+       power_hemat_blacs_3                        3                   0.0001             0.0001     
+       power_hemat_blacs_4                        3                   0.0000             0.0000     
+       power_hemat_blacs_5                        3                   0.0001             0.0001     
+     epsilon_wc_work_q_omega                      24                0.0129             0.0134       
+      Prepare Chi0 2D block                       24                 0.0083             0.0087      
+       epsilon_prepare_chi0_2d_comm_map2          24                  0.0057             0.0058     
+       epsilon_prepare_chi0_2d_collect_block      24                  0.0022             0.0022     
+      Compute dielectric matrix                   24                 0.0008             0.0008      
+       epsilon_compute_eps_pgemm_1                24                  0.0002             0.0002     
+       epsilon_compute_eps_pgemm_2                24                  0.0001             0.0001     
+       epsilon_gamma_head_projection              6                   0.0001             0.0001     
+        epsilon_gamma_head_projection_pgemm_y     6                    0.0000             0.0000    
+        epsilon_gamma_head_projection_pgemm_h     6                    0.0000             0.0000    
+       epsilon_gamma_head_rank1_update            6                   0.0000             0.0000     
+        epsilon_gamma_head_rank1_update_pgemm     6                    0.0000             0.0000    
+      epsilon_to_wc                               24                 0.0018             0.0019      
+       epsilon_solver_coulwc                      24                  0.0014             0.0014     
+       Multiply truncated Coulomb                 24                  0.0001             0.0001     
+    Restore compressed Wc to full q grid          1                0.0019             0.0019        
+    Collect compressed Wc from BLACS to atom pairs 1                0.0508             0.0537        
+   initialize_ds_g0w0                             1               0.0687             0.0730         
+   Build real-space correlation self-energy       1               8.1459             9.1641         
+    Tranform Wc (q,w) -> (q,t)                    1                0.0020             0.0024        
+    Tranform Wc (q,t) -> (R,t)                    1                4.0901             4.4912        
+     Do shrink transformation                     6                 2.2667             2.5570       
+      Prepare Wc 2D block for unfold              162                0.9538             1.0064      
+       unfold_prepare_Wc_2d_comm_map2             162                 0.0609             0.0831     
+       unfold_prepare_Wc_2d_collect_block         162                 0.0023             0.0023     
+     Construct Lower Half of Wc(q,t)              6                 0.0839             0.0849       
+     Tranform Wc (q,t) -> (R,t)                   6                 1.2887             1.3573       
+     Prepare LibRI Wc object                      6                 0.4322             0.4685       
+    Setup LibRI G0W0 object and C data            1                0.1376             0.1582        
+    g0w0_setup_wc_entry_wait                      6                0.0098             0.0101        
+    Setup LibRI Wc                                6                0.6247             0.8741        
+     g0w0_setup_wc_set_Ws                         6                 0.6015             0.8482       
+     g0w0_setup_wc_malloc_trim                    6                 0.0226             0.0254       
+    g0w0_gf_entry_wait                            6                0.0447             0.0468        
+    Compute G(R,t) and G(R,-t)                    6                0.0054             0.0060        
+     g0w0_build_gf_libri_kserial                  6                 0.0052             0.0056       
+    g0w0_set_Gs                                   12               0.0214             0.0221        
+    g0w0_cal_sigc_entry_wait                      12               0.0047             0.0047        
+    Call libRI cal_Sigc                           12               2.4318             2.7312        
+    g0w0_build_spacetime_5_clean                  12               0.0210             0.0223        
+    Transform Sigc (R,t) -> (R,w)                 6                0.0027             0.0040        
+    g0w0_build_spacetime_free_Ws                  6                0.0267             0.0279        
+  api_get_exx_pot_kgrid                           1              0.0100             0.0104          
+   exx_build_KS_blacs_redist                      1               0.0013             0.0014         
+    exx_build_KS_blacs_redist_comm_map2           1                0.0012             0.0012        
+   Hexx IJ -> 2D block                            27              0.0010             0.0010         
+   Rotate Hexx ij -> KS                           27              0.0014             0.0014         
+   Collect Eexx to root process                   27              0.0037             0.0038         
+  api_get_g0w0_sigc_kgrid                         1              0.0320             0.0341          
+   Correlation self-energy in K-S space           1               0.0302             0.0322         
+    g0w0_build_sigc_KS                            1                0.0299             0.0318        
+     g0w0_build_sigc_KS_rspace_redist             1                 0.0075             0.0086       
+     g0w0_build_sigc_KS_find_bvk                  1                 0.0000             0.0000       
+     g0w0_build_sigc_KS_rotate_kserial            1                 0.0222             0.0231       
+   Solve quasi-particle equation                  1               0.0017             0.0018         
+  api_set_band_kvec                               1              0.0000             0.0000          
+  Read eigen solutions at band kpoints            1              0.0044             0.0070          
+   api_set_band_occ_eigval                        1               0.0000             0.0000         
+   api_set_wfc_band_packed                        30              0.0002             0.0002         
+  Load DFT xc potential for band                  1              0.0026             0.0032          
+  api_get_exx_pot_band_k                          1              0.0045             0.0045          
+   Hexx IJ -> 2D block                            30              0.0006             0.0006         
+   Rotate Hexx ij -> KS                           30              0.0007             0.0007         
+   Collect Eexx to root process                   30              0.0018             0.0018         
+  api_get_g0w0_sigc_band_k                        1              0.0149             0.0157          
+   Correlation self-energy in K-S space           1               0.0133             0.0141         
+    g0w0_build_sigc_KS                            1                0.0131             0.0140        
+     g0w0_build_sigc_KS_rspace_redist             1                 0.0051             0.0060       
+     g0w0_build_sigc_KS_find_bvk                  1                 0.0001             0.0001       
+     g0w0_build_sigc_KS_rotate_kserial            1                 0.0079             0.0079       
+   Solve quasi-particle equation                  1               0.0014             0.0014         
+  collect_exx_sigc_band                           1              0.0000             0.0000          
+  output_g0w0_band                                1              0.0006             0.0007          
+libRPA finished successfully

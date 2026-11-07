@@ -16,6 +16,14 @@ target_compile_options(test_bz_mapping PRIVATE -UNDEBUG)
 add_test(NAME test_bz_mapping COMMAND $<TARGET_FILE:test_bz_mapping>)
 add_test(NAME test_bz_mapping_mpi COMMAND mpirun -np 2 $<TARGET_FILE:test_bz_mapping>)
 
+# Shrink datasets carry Coulomb matrices in the compressed auxiliary basis.
+add_executable(test_shrink_coulomb_basis test_shrink_coulomb_basis.cpp)
+target_link_libraries(test_shrink_coulomb_basis PRIVATE librpa_file_reader)
+target_compile_options(test_shrink_coulomb_basis PRIVATE -UNDEBUG)
+add_test(NAME test_shrink_coulomb_basis COMMAND $<TARGET_FILE:test_shrink_coulomb_basis>)
+add_test(NAME test_shrink_coulomb_basis_mpi
+         COMMAND mpirun -np 2 $<TARGET_FILE:test_shrink_coulomb_basis>)
+
 add_executable(
   test_velocity_reader
   test_velocity_reader.cpp
@@ -28,7 +36,7 @@ target_compile_options(test_velocity_reader PRIVATE -UNDEBUG)
 add_test(NAME test_velocity_reader COMMAND $<TARGET_FILE:test_velocity_reader>)
 
 if(BUILD_SHARED_LIBS)
-  foreach(target test_driver_params test_bz_mapping test_velocity_reader)
+  foreach(target test_driver_params test_bz_mapping test_velocity_reader test_shrink_coulomb_basis)
     target_link_libraries(${target} PRIVATE ${math_libs} ${parallel_libs})
   endforeach()
 endif()

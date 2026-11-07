@@ -1,0 +1,14 @@
+# Driver parameters
+task = g0w0
+input_dir = ../dataset
+# API runtime
+nfreq = 6
+option_dielect_func = 0
+replace_w_head = t
+parallel_routing = libri
+# Auxiliary-basis compression (shrink) with crystal symmetry active.
+# The dataset carries the Coulomb matrices in the compressed basis.
+use_shrink_abfs = t
+use_symmetry_exx = t
+use_symmetry_gw = t
+use_symmetry_rpa = t
