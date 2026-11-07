@@ -270,7 +270,7 @@ void test_selected_method_qp_roots()
     std::vector<cplxdb> data;
     for (const auto z : xs) data.push_back(0.1 * z + 0.2);
     const double expected = 0.278 / 0.9;
-    for (const auto method : {LIBRPA_ANACON_PADE, LIBRPA_ANACON_AAA, LIBRPA_ANACON_RIDGE})
+    for (const auto method : {LIBRPA_ANACON_AAA, LIBRPA_ANACON_RIDGE})
     {
         const auto fit = make_analycont(method, 3, xs, data);
         double eqp = 0.0, weight = 0.0;

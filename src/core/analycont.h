@@ -108,7 +108,6 @@ public:
 
     cplxdb get(const cplxdb &x) const override;
     cplxdb get_derivative(const cplxdb &x) const override;
-    int get_support_count() const { return static_cast<int>(support_xs.size()); }
     double get_max_source_error() const { return max_source_error; }
     bool reached_tolerance() const { return tolerance_reached; }
 };
