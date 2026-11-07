@@ -292,8 +292,8 @@ ResponseOperators capture_response_operators(Dataset &ds, const LibrpaOptions &o
     initialize_ds_chi0(ds, options);
     auto &chi = *ds.p_chi0;
     std::map<Vector3_Order<double>, ComplexMatrix> empty_sinvS;
-    chi.build(LIBRPA_ROUTING_LIBRI, ds.cs_data, ds.atpairs_local, ds.basis_aux, empty_sinvS,
-              ds.blacs_h);
+    chi.build(LIBRPA_ROUTING_LIBRI, LIBRPA_METHOD_AUTO, ds.cs_data, ds.atpairs_local,
+              ds.basis_aux, empty_sinvS, ds.blacs_h);
     const auto view = chi.qpoint_view();  // independent snapshot before consumption
     assert(view.restore_mode == SymmetryQPointRestoreMode::NONE ||
            view.restore_mode == SymmetryQPointRestoreMode::FULL_CRYSTAL);

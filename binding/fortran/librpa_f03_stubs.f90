@@ -93,6 +93,15 @@ module librpa_f03
    integer, parameter, public :: LIBRPA_TFGRID_EVENSPACED_TF = 5        !< Evenly spaced in time-frequency
    !> @}
 
+   !> @name Methods on the time-frequency grid
+   !> @brief Method to compute a quantity, for example chi0_method.
+   !> @{
+   integer, parameter, public :: LIBRPA_METHOD_UNSET = LIBRPA_UNSET     !< Unset
+   integer, parameter, public :: LIBRPA_METHOD_AUTO = LIBRPA_AUTO       !< Select from the grid type
+   integer, parameter, public :: LIBRPA_METHOD_SPACE_TIME = 0           !< Real space and imaginary time
+   integer, parameter, public :: LIBRPA_METHOD_CONVENTIONAL = 1         !< Reciprocal space and imaginary frequency
+   !> @}
+
    !> @name Angular basis ordering conventions
    !> @brief Ordering of real spherical harmonics inside one angular-momentum shell.
    !> @{
@@ -183,6 +192,8 @@ module librpa_f03
       integer :: n_bands_exclude_sigc
       !> BvK remapping option for band interpolation: 0 single nearest image, 1 Wigner-Seitz.
       integer :: option_bvk_remap
+      !> Method to compute chi0; use LIBRPA_METHOD_* constants.
+      integer :: chi0_method
       !> Real-space Green's function screening threshold for response function.
       real(dp) :: gf_threshold
       !> Number of first-index atoms per LibRI chi0 collection chunk.

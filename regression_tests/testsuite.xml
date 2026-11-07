@@ -27,6 +27,30 @@
       />
     </testcase>
     
+    <testcase name="Water molecule in box, conventional GL grid (aims input)" directory="rpa_aims_mole_H2O_GL">
+      <run ntasks_disable="none"
+           nthreads_disable="none"
+           ntasks_enable="none"
+           nthreads_enable="none"
+      />
+      <validate name="Correlation energy"
+                regex="Total EcRPA: \s+([-+]?\d*\.\d+)"
+                comparison="cmp_float.abs_diff(1e-7)"
+      />
+    </testcase>
+
+    <testcase name="Water molecule in box, conventional on minimax grid (aims input)" directory="rpa_aims_mole_H2O_conv_minimax">
+      <run ntasks_disable="none"
+           nthreads_disable="none"
+           ntasks_enable="none"
+           nthreads_enable="none"
+      />
+      <validate name="Correlation energy"
+                regex="Total EcRPA: \s+([-+]?\d*\.\d+)"
+                comparison="cmp_float.abs_diff(1e-7)"
+      />
+    </testcase>
+
     <testcase name="BN (abacus input)" directory="rpa_abacus_BN_libri">
       <build require_libri="true"
       />

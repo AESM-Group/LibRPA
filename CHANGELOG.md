@@ -2,8 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added conventional k-space RPA energies, for all parallel routings and for
+  builds without LibRI. Required replicated scalar or collinear eigenvectors on
+  the full k mesh, `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.
+- Added the option `chi0_method` (`auto`, `space_time`, `conventional`) and the
+  enum `LibrpaMethod`. `auto` selected the conventional method on frequency-only
+  grids such as `tfgrids_type = GL`, and the space-time method otherwise.
+  `conventional` also used the frequency nodes of grids with time nodes, such as
+  `minimax`.
+- Rejected frequency-only grids and `chi0_method = conventional` at the start
+  of GW and cRPA calculations.
+- Stopped RPA energy calculations at the start in builds without LibRI when
+  `use_scalapack_ecrpa = true` with the `atompair` or `libri` routing. They
+  previously stopped after the response was built.
+
 ### Fixed
 
+- Fixed the `map::at` failure of RPA energies with `parallel_routing = rtau` for
+  more than one q point on more than one MPI rank.
 - Fixed mixed matrix layouts in the dense LAPACK screened-interaction path (`use_scalapack_gw_wc = false`), present in v0.5.0 through v0.9.0. The mismatch caused an assertion failure and could give incorrect complex screened interactions when assertions were disabled. The numerical error depends on the input ([#66](https://github.com/AESM-Group/LibRPA/issues/66)).
 
 ## [0.9.0] - 2026-10-31

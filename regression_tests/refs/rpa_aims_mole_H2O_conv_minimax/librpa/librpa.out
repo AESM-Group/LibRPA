@@ -1,0 +1,384 @@
+Initialized LibRPA global environment at [2026-11-06 18:29:55.600]
+Total number of tasks    :     4
+Total number of nodes    :     1
+Maximal number of threads:   1
+MPI thread support level : MPI_THREAD_FUNNELED
+MPI tasks information:
+| Proc    0 of Size    4: taiyi
+| Proc    1 of Size    4: taiyi
+| Proc    2 of Size    4: taiyi
+| Proc    3 of Size    4: taiyi
+| Global ID of master process of node     0 :     0
+
+LibRPA CMake build info:
+| Build type               : Debug
+| Build time               : Nov  6 2026 18:28:18
+| Source code directory    : /private/tmp/librpa-conventional-rpa/src
+| Source code Git reference: refs/heads/feat/conventional-rpa
+| Source code Git hash     : d48edc960be6fb4468cc4c0b5a631d8b46b9f18d
+| C++ compiler             : /opt/homebrew/Cellar/mpich/4.3.0/bin/mpicxx
+| C++ compiler flags       : -cxx=g++-13 -O0 -g  -fopenmp
+| Fortran compiler         : /opt/homebrew/Cellar/mpich/4.3.0/bin/mpifort
+| Fortran compiler flags   : -fc=gfortran-13 -ffree-line-length-none
+| GreenX commit hash       : c90d131
+| Use LibRI                : ON
+| LibRI include directory  : /private/tmp/librpa-conventional-rpa/thirdparty/LibRI/include
+| LibComm include directory: /private/tmp/librpa-conventional-rpa/thirdparty/LibComm/include
+
+===== Begin driver parameters  =====
+task = rpa
+constants_choice = internal
+input_preset = fhi-aims
+input_dir = ../dataset/
+prefix_lri_coeff = Cs_data
+prefix_lri_coeff_shrink = Cs_shrinked_data
+prefix_lri_coeff_hartree = 
+prefix_shrink_sinvS = shrink_sinvS_
+prefix_coul_full = coulomb_mat
+prefix_coul_hartree = 
+hartree_fn_reference = 
+prefix_sternheimer_chi0 = v1_sternheimer_chi0_iq_
+fn_sternheimer_qpoints = 
+fn_sternheimer_partial_manifest = 
+fn_sternheimer_symmetry_routes = 
+fn_sternheimer_qstar_routes = 
+prefix_sternheimer_reconstructed = 
+prefix_sternheimer_kresolved = 
+prefix_sternheimer_symmetry_diagnostic = 
+prefix_coul_cut = coulomb_cut
+prefix_eigvecs_scf = KS_eigenvector
+fn_stru = stru_out
+fn_bz_sampling = bz_sampling_out
+fn_basis = basis_out
+fn_basis_wfc = basis_wfc_out
+fn_basis_aux = basis_aux_out
+fn_basis_aux_shrink = basis_aux_shrink_out
+fn_eigocc_scf = band_out
+fn_dielfunc = dielecfunc_out
+fn_vxc_scf = vxc_out
+prefix_velocity = mommat_ks_kpt_
+fn_band_kpath_info = band_kpath_info
+output_level = info
+use_spinor_wfc = false
+use_rpa_gamma = true
+sternheimer_matrix_only = false
+output_energy_qp = false
+output_gw_spec_func = false
+output_hamgnn = false
+use_pyatb = false
+version_coul_reader = -1
+version_lri_reader = -1
+sternheimer_iq = 1
+sternheimer_qweight = 1
+cs_R_threshold = 1e-06
+i_state_low = 0
+i_state_high = 999999
+===== End driver parameters    =====
+
+===== Begin control parameters =====
+output_dir = librpa.d/
+restart_from_dir = <output_dir>
+tfgrids_type = minimax
+anacon_tfgrids_type = unset
+parallel_routing = atompair
+chi0_method = conventional
+rpa_headwing_mode = qavg
+nfreq = 16
+n_bands_chi0 = -1
+n_bands_sigc = -1
+n_bands_exclude_chi0 = 0
+n_bands_exclude_sigc = 0
+n_params_anacon = -1
+n_params_anacon_resample = -1
+anacon_nfreq = -1
+option_qpe_solver = 0
+option_dielect_func = 0
+option_bvk_remap = 1
+rpa_headwing_body_start = 0
+qpe_solver_n_iter_max = 10000
+libri_chi0_collect_s0_chunk = 0
+istate_ref_hedin_shift = -1
+ifreq_output_wc_start = 0
+ifreq_output_wc_end = -1
+istate_output_mat_start = 0
+istate_output_mat_end = -1
+libri_chi0_collect_max_bytes = 0
+gf_R_threshold = 0
+vq_threshold = 0
+minimax_emin = -1
+minimax_emax = -1
+minimax_regulation = 0
+sqrt_coulomb_threshold = 0
+libri_chi0_threshold_C = 0
+libri_chi0_threshold_G = 0
+libri_exx_threshold_C = 0
+libri_exx_threshold_D = 0
+libri_exx_threshold_V = 0
+libri_g0w0_threshold_C = 0
+libri_g0w0_threshold_G = 0
+libri_g0w0_threshold_Wc = 0
+qpe_solver_thres = 1e-06
+qpe_solver_damp_factor = 0.1
+sf_gf_omega_shift = 0.01
+sf_sigc_omega_shift = 0.01
+debug = false
+replace_w_head = false
+use_fullcoul_eps = true
+use_fullcoul_exx = false
+use_fullcoul_wc = false
+use_symmetry_exx = false
+use_symmetry_gw = false
+use_symmetry_rpa = false
+output_abacus_gw_gf = false
+use_shrink_abfs = false
+use_shrink_chi = true
+use_scalapack_ecrpa = false
+use_scalapack_gw_wc = true
+use_cholesky_gw_wc = false
+use_gpu_replace_scalapack = false
+use_elpa_sqrt_coulomb = false
+use_kpara_scf_eigvec = false
+read_sigc_mat_rf = false
+output_gw_sigc_ks_kf = false
+output_gw_sigc_ks_mat_kf = false
+output_exx_ks_mat_k = false
+output_exx_mat_k = false
+output_exx_mat_r = false
+output_gw_sigc_mat_kf = false
+output_gw_sigc_mat_rf = false
+output_gw_sigc_mat_rt = false
+output_wc_rf = false
+output_wc_rf_atom_pair = true
+use_qpe_adaptive_damp = false
+use_qpe_legacy_update = false
+override_qpe_solver_nan = false
+use_hedin_shift = false
+===== End control parameters   =====
+
+Mean-field dimensions set:
+| number of spins           : 1
+| number of k-points        : 1
+| number of bands           : 24
+| number of NAOs            : 24
+| number of spin components : 1
+Internal two-level (SCF k-points/matrix block) parallelization for eigenvectors set:
+| processes per k-point      : 4
+| processes per matrix block : 1
+Mean-field eigenvalues and occupation numbers set:
+| Minimal transition energy (Ha):       0.2634202450
+| Maximal transition energy (Ha):      22.0182259804
+| Fermi level               (Ha):      -0.1286894606
+Reading structure file: ../dataset/stru_out
+Lattice vectors (Bohr): latt
+         37.7945               0               0
+               0         37.7945               0
+               0               0         37.7945
+Reciprocal lattice vectors (2PI Bohr^-1): G
+       0.0264589               0               0
+               0       0.0264589               0
+               0               0       0.0264589
+Consistency check: latt * G.T
+               1               0               0
+               0               1               0
+               0               0               1
+Atom positions read (Cartesian in Bohr | fractional):
+ia    1:   -0.1457479    0.0000000    2.8290055 |   -0.0038563    0.0000000    0.0748523
+ia    2:    1.5496176    0.0000000    3.5216656 |    0.0410011    0.0000000    0.0931793
+ia    3:    0.1373721    0.0000000    1.0199411 |    0.0036347    0.0000000    0.0269865
+
+Reading Brillouin zone sampling file: ../dataset/bz_sampling_out
+kgrids:   1   1   1
+k-points read (Cartesian in 2Pi Bohr^-1 | fractional):
+ik    1:    0.0000000    0.0000000    0.0000000 |    0.0000000    0.0000000    0.0000000
+Hint: full k-point list is copied from parsed k-points.
+R-points to compute: 1
+    1 -     1 : (  0,   0,   0)
+
+SCF k-point to Coulomb q-point mapping:
+  ik:          k_1          k_2          k_3      iq
+   1:    0.0000000    0.0000000    0.0000000
+
+Reading basis information file: ../dataset/basis_out
+Basis convention set:
+| Bloch phase      : -1
+| Bloch r_atom     : 0
+| angular order    : 0
+| RSH coeff m < 0  : 0
+| RSH coeff m > 0  : 0
+Wave-function basis functions set:
+| total number of basis: 24
+Auxiliary basis functions set:
+| total number of basis: 125
+
+KS eigenvector reader: legacy text
+Successfully read eigenvector files
+Loading RI file from directory: ../dataset/
+Triangular dispatching of atom pairs
+LRI coefficient reader (Cs_data): legacy
+Unformatted binary Cs files detected
+Coulomb reader (coulomb_mat): legacy
+Begin READ_Vq_Row
+Unformatted binary V files detected
+| Process     0: coulomb_mat read. Wall/CPU time [min]:       0.0000       0.0000
+| Process     1: coulomb_mat read. Wall/CPU time [min]:       0.0000       0.0000
+| Process     2: coulomb_mat read. Wall/CPU time [min]:       0.0000       0.0000
+| Process     3: coulomb_mat read. Wall/CPU time [min]:       0.0000       0.0000
+| Process     0: Cs with              6 non-zero keys from local atpair size       2. Data memory:       0.26 MB. Wall/CPU time [min]:       0.0000       0.0000
+| Process     1: Cs with              6 non-zero keys from local atpair size       1. Data memory:       0.26 MB. Wall/CPU time [min]:       0.0000       0.0000
+| Process     2: Cs with              6 non-zero keys from local atpair size       1. Data memory:       0.03 MB. Wall/CPU time [min]:       0.0000       0.0000
+| Process     3: Cs with              6 non-zero keys from local atpair size       2. Data memory:       0.03 MB. Wall/CPU time [min]:       0.0000       0.0000
+Actual parallel routing used: atompair
+Initialization finished, Wall/CPU time [min]:       0.0000       0.0000
+Free memory on node     0 [GB]:   29.666
+Common data parsed, task rpa will begin
+rpa: RPA correlation energy
+Grid type: Minimax time-frequency grids
+Grid size: 16
+Frequency node & weight: 
+ 0      0.0436813872028828      0.0882132416555054
+ 1      0.1362234329485491      0.0986998032026196
+ 2      0.2450800229208499      0.1212412439022956
+ 3      0.3838119452226255      0.1591745858015092
+ 4      0.5703926241964191      0.2181022971655515
+ 5      0.8298953343816435      0.3068209942497877
+ 6      1.1984016183733655      0.4388776754496760
+ 7      1.7289223765464872      0.6351246520646686
+ 8      2.5006714469427167      0.9280575750209129
+ 9      3.6342604537440684      1.3697894007386502
+10      5.3185444622569795      2.0487446500575732
+11      7.8643378733915190      3.1313088091541319
+12     11.8333733332508650      4.9887735048654269
+13     18.4291789584632326      8.6833133545363701
+14     31.1038039100432222     18.5654353182838641
+15     66.9770472542000590     70.3304925745584910
+Time node & weight: 
+ 0      0.0067069822388241      0.0172786351421811
+ 1      0.0359325970068920      0.0415888867216220
+ 2      0.0910927121369531      0.0695613235070509
+ 3      0.1772952785880390      0.1043066705723100
+ 4      0.3035092763500603      0.1505358360318667
+ 5      0.4844686871382380      0.2151594866714464
+ 6      0.7431234189416930      0.3077762157329333
+ 7      1.1136056085138757      0.4412950567845820
+ 8      1.6451017671615995      0.6332009939412963
+ 9      2.4074602911390617      0.9078056312928587
+10      3.4997105557246138      1.2999521459003929
+11      5.0635887653101950      1.8617616563766977
+12      7.3071439410207137      2.6774280055745998
+13     10.5532737317359846      3.9033893367871979
+14     15.3672625910994771      5.9120547282685445
+15     23.0599887666532233     10.1493248233000255
+t->f transform: 
+
+ Cosine transform matrix (row: freq, col: time)
+nr = 16, nc = 16
+ 3.46501e-02 8.28583e-02 1.39732e-01 2.07663e-01 3.02365e-01 4.28457e-01 6.17568e-01 8.78404e-01 1.26746e+00 1.79944e+00 2.57862e+00 3.61884e+00 5.10759e+00 6.94834e+00 9.36245e+00 1.04027e+01
+ 3.42917e-02 8.40909e-02 1.37363e-01 2.11256e-01 2.97033e-01 4.34445e-01 6.05679e-01 8.81502e-01 1.22224e+00 1.73668e+00 2.28350e+00 2.91383e+00 2.84320e+00 1.17523e+00 -6.25775e+00 -1.85980e+01
+ 3.49626e-02 8.17790e-02 1.41759e-01 2.04284e-01 3.06026e-01 4.19526e-01 6.15713e-01 8.35932e-01 1.18434e+00 1.48049e+00 1.74348e+00 1.13669e+00 -1.04412e+00 -6.90359e+00 -8.77525e+00 1.16504e+01
+ 3.40531e-02 8.49059e-02 1.35713e-01 2.13282e-01 2.91803e-01 4.32631e-01 5.77650e-01 8.20987e-01 9.97101e-01 1.13130e+00 5.28041e-01 -1.25474e+00 -5.25609e+00 -4.27556e+00 8.93883e+00 -4.43876e+00
+ 3.51210e-02 8.12167e-02 1.42662e-01 2.01762e-01 3.04717e-01 4.02967e-01 5.75985e-01 6.89790e-01 7.78484e-01 3.10432e-01 -9.95594e-01 -3.75416e+00 -2.41259e+00 6.32750e+00 -3.71265e+00 1.42318e+00
+ 3.39639e-02 8.51854e-02 1.34798e-01 2.12476e-01 2.82913e-01 4.07831e-01 4.85928e-01 5.54806e-01 2.23704e-01 -6.94839e-01 -2.63557e+00 -1.56383e+00 4.42001e+00 -2.75268e+00 1.13083e+00 -5.06403e-01
+ 3.51547e-02 8.10332e-02 1.42278e-01 1.97687e-01 2.90277e-01 3.47468e-01 4.04524e-01 1.80868e-01 -4.52323e-01 -1.83389e+00 -1.10813e+00 3.07689e+00 -1.94002e+00 8.16356e-01 -3.65415e-01 2.20309e-01
+ 3.39677e-02 8.50504e-02 1.33465e-01 2.05101e-01 2.51564e-01 3.00771e-01 1.54889e-01 -2.76460e-01 -1.26599e+00 -8.21913e-01 2.13344e+00 -1.33064e+00 5.60872e-01 -2.50749e-01 1.46169e-01 -1.11045e-01
+ 3.51131e-02 8.08932e-02 1.39332e-01 1.82352e-01 2.27489e-01 1.37876e-01 -1.53245e-01 -8.65924e-01 -6.23752e-01 1.47073e+00 -8.95572e-01 3.73736e-01 -1.66054e-01 9.53159e-02 -6.91264e-02 6.02407e-02
+ 3.40310e-02 8.42766e-02 1.27988e-01 1.72678e-01 1.26575e-01 -6.64183e-02 -5.83867e-01 -4.81591e-01 1.00582e+00 -5.91987e-01 2.42862e-01 -1.06810e-01 6.04937e-02 -4.28850e-02 3.54571e-02 -3.34129e-02
+ 3.49805e-02 8.00804e-02 1.26349e-01 1.16907e-01 -3.40488e-03 -3.81885e-01 -3.79899e-01 6.79862e-01 -3.82327e-01 1.53410e-01 -6.66411e-02 3.72368e-02 -2.59239e-02 2.08897e-02 -1.86232e-02 1.83881e-02
+ 3.41522e-02 8.11911e-02 1.02051e-01 4.22684e-02 -2.31162e-01 -3.07066e-01 4.49855e-01 -2.37744e-01 9.29670e-02 -3.99783e-02 2.21137e-02 -1.51816e-02 1.20236e-02 -1.04596e-02 9.77297e-03 -9.95120e-03
+ 3.47413e-02 7.46141e-02 6.87532e-02 -1.12262e-01 -2.49453e-01 2.83645e-01 -1.37419e-01 5.22498e-02 -2.24303e-02 1.23931e-02 -8.45131e-03 6.62545e-03 -5.68660e-03 5.20053e-03 -5.01940e-03 5.22646e-03
+ 3.39818e-02 6.70167e-02 -1.96617e-02 -1.90105e-01 1.58977e-01 -6.81910e-02 2.52226e-02 -1.09743e-02 6.12873e-03 -4.17900e-03 3.25705e-03 -2.77139e-03 2.50424e-03 -2.36802e-03 2.33757e-03 -2.47317e-03
+ 3.43584e-02 3.31451e-02 -1.16417e-01 6.70778e-02 -2.44653e-02 8.95118e-03 -4.06478e-03 2.32986e-03 -1.59451e-03 1.23430e-03 -1.03960e-03 9.28629e-04 -8.65857e-04 8.36014e-04 -8.37151e-04 8.94862e-04
+ 2.90243e-02 -3.95529e-02 1.36171e-02 -4.21744e-03 1.65904e-03 -8.31658e-04 4.99808e-04 -3.44277e-04 2.63307e-04 -2.17985e-04 1.91403e-04 -1.75569e-04 1.66574e-04 -1.62725e-04 1.64269e-04 -1.76622e-04
+
+ Sine transform matrix (row: freq, col: time)
+nr = 16, nc = 16
+ -4.14791e-03 1.44362e-02 -2.67859e-02 4.38138e-02 -5.48545e-02 8.75168e-02 -8.33470e-02 1.80347e-01 -9.54328e-02 4.49164e-01 2.80520e-02 1.35548e+00 8.60973e-01 4.79615e+00 4.96144e+00 2.29056e+01
+ 4.23590e-03 -1.40585e-02 2.93745e-02 -3.76443e-02 7.19827e-02 -5.09932e-02 1.66878e-01 -6.01317e-03 4.70789e-01 3.21356e-01 1.56940e+00 1.81505e+00 5.34442e+00 6.33986e+00 1.28400e+01 -6.43523e+00
+ -4.22887e-03 1.54796e-02 -2.50868e-02 5.26009e-02 -3.83984e-02 1.32075e-01 4.35897e-03 3.80931e-01 3.01795e-01 1.28321e+00 1.57285e+00 4.11082e+00 4.30257e+00 5.68351e+00 -9.98053e+00 -4.34193e+00
+ 4.47442e-03 -1.39462e-02 3.37281e-02 -3.04221e-02 9.73228e-02 -3.77106e-03 2.83575e-01 2.17831e-01 9.50786e-01 1.16146e+00 2.95383e+00 2.82340e+00 2.82237e+00 -8.05010e+00 -5.60707e-01 5.16039e+00
+ -4.35619e-03 1.71567e-02 -2.23429e-02 6.68007e-02 -1.21600e-02 2.03229e-01 1.38981e-01 6.77876e-01 8.07407e-01 2.08813e+00 1.90544e+00 1.67111e+00 -5.85890e+00 4.06396e-01 3.20266e+00 -3.27828e+00
+ 4.77656e-03 -1.33088e-02 4.07468e-02 -1.62664e-02 1.40779e-01 7.98845e-02 4.74575e-01 5.42557e-01 1.46830e+00 1.31486e+00 1.14012e+00 -4.14732e+00 4.96615e-01 2.09765e+00 -2.21510e+00 1.88955e+00
+ -4.38976e-03 1.96670e-02 -1.56933e-02 9.19000e-02 3.96179e-02 3.27480e-01 3.54751e-01 1.02996e+00 9.16714e-01 8.45101e-01 -2.90096e+00 3.73187e-01 1.42200e+00 -1.51311e+00 1.25362e+00 -1.11942e+00
+ 5.13690e-03 -1.11753e-02 5.32199e-02 1.40149e-02 2.20184e-01 2.24846e-01 7.21156e-01 6.41400e-01 6.53301e-01 -2.01264e+00 2.35355e-01 9.79306e-01 -1.03036e+00 8.43030e-01 -7.20529e-01 6.87080e-01
+ -4.20871e-03 2.40087e-02 -4.77289e-04 1.39473e-01 1.35689e-01 5.02245e-01 4.49811e-01 5.17614e-01 -1.38557e+00 1.29911e-01 6.76296e-01 -6.95741e-01 5.62869e-01 -4.72881e-01 4.29458e-01 -4.29216e-01
+ 5.66182e-03 -5.86318e-03 7.75678e-02 7.41610e-02 3.43022e-01 3.16584e-01 4.19183e-01 -9.44298e-01 5.78714e-02 4.64660e-01 -4.63558e-01 3.70263e-01 -3.07423e-01 2.73798e-01 -2.59865e-01 2.67700e-01
+ -3.58239e-03 3.25477e-02 3.20645e-02 2.21378e-01 2.22436e-01 3.47261e-01 -6.31535e-01 9.43359e-03 3.16254e-01 -3.02926e-01 2.38093e-01 -1.95384e-01 1.71691e-01 -1.59512e-01 1.55721e-01 -1.63544e-01
+ 6.56916e-03 6.55511e-03 1.24382e-01 1.50867e-01 2.91470e-01 -4.03904e-01 -2.50017e-02 2.12929e-01 -1.92756e-01 1.48296e-01 -1.19974e-01 1.04032e-01 -9.51992e-02 9.08394e-02 -9.02660e-02 9.59789e-02
+ -1.88622e-03 5.07577e-02 8.89391e-02 2.38789e-01 -2.30492e-01 -5.03211e-02 1.41475e-01 -1.18356e-01 8.85839e-02 -7.03979e-02 6.00893e-02 -5.41649e-02 5.08362e-02 -4.93187e-02 4.95580e-02 -5.31132e-02
+ 8.83152e-03 3.44091e-02 1.74653e-01 -9.58751e-02 -6.38787e-02 9.07139e-02 -6.89060e-02 5.00963e-02 -3.90407e-02 3.27032e-02 -2.89662e-02 2.67410e-02 -2.54891e-02 2.49836e-02 -2.52818e-02 2.72323e-02
+ 2.20023e-03 9.42006e-02 -4.98570e-03 -5.74567e-02 5.17428e-02 -3.63315e-02 2.60663e-02 -2.00396e-02 1.64610e-02 -1.42811e-02 1.29335e-02 -1.21112e-02 1.16525e-02 -1.14932e-02 1.16808e-02 -1.26213e-02
+ 2.22996e-02 2.50573e-02 -3.01930e-02 2.15001e-02 -1.51632e-02 1.11620e-02 -8.59939e-03 6.94942e-03 -5.88888e-03 5.20835e-03 -4.77448e-03 4.50608e-03 -4.35791e-03 4.31344e-03 -4.39452e-03 4.75675e-03
+f->t transform: 
+
+ Cosine transform matrix (row: time, col: freq)
+nr = 16, nc = 16
+ 2.80836e-02 3.14030e-02 3.86181e-02 5.06252e-02 6.94872e-02 9.75662e-02 1.39841e-01 2.01925e-01 2.95733e-01 4.35274e-01 6.52831e-01 9.93097e-01 1.58835e+00 2.72604e+00 5.86695e+00 1.88118e+01
+ 2.80713e-02 3.14414e-02 3.85456e-02 5.07346e-02 6.92981e-02 9.77898e-02 1.39312e-01 2.02178e-01 2.93572e-01 4.33400e-01 6.38257e-01 9.61336e-01 1.43624e+00 2.21508e+00 2.36756e+00 -1.06592e+01
+ 2.80912e-02 3.13760e-02 3.86537e-02 5.05217e-02 6.95061e-02 9.71180e-02 1.39277e-01 1.99023e-01 2.88821e-01 4.10548e-01 5.80457e-01 7.44444e-01 7.71002e-01 -3.76507e-01 -4.96026e+00 2.20759e+00
+ 2.80602e-02 3.14652e-02 3.84508e-02 5.07190e-02 6.88079e-02 9.70089e-02 1.35940e-01 1.93722e-01 2.65227e-01 3.51469e-01 3.77404e-01 1.88221e-01 -8.39978e-01 -2.53406e+00 1.91676e+00 -4.70548e-01
+ 2.81014e-02 3.13124e-02 3.86290e-02 5.00913e-02 6.87470e-02 9.40256e-02 1.31432e-01 1.73552e-01 2.16751e-01 1.92081e-01 -1.86410e-02 -7.51989e-01 -1.33036e+00 1.47544e+00 -4.97985e-01 1.42844e-01
+ 2.80416e-02 3.14476e-02 3.81379e-02 5.00911e-02 6.63233e-02 9.06080e-02 1.15635e-01 1.37267e-01 1.00315e-01 -7.50671e-02 -5.68566e-01 -7.23657e-01 1.06108e+00 -4.54539e-01 1.42186e-01 -6.50182e-02
+ 2.81029e-02 3.11340e-02 3.81812e-02 4.82465e-02 6.38741e-02 7.87221e-02 8.94421e-02 5.42533e-02 -7.83183e-02 -4.06958e-01 -4.11310e-01 7.39597e-01 -3.68116e-01 1.29833e-01 -5.92875e-02 4.18488e-02
+ 2.79983e-02 3.12077e-02 3.68808e-02 4.65793e-02 5.51218e-02 6.00965e-02 3.05221e-02 -6.60454e-02 -2.85976e-01 -2.43304e-01 5.09656e-01 -2.78010e-01 1.06080e-01 -4.97297e-02 3.50915e-02 -3.20926e-02
+ 2.80649e-02 3.04457e-02 3.58483e-02 4.03068e-02 4.20198e-02 1.82456e-02 -5.13554e-02 -2.00000e-01 -1.48490e-01 3.50502e-01 -2.02643e-01 8.08194e-02 -3.80876e-02 2.64179e-02 -2.43881e-02 2.52977e-02
+ 2.78542e-02 2.99668e-02 3.16393e-02 3.12724e-02 1.23515e-02 -3.81139e-02 -1.40015e-01 -9.30953e-02 2.41542e-01 -1.45333e-01 5.94775e-02 -2.78232e-02 1.86181e-02 -1.67217e-02 1.76741e-02 -1.94845e-02
+ 2.78344e-02 2.76460e-02 2.57684e-02 1.04945e-02 -2.69255e-02 -9.84715e-02 -6.03384e-02 1.67052e-01 -1.03413e-01 4.30679e-02 -1.99588e-02 1.28645e-02 -1.10267e-02 1.13538e-02 -1.28548e-02 1.46271e-02
+ 2.72965e-02 2.45587e-02 1.18457e-02 -1.72031e-02 -6.97658e-02 -4.13892e-02 1.16006e-01 -7.30798e-02 3.08496e-02 -1.42065e-02 8.88582e-03 -7.27724e-03 7.14885e-03 -7.91172e-03 9.29910e-03 -1.07706e-02
+ 2.67823e-02 1.66874e-02 -7.55209e-03 -4.96617e-02 -3.14202e-02 8.08596e-02 -5.10005e-02 2.17586e-02 -1.00097e-02 6.13732e-03 -4.85099e-03 4.55092e-03 -4.81340e-03 5.54671e-03 -6.66278e-03 7.79933e-03
+ 2.49868e-02 4.73936e-03 -3.41297e-02 -2.77727e-02 5.63415e-02 -3.45824e-02 1.48572e-02 -6.88236e-03 4.18585e-03 -3.23306e-03 2.92676e-03 -2.95937e-03 3.26487e-03 -3.85388e-03 4.69161e-03 -5.52846e-03
+ 2.22418e-02 -1.66488e-02 -2.86167e-02 3.82912e-02 -2.18165e-02 9.40793e-03 -4.45584e-03 2.73493e-03 -2.09470e-03 1.85416e-03 -1.81114e-03 1.91278e-03 -2.16498e-03 2.59452e-03 -3.18579e-03 3.77033e-03
+ 1.43796e-02 -2.87566e-02 2.21117e-02 -1.10430e-02 4.84620e-03 -2.44444e-03 1.56825e-03 -1.21942e-03 1.07380e-03 -1.02821e-03 1.05119e-03 -1.14097e-03 1.31318e-03 -1.58976e-03 1.96355e-03 -2.33077e-03
+
+Chi0 method: conventional
+Build chi0 by direct k-space band summation
+Calculating EcRPA without BLACS/ScaLAPACK
+Begin compute_Pi_q_MPI
+End compute_Pi_q_MPI
+Finish Pi freq on Proc    0, size 16
+Finish Pi freq on Proc    1, size 16
+Finish Pi freq on Proc    2, size 16
+Finish Pi freq on Proc    3, size 16
+RPA correlation energy (Hartree)
+| Weighted contribution from each k:
+| (         0,         0,         0): (-0.306258510146365,0)
+| Gamma EcRPA contribution:  -3.062585101464e-01   0.000000000000e+00
+| Total EcRPA including q=0:  -3.062585101464e-01
+| Total EcRPA excluding q=0:   0.000000000000e+00
+| use_rpa_gamma = true
+| Total EcRPA:       -0.306258510
+Finalizing LibRPA global environment at [2026-11-06 18:29:55.850]
+Entry                                             #calls       CPU time (s)       Wall time (s)     
+----------------------------------------------------------------------------------------------------
+Total for driver                                  1            0.2488             0.2496            
+ Driver Read Input Parameters                     1             0.0002             0.0002           
+ Driver Read Task-Common Input Data               1             0.0056             0.0056           
+  DFT SCF eigenvalues/occupations                 1              0.0004             0.0004          
+   api_set_scf_dimension                          1               0.0003             0.0003         
+   api_set_wg_ekb_efermi                          1               0.0000             0.0000         
+  Structure                                       1              0.0002             0.0002          
+   api_set_latvec_and_G                           1               0.0000             0.0000         
+   api_set_atoms                                  1               0.0000             0.0000         
+  BZ sampling                                     1              0.0002             0.0002          
+   api_set_kgrids_kvec                            1               0.0000             0.0000         
+   api_set_kq_mapping                             1               0.0000             0.0000         
+  Basis (wave-function and auxiliary)             1              0.0003             0.0003          
+   api_set_basis_convention                       1               0.0000             0.0000         
+   api_set_ao_basis_wfc                           1               0.0000             0.0000         
+   api_set_ao_basis_aux                           1               0.0000             0.0000         
+  SCF eigenvectors                                1              0.0005             0.0005          
+   api_set_wfc                                    1               0.0000             0.0000         
+  driver_read_ri                                  1              0.0037             0.0037          
+   driver_read_Cs                                 1               0.0011             0.0011         
+    api_set_lri_coeff                             6                0.0001             0.0001        
+   driver_read_Vq                                 1               0.0024             0.0024         
+    handle_Vq_row_file                            1                0.0019             0.0019        
+    set_aux_coulomb_k_atom_pair_out               1                0.0003             0.0003        
+     api_set_aux_bare_coulomb_k_atom_pair         2                 0.0002             0.0002       
+ api_get_rpa_correlation_energy                   1             0.2412             0.2418           
+  initialize_ds_tfgrids                           1              0.0766             0.0767          
+  initialize_ds_atpairs_local                     1              0.0013             0.0014          
+  redistribute_coulomb_blacs2ap                   1              0.0000             0.0000          
+  initialize_ds_chi0                              1              0.0000             0.0000          
+  Build response function chi0                    1              0.1118             0.1119          
+  chi0_release_free                               1              0.0013             0.0013          
+  Compute RPA correlation Energy                  1              0.0496             0.0500          
+libRPA finished successfully

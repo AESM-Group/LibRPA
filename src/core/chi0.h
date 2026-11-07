@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <map>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -26,6 +27,9 @@
 namespace librpa_int {
 
 bool rspace_symmetry_has_complete_band_space(const MeanField &mf, int n_bands);
+
+//! Throw on all ranks when the error message of any rank is not empty
+void check_chi0_collective_error(const MpiCommHandler &comm, const std::string &error);
 
 using Chi0QMap =
     std::map<double, std::map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>>;
@@ -93,8 +97,7 @@ private:
                                                const BlacsCtxtHandler &blacs_ctxt_h);
 
     //! Internal procedure to compute chi0_q in the conventional method, i.e. in frequency domain and reciprocal space
-    // TODO: implement the conventional method
-    void build_chi0_q_conventional(const Cs_LRI &Cs,
+    void build_chi0_q_conventional(LibrpaParallelRouting routing, const Cs_LRI &Cs,
                                    const std::vector<atpair_t> &atpairs_ABF);
     /*!
      * s_alpha and s_beta are the spin component of unoccupied Green's function, G_{alpha, beta}(tau)
@@ -143,7 +146,10 @@ public:
          bool use_symmetry_context_in = true);
     ~Chi0() {};
     //! Build the independent response function in q-omega domain for ABFs on the atom pairs atpair_ABF and q-vectors in qlist
+    //! The unset and auto methods select the space-time method for grids with time nodes,
+    //! and the conventional method otherwise.
     void build(LibrpaParallelRouting routing,
+               LibrpaMethod method,
                const Cs_LRI &Cs,
                const std::vector<atpair_t> &atpair_ABF,
                const AtomicBasis &abf_Cs,

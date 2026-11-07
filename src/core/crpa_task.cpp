@@ -107,6 +107,8 @@ CrpaPreparedModel prepare_crpa_task_model(CrpaTaskContext& dataset, const Librpa
             throw LIBRPA_INVALID_ARGUMENT(
                 "cRPA requires native minimax, all loaded bands, full/full Coulomb and either "
                 "no head correction or 3D analytic option 3");
+        if (options.chi0_method == LIBRPA_METHOD_CONVENTIONAL)
+            throw LIBRPA_INVALID_ARGUMENT("cRPA does not support chi0_method = conventional");
         const bool shrink = options.use_shrink_abfs == LIBRPA_SWITCH_ON;
         if (shrink && (options.use_shrink_chi != LIBRPA_SWITCH_ON ||
                        !dataset.basis_aux_shrink.initialized() || dataset.sinvS.empty()))
