@@ -32,8 +32,8 @@ denominator clipping or silent change to another method.
 
 None of these methods constrains causal poles or guarantees accurate real-axis
 spectra. A small imaginary-axis residual, a smooth band plot, and successful
-QSGW iteration are separate from physical acceptance. See the
-[fit equations and derivatives](../theory/analytic_continuation.md).
+QSGW iteration are separate from physical acceptance. The fit equations and derivatives are in
+the source-only note `docs/theory/analytic_continuation.md`.
 
 ## Compatibility and reproducibility
 

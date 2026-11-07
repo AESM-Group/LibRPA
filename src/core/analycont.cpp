@@ -863,7 +863,7 @@ AnalyContRidge::AnalyContRidge(int n_pars_in, const std::vector<cplxdb> &xs,
     source_xs = xs;
     source_data = data;
 
-    const int n_unknowns = std::min(std::max(n_pars_in, 1), n_data);
+    const int n_unknowns = std::min(n_pars_in, n_data);
     const int n_num = (n_unknowns + 1) / 2;
     const int n_den = n_unknowns - n_num;
 
@@ -917,7 +917,6 @@ AnalyContRidge::AnalyContRidge(int n_pars_in, const std::vector<cplxdb> &xs,
         }
     }
 
-    const double den_weight = denominator_weight;
     for (int j = 1; j < n_num; j++)
     {
         normal[j][j] += lambda * static_cast<double>(j * j);
@@ -925,7 +924,7 @@ AnalyContRidge::AnalyContRidge(int n_pars_in, const std::vector<cplxdb> &xs,
     for (int j = 0; j < n_den; j++)
     {
         const int power = j + 1;
-        normal[n_num + j][n_num + j] += lambda * den_weight * static_cast<double>(power * power);
+        normal[n_num + j][n_num + j] += lambda * denominator_weight * static_cast<double>(power * power);
     }
 
     std::vector<cplxdb> solution;

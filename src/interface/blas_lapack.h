@@ -180,7 +180,7 @@ extern "C" {
                  const int *ldu, std::complex<double> *vt, const int *ldvt,
                  std::complex<double> *work, const int *lwork, double *rwork, int *info);
 
-    // factorization
+// factorization
     void sgetrf_(const int *m, const int *n, float *A, const int *lda, int *ipiv, int *info);
     void dgetrf_(const int *m, const int *n, double *A, const int *lda, int *ipiv, int *info);
     void cgetrf_(const int *m, const int *n, std::complex<float> *A, const int *lda, int *ipiv, int *info);

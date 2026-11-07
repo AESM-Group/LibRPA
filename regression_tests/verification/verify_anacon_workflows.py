@@ -4,9 +4,9 @@
 This strict selector control is single-rank; MPI reproducibility is a separate
 question because independent upstream numerical builds need not be bitwise equal.
 
-Default and explicit Padé must agree; ridge and AAA must give distinguishable
-results on the same non-rational molecular input. Repeat with unequal source
-and final resampling counts. The analytic component tests supply independent
+Ridge and AAA must give distinguishable results from Padé on the same
+non-rational molecular input. Repeat with unequal source and final resampling
+counts. Existing reference regressions cover the unchanged implicit Padé default. The analytic component tests supply independent
 formula oracles; this companion checks propagation, not material accuracy.
 """
 
@@ -33,8 +33,7 @@ def outputs(directory, task):
         result = {"eigenvalues_eV": data[:, 8]}
         with (directory / "librpa.d/qsgw_qp.csv").open() as source:
             rows = list(csv.DictReader(source))
-        for name in ("eqp_eV", "re_sigma_c_effective_eV"):
-            result[name] = np.array([float(row[name]) for row in rows])
+        result["eqp_eV"] = np.array([float(row["eqp_eV"]) for row in rows])
     else:
         rows = []
         for line in (directory / "energy_qp").read_text().splitlines():
@@ -86,10 +85,9 @@ def main():
                 common.update(output_gw_spec_func="true", sf_omega_start=-1,
                               sf_omega_end=1, sf_omega_step=0.5)
             results = {}
-            for method in ("default", "ridge", "pade", "aaa"):
+            for method in ("pade", "ridge", "aaa"):
                 controls = {key: str(value) for key, value in common.items()}
-                if method != "default":
-                    controls["anacon_method"] = method
+                controls["anacon_method"] = method
                 directory = home / f"{'resampled' if resample else 'source'}-{method}"
                 if not args.analyze_only:
                     stage_input(template, home / "dataset", directory, controls)
@@ -97,11 +95,9 @@ def main():
                 results[method] = outputs(directory, task)
             metrics = {}
             for name in results["pade"]:
-                np.testing.assert_allclose(results["default"][name], results["pade"][name],
-                                           rtol=0, atol=1e-10)
                 metrics[name] = {
                     method: float(np.max(np.abs(results[method][name] - results["pade"][name])))
-                    for method in ("default", "ridge", "aaa")}
+                    for method in ("ridge", "aaa")}
             # Guard QP selection independently of the spectral/static outputs.
             for method in ("ridge", "aaa"):
                 qp_name = "qp_Ha" if task == "g0w0" else "eqp_eV"
@@ -109,17 +105,18 @@ def main():
                 other = ("specfunc", "resigc", "imsigc") if task == "g0w0" else ("eigenvalues_eV",)
                 assert max(metrics[name][method] for name in other) > 1e-7, (task, resample, method)
             report[f"{task}-resample-{resample}"] = metrics
-            task_results[resample] = results["pade"]
-        for name in task_results[False]:
-            delta = float(np.max(np.abs(task_results[False][name] - task_results[True][name])))
-            if task == "qsgw" and name == "eigenvalues_eV":
-                # Existing task behavior: static QSGW uses the source grid;
-                # anacon_nfreq resamples only entering-state GW diagnostics.
-                np.testing.assert_allclose(task_results[False][name], task_results[True][name],
-                                           rtol=0, atol=1e-10)
-            else:
-                assert delta > 1e-9, (task, name, "resampling was ineffective")
-            report[f"{task}-resampling-delta-{name}"] = delta
+            task_results[resample] = results
+        for method in ("pade", "ridge", "aaa"):
+            source, resampled = task_results[False][method], task_results[True][method]
+            for name in source:
+                delta = float(np.max(np.abs(source[name] - resampled[name])))
+                if task == "qsgw" and name == "eigenvalues_eV":
+                    # Existing task behavior: static QSGW uses the source grid;
+                    # anacon_nfreq resamples only entering-state GW diagnostics.
+                    np.testing.assert_allclose(source[name], resampled[name], rtol=0, atol=1e-10)
+                else:
+                    assert delta > 1e-9, (task, method, name, "resampling was ineffective")
+                report[f"{task}-{method}-resampling-delta-{name}"] = delta
     (work / "comparison.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
 

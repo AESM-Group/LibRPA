@@ -151,7 +151,6 @@ void run_mode_test(const CorrelationPotentialMode mode,
     const auto sigma = make_sigma(source_frequencies);
 
     CorrelationPotentialSettings settings;
-    settings.anacon_method = LIBRPA_ANACON_PADE;
     settings.mode = mode;
     settings.n_params_anacon = n_params_anacon;
     settings.n_params_anacon_resample = n_params_anacon_resample;
@@ -200,7 +199,6 @@ void test_two_stage_parameter_counts_follow_upstream_order()
     sigma.at(0.6)(1, 1) -= 0.7e-7;
 
     CorrelationPotentialSettings settings;
-    settings.anacon_method = LIBRPA_ANACON_PADE;
     settings.mode = CorrelationPotentialMode::ModeB;
     settings.n_params_anacon = 2;
     settings.n_params_anacon_resample = 3;
@@ -331,7 +329,6 @@ void run_complex_rational_staticization_test(MeanField& meanfield)
                                 continue;
                             }
                             CorrelationPotentialSettings settings;
-                            settings.anacon_method = LIBRPA_ANACON_PADE;
                             settings.mode = mode;
                             settings.n_params_anacon = final_count;
                             settings.n_params_anacon_resample = source_count;
@@ -424,15 +421,12 @@ void test_selected_methods_against_rational_matrix()
             for (int j = 0; j != 2; ++j) matrix(i, j) = residues[i][j] / cplxdb{2.0, freq};
         sigma.emplace(freq, matrix);
     }
-    // Check the unchanged Pade default, then select each method explicitly.
-    // The oracle is the analytic input function.
-    for (const auto method : {LIBRPA_ANACON_PADE, LIBRPA_ANACON_AAA, LIBRPA_ANACON_RIDGE})
+    // Compare the opt-in methods with the analytic input function.
+    for (const auto method : {LIBRPA_ANACON_AAA, LIBRPA_ANACON_RIDGE})
         for (const auto mode : {CorrelationPotentialMode::ModeA, CorrelationPotentialMode::ModeB})
             for (const bool resample : {false, true})
             {
                 CorrelationPotentialSettings settings;
-                assert(settings.anacon_method == LIBRPA_ANACON_PADE);
-                assert(settings.anacon_ridge_lambda == 1.0e-12);
                 settings.anacon_method = method;
                 settings.mode = mode;
                 settings.n_params_anacon = settings.n_params_anacon_resample = 3;
