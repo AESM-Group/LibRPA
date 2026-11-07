@@ -105,6 +105,7 @@ list(APPEND lib_sources
         core/symmetry_context.cpp
         core/symmetry_spin_kernel.cpp
         core/atomic_basis.cpp
+        core/conventional_chi0.cpp
         core/chi0.cpp
         core/correlated_subspace.cpp
         core/crpa.cpp

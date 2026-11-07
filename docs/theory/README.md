@@ -9,6 +9,10 @@ remain in the built documentation sections.
 
 - [Padé continuation and numerical breakdown](numerical_methods/pade.md)
 
+## RPA
+
+- [Conventional k-space RPA](rpa/conventional.md)
+
 ## QSGW
 
 - [Self-energy staticization](qsgw/staticization.md)

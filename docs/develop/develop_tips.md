@@ -352,5 +352,9 @@ Below are a few specific guidelines for LibRPA:
   user-guide table places the keyword.
 - Use `utilities/check_librpa_options.py` to cross-check the consistency between the C
   struct, Fortran interface and high-level wrapper of `LibrpaOptions`.
+  CI runs this check before the build.
+- When adding a new enum type in `librpa_enums.h`, also add it to the integer
+  types in `parse_c_field_kind` of `utilities/check_librpa_options.py`.
+  Otherwise the check reports an unknown type for the option.
 
 See [third-party maintenance](thirdparty.md) for dependency updates and offline preparation.

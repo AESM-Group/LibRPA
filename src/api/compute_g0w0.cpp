@@ -702,6 +702,12 @@ void librpa_int::api::build_gw_sigma_for_task(
 
     // Prepare time-frequency grids
     initialize_ds_tfgrids(*pds, opts);
+    // The self-energy needs W(tau). Reject here, before the response is built.
+    if (!pds->tfg.has_time_grids())
+        throw LIBRPA_RUNTIME_ERROR(
+            "GW self-energy requires a grid with time nodes, such as tfgrids_type = minimax");
+    if (opts.chi0_method == LIBRPA_METHOD_CONVENTIONAL)
+        throw LIBRPA_RUNTIME_ERROR("GW does not support chi0_method = conventional");
     if (opts.replace_w_head == LIBRPA_SWITCH_ON
         && (opts.option_dielect_func == 0 || opts.option_dielect_func == 5)
         && !pds->epsmacs_imagfreq.empty()
@@ -793,8 +799,8 @@ void librpa_int::api::build_gw_sigma_for_task(
         use_shrink_abfs && !shrink_chi_from_full_abfs ? pds->basis_aux_shrink : pds->basis_aux;
     std::map<Vector3_Order<double>, ComplexMatrix> empty_sinvS;
     auto &sinvS_chi0 = shrink_chi_from_full_abfs ? pds->sinvS : empty_sinvS;
-    chi0.build(routing, cs_data_chi0, pds->atpairs_local, basis_aux_chi0, sinvS_chi0,
-               pds->blacs_h);
+    chi0.build(routing, LIBRPA_METHOD_SPACE_TIME, cs_data_chi0, pds->atpairs_local,
+               basis_aux_chi0, sinvS_chi0, pds->blacs_h);
     profiler.stop("chi0_build");
     pds->comm_h.barrier();
     if (on_response) on_response(chi0.get_chi0_q());
@@ -913,8 +919,9 @@ void librpa_int::api::build_gw_sigma_for_task(
         {
             profiler.start("g0w0_restore_compressed_full_q",
                            "Restore compressed Wc to full q grid");
-            lib_printf("Restoring compressed Wc from %zu representatives to %zu full q points\n",
-                       chi0.active_qpoints().size(), pds->pbc.klist.size());
+            printf_comm_root(pds->comm_h,
+                             "Restoring compressed Wc from %zu representatives to %zu full q points\n",
+                             chi0.active_qpoints().size(), pds->pbc.klist.size());
             for (auto &freq_q : Wc_freq_q)
                 freq_q.second = restore_symmetry_dense_wq_map(
                     freq_q.second, pds->pbc, chi0.qpoint_view(), pds->symmetry_context,

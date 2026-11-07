@@ -78,6 +78,7 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->n_bands_exclude_sigc = 0;
     opts->option_bvk_remap = 1;
 
+    opts->chi0_method = LIBRPA_METHOD_AUTO;
     opts->gf_threshold = 0.0e0;
     opts->libri_chi0_collect_s0_chunk = 0;
     opts->libri_chi0_collect_max_bytes = 0;

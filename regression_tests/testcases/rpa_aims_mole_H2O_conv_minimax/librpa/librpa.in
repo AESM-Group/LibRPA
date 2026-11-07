@@ -1,0 +1,8 @@
+# Driver parameters
+task = rpa
+input_dir = ../dataset
+# API runtime
+nfreq = 16
+chi0_method = conventional
+parallel_routing = atompair
+use_scalapack_ecrpa = f

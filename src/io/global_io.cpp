@@ -90,10 +90,10 @@ void lib_printf_coll_msg_impl(const librpa_int::MpiCommHandler &comm_h,
 
     std::vector<int> displs;
     std::vector<char> all_msgs;
+    int total_count = 0;
     if (comm_h.myid == 0)
     {
         displs.resize(comm_h.nprocs);
-        int total_count = 0;
         for (int i = 0; i < comm_h.nprocs; ++i)
         {
             displs[i] = total_count;
@@ -108,14 +108,9 @@ void lib_printf_coll_msg_impl(const librpa_int::MpiCommHandler &comm_h,
                 comm_h.myid == 0 ? displs.data() : nullptr,
                 MPI_CHAR, 0, comm_h.comm);
 
-    if (comm_h.myid == 0 && should_output(verbose_level))
-    {
-        for (int i = 0; i < comm_h.nprocs; ++i)
-        {
-            if (counts[i] > 0)
-                lib_printf(verbose_level, "%.*s", counts[i], all_msgs.data() + displs[i]);
-        }
-    }
+    // Print all messages at once, so that a redirected output is flushed once per call
+    if (comm_h.myid == 0 && total_count > 0 && should_output(verbose_level))
+        lib_printf(verbose_level, "%.*s", total_count, all_msgs.data());
     comm_h.barrier();
 }
 

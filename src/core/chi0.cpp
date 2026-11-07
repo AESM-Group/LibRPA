@@ -824,8 +824,6 @@ Chi0::Chi0(const MeanField &mf_in, const AtomicBasis &atbasis_wfc_in,
     nbands_G = -1;
 }
 
-namespace
-{
 void check_chi0_collective_error(const MpiCommHandler &comm, const std::string &error)
 {
     const int failed = !error.empty();
@@ -835,7 +833,6 @@ void check_chi0_collective_error(const MpiCommHandler &comm, const std::string &
         throw LIBRPA_RUNTIME_ERROR(
             (error.empty() ? "Chi0: another rank rejected the response operation" : error));
 }
-}  // namespace
 
 void Chi0::set_band_selection(const BandSelection &selection)
 {
@@ -970,12 +967,25 @@ void Chi0::replace_chi0_q_by_difference(const Chi0QMap &full)
     chi0_q.swap(difference);
 }
 
-void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
+void Chi0::build(LibrpaParallelRouting routing, LibrpaMethod method, const Cs_LRI &Cs,
                  const std::vector<atpair_t> &atpairs_ABF, const AtomicBasis &abf_Cs,
                  std::map<Vector3_Order<double>, ComplexMatrix> &sinvS,
                  const BlacsCtxtHandler &blacs_ctxt_h)
 {
     using librpa_int::global::lib_printf;
+
+    std::string method_error;
+    bool use_space_time = tfg.has_time_grids();
+    if (method == LIBRPA_METHOD_SPACE_TIME)
+    {
+        if (!use_space_time)
+            method_error = "chi0_method = space_time requires a grid with time nodes";
+    }
+    else if (method == LIBRPA_METHOD_CONVENTIONAL)
+        use_space_time = false;
+    else if (method != LIBRPA_METHOD_AUTO && method != LIBRPA_METHOD_UNSET)
+        method_error = "Unknown chi0_method";
+    check_chi0_collective_error(comm_h, method_error);
 
     // Selected responses use the same replicated scalar/spinor LIBRI kernel as P0.
     // Other routes must not silently ignore an attached selection.
@@ -985,7 +995,7 @@ void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
             routing == LIBRPA_ROUTING_LIBRI && !is_mf_eigvec_k_distributed_ &&
             (!use_symmetry_context || qstar_only_symmetry) &&
             (mf.get_n_spinor() == 1 || (mf.get_n_spinor() == 2 && mf.get_n_spins() == 1)) &&
-            tfg.has_time_grids();
+            use_space_time;
         check_chi0_collective_error(
             comm_h, supported ? ""
                               : "Chi0 selected bands require scalar/spinor full-grid LIBRI with "
@@ -1008,22 +1018,18 @@ void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
     chi0_q.clear();
     Rlist_gf.clear();
 
-    bool use_space_time = false;
-
     // If not using shrinking (sinvS is empty), abf_Cs must be the same as the initial atbasis_abf
     if (sinvS.size() == 0)
     {
         if (abf_Cs != atbasis_abf)
             throw LIBRPA_RUNTIME_ERROR("abf_Cs != atbasis_abf for non-shrinking chi0");
     }
-    // Switch on space-time method when time grids and weights are available
-    if (tfg.has_time_grids())
-    {
-        use_space_time = true;
-    }
 
     if (comm_h.is_root())
+    {
         tfg.show();
+        lib_printf("Chi0 method: %s\n", use_space_time ? "space-time" : "conventional");
+    }
     comm_h.barrier();
 
     const int natom = atbasis_abf.n_atoms;
@@ -1042,8 +1048,8 @@ void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
                                                atpairs_gf.size() * Rlist_gf.size());
             this->IJRs_gf_local = librpa_int::dispatch_vector_prod(
                 atpairs_gf, Rlist_gf, comm_h.myid, comm_h.nprocs, true, true);
-            global::lib_printf("| Number of GFs IJR on Proc %4d: %zu\n", comm_h.myid,
-                                           this->IJRs_gf_local.size());
+            printf_comm_coll(comm_h, "| Number of GFs IJR on Proc %4d: %zu\n", comm_h.myid,
+                             this->IJRs_gf_local.size());
         }
         else
         {
@@ -1067,8 +1073,12 @@ void Chi0::build(LibrpaParallelRouting routing, const Cs_LRI &Cs,
     }
     else
     {
+        check_chi0_collective_error(comm_h,
+            !sinvS.empty() || abf_Cs != atbasis_abf
+                ? "Conventional chi0 does not support auxiliary shrinking"
+                : "");
         // conventional method does not need to build Green's function explicitly
-        build_chi0_q_conventional(Cs, atpairs_ABF);
+        build_chi0_q_conventional(routing, Cs, atpairs_ABF);
     }
 
     // Free the intermediate Green's functions to lower memory load
@@ -3009,7 +3019,7 @@ void Chi0::build_chi0_q_space_time_atom_pair_routing(const Cs_LRI &Cs,
 
     profiler.start("atom_pair_routing", "Loop over atom pairs");
     //auto tot_pair = dispatch_vector(atpairs_ABF, librpa_int::mpi_comm_global_h.myid, para_mpi.get_size(), false);
-    lib_printf("Number of atom pairs on Proc %4d: %zu\n", comm_h.myid, atpairs_ABF.size());
+    printf_comm_coll(comm_h, "Number of atom pairs on Proc %4d: %zu\n", comm_h.myid, atpairs_ABF.size());
     comm_h.barrier();
     omp_lock_t chi0_lock;
     omp_init_lock(&chi0_lock);
@@ -3310,13 +3320,6 @@ matrix Chi0::compute_chi0_s_munu_tau_R(const atpair_R_mat_t &Cs_IJR,
     // }
     global::profiler.stop("cal_chi0_element");
     return O_sum;
-}
-
-void Chi0::build_chi0_q_conventional(const Cs_LRI &Cs,
-                                     const vector<atpair_t> &atpair_ABF)
-{
-    // TODO: low implementation priority
-    throw std::logic_error("Not implemented");
 }
 
 //! Compute the real-space independent reponse function in space-time method on a particular time

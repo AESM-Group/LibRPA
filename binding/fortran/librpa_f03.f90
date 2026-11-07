@@ -96,6 +96,15 @@ module librpa_f03
    integer, parameter, public :: LIBRPA_TFGRID_EVENSPACED_TF = 5        !< Evenly spaced in time-frequency
    !> @}
 
+   !> @name Methods on the time-frequency grid
+   !> @brief Method to compute a quantity, for example chi0_method.
+   !> @{
+   integer, parameter, public :: LIBRPA_METHOD_UNSET = LIBRPA_UNSET     !< Unset
+   integer, parameter, public :: LIBRPA_METHOD_AUTO = LIBRPA_AUTO       !< Select from the grid type
+   integer, parameter, public :: LIBRPA_METHOD_SPACE_TIME = 0           !< Real space and imaginary time
+   integer, parameter, public :: LIBRPA_METHOD_CONVENTIONAL = 1         !< Reciprocal space and imaginary frequency
+   !> @}
+
    !> @name Angular basis ordering conventions
    !> @brief Ordering of real spherical harmonics inside one angular-momentum shell.
    !> @{
@@ -181,6 +190,7 @@ module librpa_f03
       integer(c_int) :: option_bvk_remap
 
       ! RPA specific
+      integer(c_int) :: chi0_method
       real(c_double) :: gf_threshold
       integer(c_int) :: libri_chi0_collect_s0_chunk
       integer(c_long_long) :: libri_chi0_collect_max_bytes
@@ -306,6 +316,8 @@ module librpa_f03
       integer :: n_bands_exclude_sigc
       !> BvK remapping option for band interpolation: 0 single nearest image, 1 Wigner-Seitz.
       integer :: option_bvk_remap
+      !> Method to compute chi0; use LIBRPA_METHOD_* constants.
+      integer :: chi0_method
       !> Real-space Green's function screening threshold for response function.
       real(dp) :: gf_threshold
       !> Number of first-index atoms per LibRI chi0 collection chunk.
@@ -1186,6 +1198,7 @@ contains
       call sync_opt(opts%n_bands_exclude_chi0,    opts%opts_c%n_bands_exclude_chi0, direction)
       call sync_opt(opts%n_bands_exclude_sigc,    opts%opts_c%n_bands_exclude_sigc, direction)
       call sync_opt(opts%option_bvk_remap,        opts%opts_c%option_bvk_remap,        direction)
+      call sync_opt(opts%chi0_method,             opts%opts_c%chi0_method,             direction)
       call sync_opt(opts%gf_threshold,            opts%opts_c%gf_threshold,            direction)
       call sync_opt(opts%libri_chi0_collect_s0_chunk, opts%opts_c%libri_chi0_collect_s0_chunk, direction)
       call sync_opt(opts%libri_chi0_collect_max_bytes, opts%opts_c%libri_chi0_collect_max_bytes, direction)

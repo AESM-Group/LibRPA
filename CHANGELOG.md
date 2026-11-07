@@ -13,6 +13,19 @@
 
 - Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and separate download and source-preparation scripts with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
 - Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibRI/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `GREENX_PATH` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
+- Added conventional k-space RPA energies, for all parallel routings and for
+  builds without LibRI. Required replicated scalar or collinear eigenvectors on
+  the full k mesh, `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.
+- Added the option `chi0_method` (`auto`, `space_time`, `conventional`) and the
+  enum `LibrpaMethod`. `auto` selected the conventional method on frequency-only
+  grids such as `tfgrids_type = GL`, and the space-time method otherwise.
+  `conventional` also used the frequency nodes of grids with time nodes, such as
+  `minimax`.
+- Rejected frequency-only grids and `chi0_method = conventional` at the start
+  of GW and cRPA calculations.
+- Stopped RPA energy calculations at the start in builds without LibRI when
+  `use_scalapack_ecrpa = true` with the `atompair` or `libri` routing. They
+  previously stopped after the response was built.
 
 ### Changed
 
@@ -26,6 +39,9 @@
 
 - Detected parent greenX targets automatically, avoiding duplicate targets.
 - Corrected the LibDDLA revision in the license list to `0d576d4`.
+
+- Fixed the `map::at` failure of RPA energies with `parallel_routing = rtau` for
+  more than one q point on more than one MPI rank.
 
 ## [0.9.0] - 2026-10-31
 

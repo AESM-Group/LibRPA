@@ -170,6 +170,7 @@ blocks:
       These parameters may affect subsequent calculations
       using response function as input, e.g. RPA, GW.
     fields:
+      - api.chi0_method
       - api.gf_threshold
       - api.n_bands_chi0
       - api.n_bands_exclude_chi0
