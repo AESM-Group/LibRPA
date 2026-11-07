@@ -1,0 +1,8 @@
+# Driver parameters
+task = rpa
+input_dir = ../dataset
+# API runtime
+tfgrids_type = GL
+nfreq = 48
+parallel_routing = atompair
+use_scalapack_ecrpa = f

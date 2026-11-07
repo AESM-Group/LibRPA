@@ -697,6 +697,7 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_switch(opts, use_shrink_chi);
 
     // RPA specific
+    _parse_string_post(opts, chi0_method, get_method);
     parser.parse_double("gf_R_threshold", opts.gf_threshold, flag); // backward compatible
     _parse_double(opts, gf_threshold);
     _parse_int(opts, libri_chi0_collect_s0_chunk);

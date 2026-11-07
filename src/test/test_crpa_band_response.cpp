@@ -101,7 +101,8 @@ struct Fixture
 
     void build()
     {
-        chi->build(LIBRPA_ROUTING_LIBRI, ds.cs_data, pairs, ds.basis_aux, no_shrink, ds.blacs_h);
+        chi->build(LIBRPA_ROUTING_LIBRI, LIBRPA_METHOD_AUTO, ds.cs_data, pairs, ds.basis_aux,
+                   no_shrink, ds.blacs_h);
     }
 
     Complex value(const Chi0QMap &response, double omega, const Vector3_Order<double> &q) const

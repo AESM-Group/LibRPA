@@ -110,6 +110,19 @@ typedef enum
 } LibrpaTimeFreqGrid;
 
 /**
+ * @brief Method to compute a quantity on the time/frequency grid.
+ *
+ * Several options use this type, one for each stage of a calculation.
+ */
+typedef enum
+{
+    LIBRPA_METHOD_UNSET = LIBRPA_UNSET,  ///< Use default method (unset)
+    LIBRPA_METHOD_AUTO = LIBRPA_AUTO,    ///< Select from the grid type
+    LIBRPA_METHOD_SPACE_TIME = 0,        ///< Real space and imaginary time
+    LIBRPA_METHOD_CONVENTIONAL = 1,      ///< Reciprocal space and imaginary frequency
+} LibrpaMethod;
+
+/**
  * @brief Boolean switch type.
  *
  * Use LIBRPA_SWITCH_ON (1) or LIBRPA_SWITCH_OFF (0) to set.
