@@ -175,11 +175,12 @@ extern "C" {
     void cgesvd_(const char *jobu, const char *jobvt, const int *m, const int *n, std::complex<float> *a,
                  const int *lda, std::complex<float> *s, std::complex<float> *u, const int *ldu, std::complex<float> *vt,
                  const int *ldvt, std::complex<float> *work, const int *lwork, int *info);
-    void zgesvd_(const char *jobu, const char *jobvt, const int *m, const int *n, std::complex<double> *a,
-                 const int *lda, std::complex<double> *s, std::complex<double> *u, const int *ldu, std::complex<double> *vt,
-                 const int *ldvt, std::complex<double> *work, const int *lwork, int *info);
+    void zgesvd_(const char *jobu, const char *jobvt, const int *m, const int *n,
+                 std::complex<double> *a, const int *lda, double *s, std::complex<double> *u,
+                 const int *ldu, std::complex<double> *vt, const int *ldvt,
+                 std::complex<double> *work, const int *lwork, double *rwork, int *info);
 
-// factorization
+    // factorization
     void sgetrf_(const int *m, const int *n, float *A, const int *lda, int *ipiv, int *info);
     void dgetrf_(const int *m, const int *n, double *A, const int *lda, int *ipiv, int *info);
     void cgetrf_(const int *m, const int *n, std::complex<float> *A, const int *lda, int *ipiv, int *info);

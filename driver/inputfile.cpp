@@ -728,6 +728,15 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_double(opts, libri_exx_threshold_V);
 
     // GW specific
+    _parse_string_post(opts, anacon_method, get_anacon_method);
+    _parse_double(opts, anacon_aaa_tolerance);
+    if (!std::isfinite(opts.anacon_aaa_tolerance) || opts.anacon_aaa_tolerance <= 0.0)
+        throw std::runtime_error("AAA tolerance must be finite and positive");
+    _parse_double(opts, anacon_ridge_lambda);
+    _parse_double(opts, anacon_ridge_den_weight);
+    if (!std::isfinite(opts.anacon_ridge_lambda) || opts.anacon_ridge_lambda < 0.0 ||
+        !std::isfinite(opts.anacon_ridge_den_weight) || opts.anacon_ridge_den_weight < 0.0)
+        throw std::runtime_error("Ridge penalties must be finite and nonnegative");
     _parse_int(opts, n_params_anacon);
     _parse_int(opts, n_params_anacon_resample);
     if (opts.n_params_anacon == 0)

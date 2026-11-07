@@ -11,3 +11,6 @@ replace_w_head = t
 parallel_routing = libri
 use_qpe_adaptive_damp = t
 output_energy_qp = t
+
+# Preserve the Pade method used by the stored reference.
+anacon_method = pade

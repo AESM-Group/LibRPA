@@ -37,3 +37,6 @@ qsgw_export_hamiltonian_for_pyatb = false
 
 # Preserve the fixed-Hartree reference trajectory.
 qsgw_update_hartree = false
+
+# Preserve the Pade method used by the stored reference.
+anacon_method = pade

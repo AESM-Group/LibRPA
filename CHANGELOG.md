@@ -28,6 +28,16 @@
   (IBZ) list and the full-Brillouin-zone list, are now accepted and reach the
   same accumulation.
 
+### Changed
+
+- Changed the default GW/QSGW/cRPA analytic continuation from Pade to ridge with
+  coefficient penalty `1e-12` and denominator weight `10`. Added explicit
+  `pade`, `aaa` and `ridge` selection, with values and derivatives shared by
+  quasiparticle solvers, spectra, resampling and QSGW matrices. Select
+  `anacon_method=pade` to retain the previous method; rebuild host bindings
+  for the extended options structure.
+
+
 ## [0.9.0] - 2026-10-31
 
 ### Breaking changes

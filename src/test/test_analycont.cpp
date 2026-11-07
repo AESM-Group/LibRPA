@@ -12,6 +12,7 @@
 #include "../core/qsgw/correlation_potential.h"
 #include "../io/stl_io_helper.h"
 #include "../utils/constants.h"
+#include "librpa_options.h"
 #include "testutils.h"
 
 using std::vector;
@@ -188,6 +189,7 @@ void test_qsgw_pade_zero_offdiagonal()
          {qsgw::CorrelationPotentialMode::ModeA, qsgw::CorrelationPotentialMode::ModeB})
     {
         qsgw::CorrelationPotentialSettings settings;
+        settings.anacon_method = LIBRPA_ANACON_PADE;
         settings.mode = mode;
         const Matz potential =
             qsgw::build_qsgw_correlation_potential(meanfield, frequencies, sigma, 0, 0, settings);
@@ -356,14 +358,99 @@ void test_analycont_pade_bi2se3_degenerate_pair()
     }
 }
 
+void test_analycont_aaa_constant_linear_and_rational()
+{
+    const std::vector<cplxdb> xs = {{-2.0, 0.2}, {-1.0, 0.5}, {0.0, 0.8}, {1.0, 1.1}, {2.0, 1.4}};
+    std::vector<cplxdb> constant(xs.size(), {2.5, -0.75});
+    AnalyContAAA aaa_constant(4, xs, constant);
+    assert(fequal(aaa_constant.get({0.25, -0.4}), constant[0]));
+    assert(fequal(aaa_constant.get_derivative({0.25, -0.4}), cplxdb{0.0, 0.0}));
+
+    const cplxdb slope{1.2, -0.4};
+    const cplxdb intercept{-0.3, 0.7};
+    std::vector<cplxdb> linear;
+    for (const auto &x : xs) linear.push_back(slope * x + intercept);
+    AnalyContAAA aaa_linear(4, xs, linear);
+    const cplxdb x_test{0.35, -0.15};
+    assert(fequal(aaa_linear.get(x_test), slope * x_test + intercept, cplxdb{1.0e-11, 0.0}));
+    assert(fequal(aaa_linear.get_derivative(x_test), slope, cplxdb{1.0e-10, 0.0}));
+
+    const cplxdb pole{1.5, -0.8};
+    std::vector<cplxdb> rational;
+    for (const auto &x : xs) rational.push_back((x + cplxdb{0.4, 0.2}) / (x - pole));
+    AnalyContAAA aaa_rational(4, xs, rational);
+    const cplxdb rational_ref = (x_test + cplxdb{0.4, 0.2}) / (x_test - pole);
+    const cplxdb rational_deriv = (-pole - cplxdb{0.4, 0.2}) / ((x_test - pole) * (x_test - pole));
+    assert(fequal(aaa_rational.get(x_test), rational_ref, cplxdb{1.0e-10, 0.0}));
+    assert(fequal(aaa_rational.get_derivative(x_test), rational_deriv, cplxdb{1.0e-9, 0.0}));
+    const cplxdb support_derivative = aaa_rational.get_derivative(xs[0]);
+    assert(std::isfinite(support_derivative.real()) && std::isfinite(support_derivative.imag()));
+    assert(fequal(aaa_rational.get(xs[0]), rational[0]));
+}
+
+void test_aaa_zero_weight_support_residual()
+{
+    const std::vector<cplxdb> xs = {{0, 1}, {0, 2}, {0, 3}, {0, 4}};
+    const std::vector<cplxdb> data = {{0, 0}, {1, 0}, {1, 0}, {1, 0}};
+    AnalyContAAA fit(2, xs, data);
+    // The zero-weight support at i is absent from the rational function,
+    // which is the constant one, rather than an interpolant of all four data.
+    assert(!fit.reached_tolerance());
+    assert(std::abs(fit.get_max_source_error() - 1.0) < 1e-14);
+    std::vector<cplxdb> queries = xs;
+    queries.push_back(xs[0] + cplxdb{1e-7, 0});
+    queries.push_back(xs[0] - cplxdb{1e-7, 0});
+    for (const auto z : queries)
+    {
+        assert(std::abs(fit.get(z) - cplxdb{1, 0}) < 1e-14);
+        assert(std::abs(fit.get_derivative(z)) < 1e-13);
+    }
+}
+
+void test_ridge_value_derivative_and_historical_fit()
+{
+    std::vector<cplxdb> xs, data;
+    for (int i = 1; i <= 16; ++i)
+    {
+        const cplxdb x{0.0, 0.5 * i};
+        xs.push_back(x);
+        data.push_back(0.2 / (x + 1.3) + 0.05 / (x - 2.1));
+    }
+    // Values from the unmodified 49adf9bb ridge kernel, with denominator
+    // weight 10 and an inactive denominator floor. This checks the port's fit.
+    AnalyContRidge ridge(8, xs, data, 1e-6, 10.0);
+    const cplxdb z{-0.6, 0.1};
+    const cplxdb reference{0.285633286226600724, 0.0220621556312846218};
+    assert(std::abs(ridge.get(z) - reference) < 1e-11);
+    assert(std::abs(ridge.get({0.3, 0.2}) - cplxdb{0.0895108357609937649, -0.0263183108993119974}) <
+           1e-11);
+    const double h = 1e-5;
+    const auto finite_difference = (ridge.get(z + h) - ridge.get(z - h)) / (2 * h);
+    assert(std::abs(ridge.get_derivative(z) - finite_difference) < 1e-8);
+
+    data.clear();
+    for (const auto x : xs) data.push_back((0.2 * x + 0.1) / (1.0 + 0.3 * x));
+    AnalyContRidge exact(3, xs, data, 0.0);
+    assert(std::abs(exact.get(z) - (0.2 * z + 0.1) / (1.0 + 0.3 * z)) < 1e-11);
+    assert(std::abs(exact.get_derivative(z) - 0.17 / std::pow(1.0 + 0.3 * z, 2)) < 1e-11);
+}
+
 int main(int argc, char *argv[])
 {
+    LibrpaOptions defaults;
+    librpa_init_options(&defaults);
+    assert(defaults.anacon_method == LIBRPA_ANACON_RIDGE);
+    assert(defaults.anacon_ridge_lambda == 1e-12);
+    assert(defaults.anacon_ridge_den_weight == 10.0);
     const std::vector<cplxdb> xs{{0.0, 1.0}, {0.0, 2.0}, {0.0, 3.0}};
     const std::vector<cplxdb> zeros(3, {0.0, 0.0});
     AnalyContPade zero(3, xs, zeros);
     assert(zero.get({1.0, 0.1}) == cplxdb(0.0, 0.0));
     assert(zero.get_derivative({1.0, 0.1}) == cplxdb(0.0, 0.0));
     assert(zero.get_source_data() == zeros);
+    test_analycont_aaa_constant_linear_and_rational();
+    test_aaa_zero_weight_support_residual();
+    test_ridge_value_derivative_and_historical_fit();
     test_analycont_pade();
     test_get_spectfunc_acpade();
     test_analycont_pade_source_data();

@@ -112,6 +112,11 @@ public:
     }
 };
 
+/** Continue with explicit method and penalty options; otherwise the same contract. */
+CrpaContinuedResult continue_crpa(const LibrpaCrpaResult *result,
+                                  const std::vector<std::complex<double>> &queries,
+                                  const Options &options,
+                                  double tolerance_ha = 0.0003674932217565499);
 
 /* Global environment functions */
 

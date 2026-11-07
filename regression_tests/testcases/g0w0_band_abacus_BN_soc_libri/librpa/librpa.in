@@ -14,3 +14,6 @@ vq_threshold = 0
 sqrt_coulomb_threshold = 1e-8
 use_spinor_wfc = t
 option_bvk_remap = 0
+
+# Preserve the Pade method used by the stored reference.
+anacon_method = pade

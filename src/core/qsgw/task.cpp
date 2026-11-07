@@ -311,6 +311,10 @@ SpinKMatrixMap build_correlation_map(const MeanField& live, const SigmaMatrixMap
     using namespace librpa_int::qsgw;
     CorrelationPotentialSettings settings;
     settings.mode = CorrelationPotentialMode::ModeB;
+    settings.anacon_method = options.anacon_method;
+    settings.anacon_ridge_lambda = options.anacon_ridge_lambda;
+    settings.anacon_ridge_den_weight = options.anacon_ridge_den_weight;
+    settings.anacon_aaa_tolerance = options.anacon_aaa_tolerance;
     settings.n_params_anacon = options.n_params_anacon;
     settings.n_params_anacon_resample = options.n_params_anacon_resample < 0
                                             ? options.n_params_anacon
