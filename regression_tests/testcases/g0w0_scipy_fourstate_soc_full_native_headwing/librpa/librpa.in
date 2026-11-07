@@ -41,6 +41,3 @@ prefix_lri_coeff = Cs_data_
 prefix_coul_full = coulomb_mat_
 prefix_coul_cut = coulomb_cut_
 option_qpe_solver = 2
-
-# Preserve the Pade method used by the stored reference.
-anacon_method = pade

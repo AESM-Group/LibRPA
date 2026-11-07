@@ -439,7 +439,7 @@ int main(int argc, char *argv[])
 {
     LibrpaOptions defaults;
     librpa_init_options(&defaults);
-    assert(defaults.anacon_method == LIBRPA_ANACON_RIDGE);
+    assert(defaults.anacon_method == LIBRPA_ANACON_PADE);
     assert(defaults.anacon_ridge_lambda == 1e-12);
     assert(defaults.anacon_ridge_den_weight == 10.0);
     const std::vector<cplxdb> xs{{0.0, 1.0}, {0.0, 2.0}, {0.0, 3.0}};

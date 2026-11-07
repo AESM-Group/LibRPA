@@ -20,7 +20,7 @@ $$
 +\lambda w_b\sum_{k=1}^{n_b}k^2|b_k|^2.
 $$
 
-The defaults are $\lambda=10^{-12}$ and $w_b=10$. All samples enter the
+For explicitly selected ridge, the defaults are $\lambda=10^{-12}$ and $w_b=10$. All samples enter the
 linearized objective; $a_0$ is unpenalized. This differs from a nonlinear
 minimization of $|P/Q-y|$. The historical normal equations, partial-pivot
 elimination and small diagonal-shift retries are retained.

@@ -396,6 +396,7 @@ void test_ridge_selection_with_noisy_samples()
     for (int resample = 0; resample != 2; ++resample)
     {
         CorrelationPotentialSettings settings;
+        settings.anacon_method = LIBRPA_ANACON_RIDGE;
         settings.n_params_anacon = 3;
         settings.n_params_anacon_resample = 4;
         if (resample) settings.resample_imagfreqs = {{0, .3}, {0, .8}, {0, 1.5}, {0, 3}, {0, 6}};
@@ -423,14 +424,14 @@ void test_selected_methods_against_rational_matrix()
             for (int j = 0; j != 2; ++j) matrix(i, j) = residues[i][j] / cplxdb{2.0, freq};
         sigma.emplace(freq, matrix);
     }
-    // Default-initialized settings exercise the selected ridge policy as well
-    // as explicit Pade/AAA. The oracle is the analytic input function.
+    // Check the unchanged Pade default, then select each method explicitly.
+    // The oracle is the analytic input function.
     for (const auto method : {LIBRPA_ANACON_PADE, LIBRPA_ANACON_AAA, LIBRPA_ANACON_RIDGE})
         for (const auto mode : {CorrelationPotentialMode::ModeA, CorrelationPotentialMode::ModeB})
             for (const bool resample : {false, true})
             {
                 CorrelationPotentialSettings settings;
-                assert(settings.anacon_method == LIBRPA_ANACON_RIDGE);
+                assert(settings.anacon_method == LIBRPA_ANACON_PADE);
                 assert(settings.anacon_ridge_lambda == 1.0e-12);
                 settings.anacon_method = method;
                 settings.mode = mode;

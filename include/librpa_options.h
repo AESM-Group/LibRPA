@@ -320,7 +320,7 @@ typedef struct
     //! Analytic continuation method for GW energies, spectra and QSGW matrices.
     //! Available driver values: `pade`, `aaa`, `ridge`.
     //! @par Default
-    //! LIBRPA_ANACON_RIDGE
+    //! LIBRPA_ANACON_PADE
     LibrpaAnalyContMethod anacon_method;
 
     //! Relative maximum source residual requested by AAA.

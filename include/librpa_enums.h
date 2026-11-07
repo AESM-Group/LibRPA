@@ -112,9 +112,9 @@ typedef enum
 /** @brief Analytic continuation method for GW and QSGW. */
 typedef enum
 {
-    LIBRPA_ANACON_PADE = 0,   ///< Thiele Pade with barycentric fallback
+    LIBRPA_ANACON_PADE = 0,   ///< Thiele Pade with barycentric fallback (default)
     LIBRPA_ANACON_AAA = 1,    ///< Adaptive barycentric rational approximation
-    LIBRPA_ANACON_RIDGE = 2,  ///< Regularized rational coefficient fit (default)
+    LIBRPA_ANACON_RIDGE = 2,  ///< Regularized rational coefficient fit
 } LibrpaAnalyContMethod;
 
 /**
