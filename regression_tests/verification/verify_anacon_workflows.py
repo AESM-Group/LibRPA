@@ -14,7 +14,6 @@ import argparse
 import csv
 import json
 from pathlib import Path
-import re
 import sys
 import tarfile
 
@@ -70,10 +69,7 @@ def main():
             home.mkdir()
             with tarfile.open(cases / fixture / "dataset.tar.gz") as archive:
                 archive.extractall(home, filter="data")
-        template = home / "template.in"
-        original = (cases / fixture / "librpa/librpa.in").read_text()
-        if not args.analyze_only:
-            template.write_text(re.sub(r"(?m)^\s*anacon_method\s*=.*$", "", original))
+        template = cases / fixture / "librpa/librpa.in"
         task_results = {}
         for resample in (False, True):
             common = {"nfreq": 16, "n_params_anacon": 8,
