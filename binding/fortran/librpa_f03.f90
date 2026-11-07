@@ -839,7 +839,8 @@ module librpa_f03
          real(c_double), dimension(*), intent(in) :: wfc_imag
       end subroutine librpa_set_wfc_band_c
 
-      subroutine librpa_set_wfc_band_spinor_c(h, ik_band, nstates_local, nbasis_local, wfc_up_real, wfc_up_imag, wfc_dn_real, wfc_dn_imag) &
+      subroutine librpa_set_wfc_band_spinor_c(h, ik_band, nstates_local, nbasis_local, &
+            wfc_up_real, wfc_up_imag, wfc_dn_real, wfc_dn_imag) &
             bind(c, name="librpa_set_wfc_band_spinor")
          import :: c_ptr, c_int, c_double
          type(c_ptr), value :: h
@@ -2793,7 +2794,8 @@ contains
       call sync_opts(opts, SYNC_OPTS_F2C)
       if (dp == c_double) then
          call librpa_get_g0w0_sigc_band_k_c(this%ptr_c_handle, opts%opts_c, n_spins_c, n_kpts_band_this_c, &
-                                            iks_band_this_c, i_state_low_c, i_state_high_c, vxc_band, vexx_band, sigc_re_c, sigc_im_c)
+                                            iks_band_this_c, i_state_low_c, i_state_high_c, &
+                                            vxc_band, vexx_band, sigc_re_c, sigc_im_c)
       else
          allocate(vexx_c(n_states_calc, max(n_kpts_band_this, 1), n_spins))
          allocate(vxc_c(n_states_calc, max(n_kpts_band_this, 1), n_spins))
@@ -2840,8 +2842,10 @@ contains
       real(dp), contiguous, dimension(:), intent(in) :: omegas
       real(dp), dimension(i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(in) :: vxc_band
       real(dp), dimension(i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(in) :: vexx_band
-      real(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(inout) :: spectral_function_band
-      complex(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(inout), optional :: sigc_band
+      real(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), &
+            intent(inout) :: spectral_function_band
+      complex(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), &
+            intent(inout), optional :: sigc_band
 
       integer(c_int), allocatable :: iks_band_this_c(:)
       real(c_double), allocatable :: omegas_c(:)

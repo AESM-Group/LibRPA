@@ -1,0 +1,82 @@
+Source: https://github.com/abacusmodeling/LibRI/archive/a0661cbb4b4f89ceeb23e040d49accb00943093f.tar.gz
+Portable allocator cleanup, including macOS; preserves the LibRPA local changes.
+License: same as upstream. Upstream submission: not recorded.
+
+--- /dev/null
++++ b/include/RI/global/Memory.h
+@@ -0,0 +1,26 @@
++#pragma once
++
++#include <cstdlib>
++
++#if defined(__GLIBC__)
++#include <malloc.h>
++#elif defined(__APPLE__) && defined(__MACH__)
++#include <malloc/malloc.h>
++#endif
++
++namespace RI
++{
++namespace Global_Func
++{
++// Ask the allocator to return unused memory without changing live allocations.
++// Allocators without a supported release API need no explicit action.
++inline void release_free_memory()
++{
++#if defined(__GLIBC__)
++    malloc_trim(0);
++#elif defined(__APPLE__) && defined(__MACH__)
++    malloc_zone_pressure_relief(malloc_default_zone(), 0);
++#endif
++}
++} // namespace Global_Func
++} // namespace RI
+--- a/include/RI/ri/LRI_k-cal_cvc_mo.hpp
++++ b/include/RI/ri/LRI_k-cal_cvc_mo.hpp
+@@ -11,7 +11,7 @@
+ #include "../global/Tensor_Multiply.h"
+ #include <cmath>
+ #include <omp.h>
+-#include <malloc.h>
++#include "../global/Memory.h"
+ #ifdef __MKL_RI
+ #include <mkl_service.h>
+ #endif
+@@ -393,7 +393,7 @@
+ 	mkl_set_num_threads(mkl_threads);
+ #endif
+ 
+-	malloc_trim(0);
++	Global_Func::release_free_memory();
+ 	return cvc_mo_k;
+ }
+ 
+@@ -506,7 +506,7 @@
+ 	mkl_set_num_threads(mkl_threads);
+ 	#endif
+ 
+-	malloc_trim(0);
++	Global_Func::release_free_memory();
+ 	return cvc_mo_k;
+ }
+ 
+--- a/include/RI/ri/LRI_k-cal_hartree.hpp
++++ b/include/RI/ri/LRI_k-cal_hartree.hpp
+@@ -11,7 +11,7 @@
+ #include "../global/Tensor_Multiply.h"
+ #include <cmath>
+ #include <omp.h>
+-#include <malloc.h>
++#include "../global/Memory.h"
+ #ifdef __MKL_RI
+ #include <mkl_service.h>
+ #endif
+@@ -240,7 +240,7 @@
+ 	mkl_set_num_threads(mkl_threads);
+ #endif
+ 
+-	malloc_trim(0);
++	Global_Func::release_free_memory();
+ 	return hartree_k;
+ }
+ 

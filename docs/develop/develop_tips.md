@@ -31,23 +31,42 @@ documentation, tests, and the generated Fortran stub module.
 
 ### Continuous integration
 
-These workflows in `.github/workflows/` run on each pull request:
+`scheduler.yml` runs on each pull request and each push to `master`.
+For pull requests, it calls `risk-tier.yml` first. After Risk tier passes,
+it calls `checks.yml` and determines whether the changed files need a build.
+CI build jobs start only after Checks passes and the path filter selects a build.
+Checks, Risk tier, and the build workflows are reusable and have no independent
+event triggers.
 
 | Workflow | What it does |
 | :------- | :----------- |
-| `checks.yml` | Checks that need no build: the runtime option definitions, the Fortran stub module, and the tests of the Python scripts |
-| `ci.yml` | Builds LibRPA and runs the unit tests and the regression tests |
-| `deploy-ghpages-doc.yml` | Builds the documentation |
-| `risk-tier.yml` | Gives the minimum risk tier and the size of the change. See "Risk tiers" |
+| `scheduler.yml` | Controls event triggers, concurrency, path filtering, and job dependencies |
+| `checks.yml` | Checks the runtime option definitions, the Fortran stub module, and the Python scripts |
+| `risk-tier.yml` | Gives the minimum risk tier and checks the PR description. See "Risk tiers" |
+| `ci-oneapi.yml` | Builds LibRPA with oneAPI and runs the unit tests and the regression tests |
+| `deploy-ghpages-doc.yml` | Builds the documentation independently |
 
-`ci.yml` does not run when a change has only these files:
+If Risk tier fails, Checks and CI build jobs are skipped. If Checks fails,
+CI build jobs are skipped. A push to `master` skips Risk tier because it has no
+PR description. Editing a PR description
+runs the checks again and can start the build after the tier is corrected.
+For a description edit, Build selection reuses a successful oneAPI job from
+the same PR head and merge commit. A changed base therefore needs a new build.
+Skipped, failed, and cancelled jobs do not count as successful builds. If the
+Actions API cannot verify an earlier success, the build runs again.
+
+CI build jobs are skipped when a change has only these files:
 
 - Files in `docs/` and `.md` files.
-- The scripts in `utilities/` that only `checks.yml` uses:
+- The scripts in `utilities/` used only for CI checks and scheduling:
   `check_*.py`, `test_*.py`, and `convert_fortran_module_to_stub.py`.
 
-The other workflows run for each change. If a script in `utilities/` becomes
-part of a `ci.yml` test, remove it from the `paths-ignore` lists in `ci.yml`.
+`utilities/check_ci_changes.py` defines these exclusions. It compares a PR head
+with its merge base, or the commits before and after a push. If an excluded
+script becomes part of a build test, update these rules.
+
+Checks, Risk tier, and dependent build jobs share one workflow run.
+Branch protection rules must use the check names shown by GitHub.
 
 When you push a new commit to a pull request, the runs for the earlier commit
 stop. On `master`, a run that started does not stop, and a new run waits in a
@@ -253,7 +272,7 @@ overhead while keeping essential results and the timing report visible.
 |   |-- mpi           : MPI, BLACS, and k-point/process-grid helpers
 |   |-- utils         : Constants, errors, profiling, memory, and configured build information
 |   `-- test          : C++ unit and MPI tests for library components
-|-- thirdparty        : Bundled external libraries used when not supplied by the user
+|-- thirdparty        : Dependency manifest, patches, and managed source cache
 `-- utilities         : Standalone conversion, consistency-check, and maintenance tools
 ```
 
@@ -337,3 +356,5 @@ Below are a few specific guidelines for LibRPA:
 - When adding a new enum type in `librpa_enums.h`, also add it to the integer
   types in `parse_c_field_kind` of `utilities/check_librpa_options.py`.
   Otherwise the check reports an unknown type for the option.
+
+See [third-party maintenance](thirdparty.md) for dependency updates and offline preparation.

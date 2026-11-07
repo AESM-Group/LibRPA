@@ -12,7 +12,12 @@ else()
   add_library(rpa_lib STATIC)
 endif()
 
-add_dependencies(rpa_lib LibGXMiniMax)
+get_target_property(_greenx_imported ${LIBRPA_GREENX_TARGET} IMPORTED)
+if(NOT _greenx_imported)
+  add_dependencies(rpa_lib ${LIBRPA_GREENX_TARGET})
+  target_include_directories(rpa_lib PRIVATE
+    $<TARGET_PROPERTY:${LIBRPA_GREENX_TARGET},Fortran_MODULE_DIRECTORY>)
+endif()
 
 set_target_properties(rpa_lib PROPERTIES
   OUTPUT_NAME rpa
@@ -20,10 +25,7 @@ set_target_properties(rpa_lib PROPERTIES
   SOVERSION ${CMAKE_PROJECT_VERSION}
 )
 
-target_link_libraries(rpa_lib PRIVATE LibGXMiniMax)
-target_include_directories(rpa_lib PRIVATE
-  $<TARGET_PROPERTY:LibGXMiniMax,Fortran_MODULE_DIRECTORY>
-)
+target_link_libraries(rpa_lib PRIVATE ${LIBRPA_GREENX_TARGET})
 
 if(LIBRPA_ELPA_TARGET)
   # Public LibRPA headers include ELPA declarations, so consumers need the
@@ -65,7 +67,7 @@ target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_MPI)
 if(LIBRPA_USE_LIBRI)
   target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_LIBRI)
 endif()
-if(LIBRPA_USE_EXTERNAL_ELPA OR LIBRPA_USE_BUNDLED_ELPA)
+if(LIBRPA_USE_ELPA)
   target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_ELPA)
 endif()
 if(LIBRPA_VERBOSE_OUTPUT)
@@ -187,22 +189,15 @@ list(APPEND lib_sources
         utils/utils_mem.cpp
 )
 
-if(NOT LIBRPA_USE_EXTERNAL_ELPA AND NOT LIBRPA_USE_BUNDLED_ELPA)
+if(NOT LIBRPA_USE_ELPA)
   list(APPEND lib_sources utils/elpa_stub.cpp)
 endif()
 
 if(LIBRPA_USE_LIBRI)
-  target_include_directories(rpa_lib
-    PUBLIC
-      $<BUILD_INTERFACE:${Cereal_INCLUDE_DIR}>
-      $<BUILD_INTERFACE:${LibComm_INCLUDE_DIR}>
-      $<BUILD_INTERFACE:${LibRI_INCLUDE_DIR}>
-    )
-  target_include_directories(rpa_lib PRIVATE
-    ${Cereal_INCLUDE_DIR}
-    ${LibComm_INCLUDE_DIR}
-    ${LibRI_INCLUDE_DIR}
-  )
+  target_link_libraries(rpa_lib PUBLIC
+    $<BUILD_INTERFACE:cereal::cereal>
+    $<BUILD_INTERFACE:LibComm::LibComm>
+    $<BUILD_INTERFACE:LibRI::LibRI>)
 endif()
 
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
@@ -211,7 +206,7 @@ if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   )
 endif()
 
-if(LIBRPA_USE_EXTERNAL_ELPA OR LIBRPA_USE_BUNDLED_ELPA)
+if(LIBRPA_USE_ELPA)
   list(APPEND lib_sources
     elpa/elpa_connector.cpp)
 endif()

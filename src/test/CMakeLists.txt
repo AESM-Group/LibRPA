@@ -21,15 +21,6 @@ macro(config_test TARGET NUMPROC)
   if(BUILD_SHARED_LIBS)
     target_link_libraries(${TARGET} PRIVATE ${math_libs} ${parallel_libs})
   endif()
-  # TODO: separate libri test targets
-  if(LIBRPA_USE_LIBRI)
-    target_include_directories(${TARGET}
-      PRIVATE
-        ${Cereal_INCLUDE_DIR}
-        ${LibComm_INCLUDE_DIR}
-        ${LibRI_INCLUDE_DIR}
-      )
-  endif()
   if(${NUMPROC} GREATER 1)
     # message("parallel test")
     add_test(

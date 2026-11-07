@@ -1,0 +1,164 @@
+name: Build and run unittest with Intel oneAPI
+
+# Reusable build workflow. The caller checks prerequisites and controls concurrency.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# oneapi install adapted from the build_linux_apt_cpp of
+# https://github.com/oneapi-src/oneapi-ci/blob/master/.github/workflows/build_all.yml
+
+env:
+  LINUX_CPP_COMPONENTS: intel-oneapi-dpcpp-cpp-compiler_intel-oneapi-compiler-fortran_intel-oneapi-mkl_intel-oneapi-mkl-devel_intel-oneapi-mpi_intel-oneapi-mpi-devel
+
+jobs:
+  ONEAPI:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Intel oneAPI apt repo
+        run: |
+          # download the key to system keyring
+          wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB \
+            | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          # add signed entry to apt sources and configure the APT client to use Intel repository:
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" \
+            | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          # --allow-unauthenticated to resolve Clearsigned file isn't valid, got 'NOSPLIT' error
+          # when fetching https://packages.microsoft.com/ubuntu/22.04/prod
+          # https://superuser.com/questions/1774745/kali-apt-get-update-fails-with-clearsigned-file-isnt-valid
+          # https://superuser.com/questions/1331936/how-can-i-get-past-a-repository-is-not-signed-message-when-attempting-to-upgr
+          sudo apt-get update --allow-unauthenticated -o Dir::Etc::sourcelist="sources.list.d/oneAPI.list" -o APT::Get::List-Cleanup="0"
+      - name: Collect apt dependencies
+        run: |
+          echo "$LINUX_CPP_COMPONENTS" | sed "s/_/ /g" | xargs -n 1 apt-cache depends | tee depends.txt
+      - name: Cache install
+        id: cache-install
+        uses: actions/cache@v4
+        with:
+          path: /opt/intel/oneapi/
+          key: install-${{ env.LINUX_CPP_COMPONENTS }}-${{ hashFiles('**/depends.txt') }}
+      - name: Install build-essential and cmake
+        run: sudo apt-get install -y build-essential cmake
+      - name: Cache third-party archives
+        uses: actions/cache@v4
+        with:
+          path: thirdparty/downloads
+          key: thirdparty-${{ hashFiles('thirdparty/manifest.cmake') }}
+      - name: Verify third-party archives and prepare sources
+        run: cmake -P cmake/LibRPAPrepareThirdparty.cmake
+      - name: Install python dependency
+        run: |
+          pip install --user pytest scipy
+          greenx_python=$(mktemp -d)
+          cp -R thirdparty/src/greenX-*/python/. "$greenx_python/"
+          cd "$greenx_python" && python setup.py install --verbose --user
+      - name: Install tools including oneAPI
+        if: steps.cache-install.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y $(echo "$LINUX_CPP_COMPONENTS" | sed "s/_/ /g")
+      - name: Check environment
+        run: |
+          echo -n "Size of /opt/intel/oneapi/: " && du -csh /opt/intel/oneapi
+          echo "PATH: $PATH"
+          which pytest
+          echo "PYTHONPATH: $PYTHONPATH"
+      - name: Build/test LibRPA without LibRI
+        run: |
+          set -o pipefail
+          source /opt/intel/oneapi/setvars.sh
+          export BUILDDIR="build"
+          CXX=mpiicpx FC=ifx cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=ON -B $BUILDDIR \
+            -DLIBRPA_USE_LIBRI=OFF -DLIBRPA_ENABLE_FORTRAN_BIND=OFF -DLIBRPA_ENABLE_TEST=ON -DENABLE_GREENX_CTEST=OFF
+          cmake --build $BUILDDIR -j 2
+          cmake --build $BUILDDIR --target test
+          cd regression_tests && ./run_regression.py full ../$BUILDDIR/chi0_main.exe -d workspace_np4 -n 4 | tee test_np4.log
+      - name: Build/test LibRPA with LibRI
+        run: |
+          set -o pipefail
+          source /opt/intel/oneapi/setvars.sh
+          export BUILDDIR="build_libri"
+          CXX=mpiicpx FC=ifx cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=ON -B $BUILDDIR \
+            -DLIBRPA_USE_LIBRI=ON -DLIBRPA_ENABLE_FORTRAN_BIND=OFF -DLIBRPA_ENABLE_TEST=ON -DENABLE_GREENX_CTEST=OFF
+          cmake --build $BUILDDIR -j 2
+          cmake --build $BUILDDIR --target test
+          cd regression_tests && ./run_regression.py full ../$BUILDDIR/chi0_main.exe -d workspace_libri_np4 --use-libri -n 4 | tee test_libri_np4.log
+          ./run_regression.py full ../$BUILDDIR/chi0_main.exe -d workspace_libri_si_np1 --use-libri -n 1 --only g0w0_aims_Si_sym_libri | tee test_libri_si_np1.log
+      - name: QSGW restart, quasiparticle and live head/wing trajectories
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          # Freeze MPI reductions and BLAS code paths for strict trajectory
+          # comparisons across fresh processes. Numerical gates stay unchanged.
+          export I_MPI_CBWR=2 MKL_CBWR=COMPATIBLE
+          export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+          cd regression_tests
+          python verification/verify_qsgw_restart.py --binary ../build_libri/chi0_main.exe \
+            --work-dir workspace_qsgw_restart --ranks 4 --case h2o-band
+          python verification/verify_qsgw_headwing.py --binary ../build_libri/chi0_main.exe \
+            --work-dir workspace_qsgw_headwing --ranks 4 --case aims-rotate
+      - name: Hartree band projection, QP and restart control
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          cd regression_tests
+          python verification/verify_hartree_band.py --binary ../build_libri/chi0_main.exe \
+            --work-dir workspace_hartree_band --ranks 4
+      - name: cRPA standalone, shared-GW and tracked current-HR trajectories
+        run: |
+          set -o pipefail
+          source /opt/intel/oneapi/setvars.sh
+          cd regression_tests
+          python verification/verify_crpa_workflows.py --binary ../build_libri/chi0_main.exe \
+            --work-dir workspace_crpa_workflows 2>&1 | tee test_crpa_workflows.log
+          python verification/verify_magnetic_crpa_workflows.py --binary ../build_libri/chi0_main.exe \
+            --work-dir workspace_magnetic_crpa_workflows 2>&1 | tee test_magnetic_crpa_workflows.log
+      - name: Build Fortran binding (with LibRI), static library, and binding test
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          export BUILDDIR="build_fortran_bind"
+          CXX=mpiicpx FC=mpiifx cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=OFF -B $BUILDDIR \
+            -DLIBRPA_USE_LIBRI=ON -DLIBRPA_ENABLE_FORTRAN_BIND=ON -DLIBRPA_ENABLE_TEST=ON -DENABLE_GREENX_CTEST=OFF -DLIBRPA_ENABLE_CPP_TEST=OFF
+          cmake --build $BUILDDIR -j 2
+          cmake --build $BUILDDIR --target test
+      - name: Save last test log for check
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: save-last-test
+          path: |
+            build/Testing/Temporary/LastTest.log
+            build_libri/Testing/Temporary/LastTest.log
+            build_fortran_bind/Testing/Temporary/LastTest.log
+            regression_tests/test_np4.log
+            regression_tests/test_libri_np4.log
+            regression_tests/test_libri_si_np1.log
+            regression_tests/workspace_hartree_band/comparison.json
+            regression_tests/workspace_hartree_band/*/run.log
+            regression_tests/test_crpa_workflows.log
+            regression_tests/workspace_crpa_workflows/comparison.json
+            regression_tests/workspace_crpa_workflows/np*/*/run.log
+            regression_tests/test_magnetic_crpa_workflows.log
+            regression_tests/workspace_magnetic_crpa_workflows/comparison.json
+            regression_tests/workspace_magnetic_crpa_workflows/*/np*/run.log
+            regression_tests/workspace_libri_si_np1/testcases/*/librpa/librpa.out
+            regression_tests/workspace_np4/testcases/*/librpa/librpa.out
+            regression_tests/workspace_np4/testcases/*/librpa/librpa.err
+            regression_tests/workspace_np4/testcases/*/librpa/*.dat
+            regression_tests/workspace_libri_np4/testcases/*/librpa/librpa.out
+            regression_tests/workspace_libri_np4/testcases/*/librpa/librpa.err
+            regression_tests/workspace_libri_np4/testcases/*/librpa/*.dat
+            regression_tests/workspace_qsgw_restart/**/run.log
+            regression_tests/workspace_qsgw_restart/comparison.json
+            regression_tests/workspace_qsgw_restart/**/librpa.in
+            regression_tests/workspace_qsgw_restart/**/librpa.d/qsgw_*.dat
+            regression_tests/workspace_qsgw_restart/**/librpa.d/qsgw_qp.csv
+            regression_tests/workspace_qsgw_headwing/**/run.log
+            regression_tests/workspace_qsgw_headwing/comparison.json
+            regression_tests/workspace_qsgw_headwing/**/librpa.in
+            regression_tests/workspace_qsgw_headwing/**/librpa.d/qsgw_*.dat
+            regression_tests/workspace_qsgw_headwing/**/librpa.d/qsgw_qp.csv
