@@ -5,11 +5,13 @@
  * @date      2024-04-23
  */
 #pragma once
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
 
 #include "../utils/base_utility.h"
+#include "librpa_enums.h"
 
 namespace librpa_int
 {
@@ -23,6 +25,7 @@ protected:
 public:
     virtual ~AnalyCont() = default;
     virtual cplxdb get(const cplxdb &x) const = 0;
+    virtual cplxdb get_derivative(const cplxdb &x) const = 0;
 
     /*!
      * @brief get the complex source points used by the analytic continuation
@@ -53,7 +56,7 @@ public:
     AnalyContPadeBarycentric(const std::vector<cplxdb> &xs, const std::vector<cplxdb> &data);
 
     cplxdb get(const cplxdb &x) const override;
-    cplxdb get_derivative(const cplxdb &x) const;
+    cplxdb get_derivative(const cplxdb &x) const override;
 };
 
 // Thiele reciprocal differences, with explicit delegation to the barycentric
@@ -77,7 +80,7 @@ public:
      *
      * @return    a complex double, the value of function at x
      */
-    cplxdb get(const cplxdb &x) const;
+    cplxdb get(const cplxdb &x) const override;
 
     /*!
      * @brief get the analytic derivative of continued function at complex number
@@ -86,8 +89,50 @@ public:
      *
      * @return    a complex double, the derivative of function at x
      */
-    cplxdb get_derivative(const cplxdb &x) const;
+    cplxdb get_derivative(const cplxdb &x) const override;
 };
+
+class AnalyContAAA : public AnalyCont
+{
+private:
+    double tolerance;
+    double max_source_error = 0.0;
+    bool tolerance_reached = false;
+    std::vector<cplxdb> support_xs;
+    std::vector<cplxdb> support_data;
+    std::vector<cplxdb> weights;
+
+public:
+    AnalyContAAA(int n_support, const std::vector<cplxdb> &xs, const std::vector<cplxdb> &data,
+                 double tolerance_in = 1.0e-13);
+
+    cplxdb get(const cplxdb &x) const override;
+    cplxdb get_derivative(const cplxdb &x) const override;
+    double get_max_source_error() const { return max_source_error; }
+    bool reached_tolerance() const { return tolerance_reached; }
+};
+
+class AnalyContRidge : public AnalyCont
+{
+private:
+    double x_scale = 1.0;
+    double y_scale = 1.0;
+    std::vector<cplxdb> numerator;
+    std::vector<cplxdb> denominator;
+
+public:
+    AnalyContRidge(int n_params, const std::vector<cplxdb> &xs, const std::vector<cplxdb> &data,
+                   double lambda = 1.0e-12, double denominator_weight = 10.0);
+    cplxdb get(const cplxdb &x) const override;
+    cplxdb get_derivative(const cplxdb &x) const override;
+};
+
+std::unique_ptr<AnalyCont> make_analycont(LibrpaAnalyContMethod method, int n_params,
+                                          const std::vector<cplxdb> &xs,
+                                          const std::vector<cplxdb> &data,
+                                          double ridge_lambda = 1.0e-12,
+                                          double ridge_denominator_weight = 10.0,
+                                          double aaa_tolerance = 1.0e-13);
 
 /*!
  * @brief get the spectral function from Pade approximant, based on diagonal approximation

@@ -74,6 +74,11 @@ module librpa_f03
    !> @name Parallel routing strategies
    !> @brief Specifies how computation is distributed across MPI processes.
    !> @{
+   !> Analytic continuation selectors; Pade is the default.
+   integer, parameter, public :: LIBRPA_ANACON_PADE = 0
+   integer, parameter, public :: LIBRPA_ANACON_AAA = 1
+   integer, parameter, public :: LIBRPA_ANACON_RIDGE = 2
+
    integer, parameter, public :: LIBRPA_ROUTING_UNSET = LIBRPA_UNSET  !< Unset
    integer, parameter, public :: LIBRPA_ROUTING_AUTO = LIBRPA_AUTO    !< Auto-select
    integer, parameter, public :: LIBRPA_ROUTING_RTAU = 0              !< Real-space tau decomposition
@@ -205,9 +210,17 @@ module librpa_f03
       logical :: use_shrink_abfs
       !> Experimental: build response matrices in the compressed auxiliary basis.
       logical :: use_shrink_chi
-      !> Number of parameters for analytic continuation.
+      !> Analytic continuation method: LIBRPA_ANACON_*; default Pade.
+      integer :: anacon_method
+      !> Relative AAA source residual tolerance, default 1e-13.
+      real(dp) :: anacon_aaa_tolerance
+      !> Ridge coefficient penalty, default 1e-12.
+      real(dp) :: anacon_ridge_lambda
+      !> Relative ridge penalty for denominator coefficients, default 10.
+      real(dp) :: anacon_ridge_den_weight
+      !> Pade selected-node count, AAA support cap, or ridge coefficient count.
       integer :: n_params_anacon
-      !> Parameters for the source-grid Pade used to resample GW analytic continuation.
+      !> Parameters for the source-grid fit used to resample GW analytic continuation.
       integer :: n_params_anacon_resample
       !> Optional GW analytic-continuation frequency grid type; unset uses original grid.
       integer :: anacon_tfgrids_type
