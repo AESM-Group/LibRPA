@@ -53,18 +53,14 @@ repeats each star once per member, so one recorded representative must be
 selected per star before the sum above is formed. Neither form changes the
 equation; they differ only in which entries of the mapping table are read.
 
-Detecting the form by comparing the number of k-stars with the length of the k
-list is only valid for the reduced form and silently rejects the full form.
-The restore instead asks the shared representative builder, which returns one
-index per k-star for a full list and an empty list for a reduced one. A full
-list whose representatives cannot be resolved is reported rather than treated
-as reduced, because the reduced layout would repeat the stars and inflate
-$W^{\mathrm{c}}(R)$ without a diagnostic.
+`classify_kpoint_input_form` decides the form from the two exact counts: a list
+covering the whole Born-von Karman cell is the full form, a list holding one
+k-point per k-star is the reduced form, and a list matching neither is reported.
+Comparing the k-star count against the k-list length instead would only hold for
+the reduced form and would silently reject the full one.
 
-## Reference
-
-The transform is the discrete Fourier sum of the screened interaction used by
-the periodic GW space-time method. The auxiliary-basis (LRI) representation of
-the screened interaction that this code follows is the one described in the
-LibRI method literature; consult the manuscript you cite for that method rather
-than this note, which records the convention the code implements.
+For the full form, `build_symmetry_full_grid_kstar_representative_indices` then
+selects one entry per k-star, because the mapping repeats each star once per
+member there. A full list whose representatives cannot be resolved is reported
+rather than treated as reduced, because the reduced layout would repeat the
+stars and inflate $W^{\mathrm{c}}(R)$ without a diagnostic.
