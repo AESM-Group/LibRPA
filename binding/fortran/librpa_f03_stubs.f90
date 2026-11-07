@@ -74,7 +74,7 @@ module librpa_f03
    !> @name Parallel routing strategies
    !> @brief Specifies how computation is distributed across MPI processes.
    !> @{
-   !> Analytic continuation selectors; ridge is the default.
+   !> Analytic continuation selectors; Pade is the default.
    integer, parameter, public :: LIBRPA_ANACON_PADE = 0
    integer, parameter, public :: LIBRPA_ANACON_AAA = 1
    integer, parameter, public :: LIBRPA_ANACON_RIDGE = 2
@@ -210,7 +210,7 @@ module librpa_f03
       logical :: use_shrink_abfs
       !> Experimental: build response matrices in the compressed auxiliary basis.
       logical :: use_shrink_chi
-      !> Analytic continuation method: LIBRPA_ANACON_*; default ridge.
+      !> Analytic continuation method: LIBRPA_ANACON_*; default Pade.
       integer :: anacon_method
       !> Relative AAA source residual tolerance, default 1e-13.
       real(dp) :: anacon_aaa_tolerance

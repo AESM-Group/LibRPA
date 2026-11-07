@@ -1,6 +1,6 @@
 # Analytic continuation methods
 
-`anacon_method` selects `ridge` (the default), `pade`, or `aaa` for GW
+`anacon_method` selects `pade` (the unchanged default), `aaa`, or `ridge` for GW
 quasiparticle energies, spectral functions, imaginary-grid resampling, and QSGW
 correlation-potential matrices. cRPA static and real-axis interaction output
 uses the same method and penalties on Delta U=U-v without a fermionic shift. All methods supply complex values and analytic
@@ -8,7 +8,7 @@ derivatives to the existing quasiparticle solvers.
 
 | Parameter | Meaning | Default |
 | --- | --- | --- |
-| `anacon_method` | `pade`, `aaa`, or `ridge` | `ridge` |
+| `anacon_method` | `pade`, `aaa`, or `ridge` | `pade` |
 | `n_params_anacon` | Padé selected-node count, AAA support cap, or ridge coefficient count | `-1`: source point count |
 | `n_params_anacon_resample` | Coefficient/support count for the first fit when resampling | negative: use `n_params_anacon` |
 | `anacon_aaa_tolerance` | Maximum AAA source residual relative to the largest datum | `1e-13` |
@@ -37,17 +37,28 @@ QSGW iteration are separate from physical acceptance. See the
 
 ## Compatibility and reproducibility
 
-Omitting `anacon_method` now selects ridge with penalty `1e-12` and denominator
-weight `10`. Existing GW and QSGW results that relied on implicit Padé can change.
-To reproduce those calculations, set `anacon_method = pade` explicitly. Existing
-Padé regression fixtures do so; their references and tolerances remain unchanged.
-The new default is a selected numerical policy, not a universal accuracy ranking.
+Omitting `anacon_method` retains the original Padé method. AAA and ridge require
+explicit selection. Existing reference inputs, reference data and tolerances
+remain unchanged. Choosing ridge does not establish a physical accuracy ranking.
 
 The C/C++ selector is `LibrpaAnalyContMethod`: `LIBRPA_ANACON_PADE`,
 `LIBRPA_ANACON_AAA`, or `LIBRPA_ANACON_RIDGE`. Fortran exports the same constants.
 Initialize options with `librpa_init_options()` (C), `Options` (C++), or
 `opts%init()` (Fortran). The options structure grows: rebuild host programs and
 bindings together with the library. Older executables retain their own defaults.
+
+For the original default method:
+
+```ini
+anacon_method = pade
+```
+
+For AAA:
+
+```ini
+anacon_method = aaa
+anacon_aaa_tolerance = 1e-13
+```
 
 For an explicit ridge input:
 

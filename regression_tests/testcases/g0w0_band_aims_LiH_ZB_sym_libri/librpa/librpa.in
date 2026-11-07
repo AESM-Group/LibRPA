@@ -11,6 +11,3 @@ use_kpara_scf_eigvec = t
 use_symmetry_exx = t
 use_symmetry_rpa = t
 use_symmetry_gw = t
-
-# Preserve the Pade method used by the stored reference.
-anacon_method = pade

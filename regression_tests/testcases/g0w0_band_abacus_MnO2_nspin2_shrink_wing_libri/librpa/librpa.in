@@ -19,6 +19,3 @@ version_coul_reader = 1
 version_lri_reader = 1
 use_kpara_scf_eigvec = t
 use_symmetry_rpa = t
-
-# Preserve the Pade method used by the stored reference.
-anacon_method = pade

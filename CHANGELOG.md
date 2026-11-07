@@ -4,6 +4,13 @@
 
 ### Added
 
+- Added opt-in AAA and ridge analytic continuation for GW/QSGW/cRPA, retaining
+  the original Pade default. Set `anacon_method=aaa` or `anacon_method=ridge`;
+  ridge uses coefficient penalty `1e-12` and denominator weight `10` unless
+  overridden. Values and derivatives are shared by quasiparticle solvers,
+  spectra, resampling and QSGW matrices. Rebuild host bindings for the extended
+  options structure.
+
 - Added conventional k-space RPA energies, for all parallel routings and for
   builds without LibRI. Required replicated scalar or collinear eigenvectors on
   the full k mesh, `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.
@@ -27,16 +34,6 @@
   FHI-aims reader exports its SCF k-points. Both k-point forms, the reduced
   (IBZ) list and the full-Brillouin-zone list, are now accepted and reach the
   same accumulation.
-
-### Changed
-
-- Changed the default GW/QSGW/cRPA analytic continuation from Pade to ridge with
-  coefficient penalty `1e-12` and denominator weight `10`. Added explicit
-  `pade`, `aaa` and `ridge` selection, with values and derivatives shared by
-  quasiparticle solvers, spectra, resampling and QSGW matrices. Select
-  `anacon_method=pade` to retain the previous method; rebuild host bindings
-  for the extended options structure.
-
 
 ## [0.9.0] - 2026-10-31
 

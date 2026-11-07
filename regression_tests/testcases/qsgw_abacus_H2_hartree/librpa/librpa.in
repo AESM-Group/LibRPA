@@ -44,6 +44,3 @@ qsgw_write_iteration_matrices = true
 qsgw_output_qp = true
 qsgw_checkpoint_file = qsgw_checkpoint.bin
 qsgw_restart_file = none
-
-# Preserve the Pade method used by the stored reference.
-anacon_method = pade

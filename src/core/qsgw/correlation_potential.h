@@ -21,7 +21,7 @@ enum class CorrelationPotentialMode
 struct CorrelationPotentialSettings
 {
     CorrelationPotentialMode mode = CorrelationPotentialMode::ModeB;
-    LibrpaAnalyContMethod anacon_method = LIBRPA_ANACON_RIDGE;
+    LibrpaAnalyContMethod anacon_method = LIBRPA_ANACON_PADE;
     double anacon_aaa_tolerance = 1.0e-13;
     double anacon_ridge_lambda = 1.0e-12;
     double anacon_ridge_den_weight = 10.0;

@@ -16,6 +16,3 @@ output_energy_qp = t
 # Switching on them here is to ensure the above behavior is reproduced.
 use_symmetry_exx = t
 use_symmetry_gw = t
-
-# Preserve the Pade method used by the stored reference.
-anacon_method = pade

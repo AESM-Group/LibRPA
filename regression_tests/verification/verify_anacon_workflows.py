@@ -4,7 +4,7 @@
 This strict selector control is single-rank; MPI reproducibility is a separate
 question because independent upstream numerical builds need not be bitwise equal.
 
-Default and explicit ridge must agree; Padé and AAA must give distinguishable
+Default and explicit Padé must agree; ridge and AAA must give distinguishable
 results on the same non-rational molecular input. Repeat with unequal source
 and final resampling counts. The analytic component tests supply independent
 formula oracles; this companion checks propagation, not material accuracy.
@@ -96,20 +96,20 @@ def main():
                     run(args.binary.resolve(), args.mpiexec, args.ranks, directory)
                 results[method] = outputs(directory, task)
             metrics = {}
-            for name in results["ridge"]:
-                np.testing.assert_allclose(results["default"][name], results["ridge"][name],
+            for name in results["pade"]:
+                np.testing.assert_allclose(results["default"][name], results["pade"][name],
                                            rtol=0, atol=1e-10)
                 metrics[name] = {
-                    method: float(np.max(np.abs(results[method][name] - results["ridge"][name])))
-                    for method in ("default", "pade", "aaa")}
+                    method: float(np.max(np.abs(results[method][name] - results["pade"][name])))
+                    for method in ("default", "ridge", "aaa")}
             # Guard QP selection independently of the spectral/static outputs.
-            for method in ("pade", "aaa"):
+            for method in ("ridge", "aaa"):
                 qp_name = "qp_Ha" if task == "g0w0" else "eqp_eV"
                 assert metrics[qp_name][method] > 1e-7, (task, resample, method, qp_name)
                 other = ("specfunc", "resigc", "imsigc") if task == "g0w0" else ("eigenvalues_eV",)
                 assert max(metrics[name][method] for name in other) > 1e-7, (task, resample, method)
             report[f"{task}-resample-{resample}"] = metrics
-            task_results[resample] = results["ridge"]
+            task_results[resample] = results["pade"]
         for name in task_results[False]:
             delta = float(np.max(np.abs(task_results[False][name] - task_results[True][name])))
             if task == "qsgw" and name == "eigenvalues_eV":

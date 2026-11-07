@@ -10,6 +10,3 @@ sqrt_coulomb_threshold = 0
 use_soc = t
 
 #debug = t
-
-# Preserve the Pade method used by the stored reference.
-anacon_method = pade

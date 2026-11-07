@@ -9,6 +9,3 @@ sqrt_coulomb_threshold = 0
 use_kpara_scf_eigvec = t
 
 output_level = debug
-
-# Preserve the Pade method used by the stored reference.
-anacon_method = pade

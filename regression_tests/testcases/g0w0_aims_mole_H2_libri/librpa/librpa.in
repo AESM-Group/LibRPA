@@ -4,6 +4,3 @@ input_dir = ../dataset
 # API runtime
 nfreq = 32
 parallel_routing = libri
-
-# Preserve the Pade method used by the stored reference.
-anacon_method = pade

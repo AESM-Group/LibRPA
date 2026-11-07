@@ -20,6 +20,6 @@ struct CrpaContinuedTensor
 //! These are numerical diagnostics, not passivity or material convergence certificates.
 std::vector<CrpaContinuedTensor> continue_crpa_interactions(
     const CrpaResult& result, const std::vector<std::complex<double>>& queries, int n_parameters,
-    double tolerance, LibrpaAnalyContMethod method = LIBRPA_ANACON_RIDGE,
+    double tolerance, LibrpaAnalyContMethod method = LIBRPA_ANACON_PADE,
     double ridge_lambda = 1.0e-12, double ridge_den_weight = 10.0, double aaa_tolerance = 1.0e-13);
 }  // namespace librpa_int
