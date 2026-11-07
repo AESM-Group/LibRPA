@@ -88,7 +88,7 @@ void check_bosonic_continuation()
     }
     input.tensors.push_back(tensor);
     const std::vector<Z> queries{{0, 0}, {.4, .05}, {0, .45}, {0, 100}};
-    const auto result = continue_crpa_interactions(input, queries, -1, 1e-7);
+    const auto result = continue_crpa_interactions(input, queries, -1, 1e-7, LIBRPA_ANACON_PADE);
     for (int q = 0; q < queries.size(); ++q)
         for (int i = 0; i < residue.size; ++i)
         {
@@ -96,14 +96,23 @@ void check_bosonic_continuation()
             if (result[0].status[q][i])
                 throw std::runtime_error("exact bosonic pole failed diagnostics");
         }
+    // Four coefficients include the quadratic denominator of this bosonic pole.
+    for (const auto method : {LIBRPA_ANACON_AAA, LIBRPA_ANACON_RIDGE})
+    {
+        const auto selected = continue_crpa_interactions(input, queries, 4, 1e-7, method);
+        for (int q = 0; q < queries.size(); ++q)
+            for (int i = 0; i < residue.size; ++i)
+                close(selected[0].values[q].c[i], exact(queries[q], i), 2e-7);
+    }
     // A perturbed node must be visible in independent-subset diagnostics.
     input.tensors[0].u[3].c[0] += .03;
-    const auto perturbed = continue_crpa_interactions(input, {{0, 0}}, -1, 1e-7);
+    const auto perturbed =
+        continue_crpa_interactions(input, {{0, 0}}, -1, 1e-7, LIBRPA_ANACON_PADE);
     if (!(perturbed[0].status[0][0] & (2 | 4 | 8)))
         throw std::runtime_error("inconsistent response node escaped continuation diagnostics");
     // Constant U=v (Pd=P0 limit) must survive reciprocal-difference zero pivots.
     for (auto& value : input.tensors[0].u) value = tensor.bare;
-    const auto constant = continue_crpa_interactions(input, queries, -1, 1e-7);
+    const auto constant = continue_crpa_interactions(input, queries, -1, 1e-7, LIBRPA_ANACON_PADE);
     for (int q = 0; q < queries.size(); ++q)
         for (int i = 0; i < residue.size; ++i)
             close(constant[0].values[q].c[i], tensor.bare.c[i], 0);

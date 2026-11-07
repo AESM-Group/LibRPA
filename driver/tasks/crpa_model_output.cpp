@@ -255,8 +255,9 @@ void write_crpa_model(const LibrpaCrpaResult* result, const std::string& directo
     std::unique_ptr<LibrpaCrpaContinuedResult, decltype(&librpa_delete_crpa_continued_result)>
         continued(nullptr, librpa_delete_crpa_continued_result);
     if (!queries.empty())
-        continued.reset(librpa_continue_crpa(result, queries.size() / 2, queries.data(), -1,
-                                             driver_params.crpa_fit_tol_ev / librpa_int::HA2EV));
+        continued.reset(
+            librpa_continue_crpa_with_options(result, queries.size() / 2, queries.data(), &opts,
+                                              driver_params.crpa_fit_tol_ev / librpa_int::HA2EV));
     std::ofstream local(std::filesystem::path(directory) / "crpa_local_model.dat");
     local.precision(17);
     local << "# parent spin atom a b Hloc_re_eV Hloc_im_eV density_re density_im\n";
@@ -285,7 +286,11 @@ void write_crpa_model(const LibrpaCrpaResult* result, const std::string& directo
         std::ofstream summary(std::filesystem::path(directory) / "crpa_continuation_summary.dat");
         summary.precision(17);
         summary
-            << "# Native Pade of U-v in z=i*nu; z=0 is extrapolated, not a response node.\n"
+            << "# " << get_anacon_string(opts.anacon_method)
+            << " continuation of U-v in z=i*nu; z=0 is extrapolated, not a response node.\n"
+            << "# ridge_lambda=" << opts.anacon_ridge_lambda
+            << " ridge_den_weight=" << opts.anacon_ridge_den_weight
+            << " aaa_tolerance=" << opts.anacon_aaa_tolerance << '\n'
             << "# Numerical diagnostics only; no causality or material-convergence certificate.\n"
             << "# atom spin_left spin_right omega_eV eta_eV U_intra U_inter J_U max_spread_eV "
                "source_residual_eV holdout_residual_eV flagged_entries status_bits\n";

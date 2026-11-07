@@ -70,8 +70,8 @@ bool qpe_complex_is_finite(const cplxdb &x)
     return std::isfinite(x.real()) && std::isfinite(x.imag());
 }
 
-QpeEvaluation qpe_evaluate(const AnalyContPade &pade, const double energy,
-                           const double e0, const double e_fermi)
+QpeEvaluation qpe_evaluate(const AnalyCont &pade, const double energy, const double e0,
+                           const double e_fermi)
 {
     QpeEvaluation result;
     result.energy = energy;
@@ -107,20 +107,12 @@ double qpe_quasi_newton_step(const QpeEvaluation &eval)
 
 } /* end of anonymous namespace */
 
-int qpe_solver_pade_self_consistent(
-        const AnalyContPade &pade,
-        const double &e_mf,
-        const double &e_fermi,
-        const double &vxc,
-        const double &sigma_x,
-        double &e_qp,
-        cplxdb &sigc,
-        const double diff_init,
-        const double thres,
-        const int n_iter_max,
-        const double damp_fac,
-        const bool use_adaptive_damp,
-        const bool use_legacy_nonadaptive_update)
+int qpe_solver_pade_self_consistent(const AnalyCont &pade, const double &e_mf,
+                                    const double &e_fermi, const double &vxc, const double &sigma_x,
+                                    double &e_qp, cplxdb &sigc, const double diff_init,
+                                    const double thres, const int n_iter_max, const double damp_fac,
+                                    const bool use_adaptive_damp,
+                                    const bool use_legacy_nonadaptive_update)
 {
     int info = 0;
     int n_iter = 0;
@@ -261,19 +253,11 @@ int qpe_solver_pade_self_consistent(
     return info;
 }
 
-int qpe_solver_pade_quasi_newton(
-        const AnalyContPade &pade,
-        const double &e_mf,
-        const double &e_fermi,
-        const double &vxc,
-        const double &sigma_x,
-        double &e_qp,
-        cplxdb &sigc,
-        const double diff_init,
-        const double thres,
-        const int n_iter_max,
-        const double damp_fac,
-        const bool use_adaptive_damp)
+int qpe_solver_pade_quasi_newton(const AnalyCont &pade, const double &e_mf, const double &e_fermi,
+                                 const double &vxc, const double &sigma_x, double &e_qp,
+                                 cplxdb &sigc, const double diff_init, const double thres,
+                                 const int n_iter_max, const double damp_fac,
+                                 const bool use_adaptive_damp)
 {
     int info = 0;
     int n_iter = 0;
@@ -404,16 +388,9 @@ int qpe_solver_pade_quasi_newton(
     return info;
 }
 
-int qpe_solver_pade_perturbative(
-        const AnalyContPade &pade,
-        const double &e_mf,
-        const double &e_fermi,
-        const double &vxc,
-        const double &sigma_x,
-        double &e_qp,
-        cplxdb &sigc,
-        cplxdb &sigc_deriv,
-        double &qp_weight)
+int qpe_solver_pade_perturbative(const AnalyCont &pade, const double &e_mf, const double &e_fermi,
+                                 const double &vxc, const double &sigma_x, double &e_qp,
+                                 cplxdb &sigc, cplxdb &sigc_deriv, double &qp_weight)
 {
     constexpr double nan = std::numeric_limits<double>::quiet_NaN();
 

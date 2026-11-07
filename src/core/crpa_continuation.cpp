@@ -12,7 +12,8 @@ namespace librpa_int
 {
 std::vector<CrpaContinuedTensor> continue_crpa_interactions(
     const CrpaResult& result, const std::vector<std::complex<double>>& queries, int n_parameters,
-    double tolerance)
+    double tolerance, LibrpaAnalyContMethod method, double ridge_lambda, double ridge_den_weight,
+    double aaa_tolerance)
 {
     using Z = std::complex<double>;
     const auto finite = [](Z value)
@@ -74,7 +75,8 @@ std::vector<CrpaContinuedTensor> continue_crpa_interactions(
                     xs.emplace_back(0, result.frequencies[index]);
                     ys.push_back(data[index]);
                 }
-                return AnalyContPade(parameters, xs, ys);
+                return make_analycont(method, parameters, xs, ys, ridge_lambda, ridge_den_weight,
+                                      aaa_tolerance);
             };
             std::vector<Z> primary(queries.size(), Z{nan, nan});
             std::vector<double> spread(queries.size(), 0);
@@ -92,11 +94,11 @@ std::vector<CrpaContinuedTensor> continue_crpa_interactions(
                 {
                     const auto approximation = fit(all, n_parameters);
                     for (std::size_t q = 0; q < queries.size(); ++q)
-                        primary[q] = approximation.get(queries[q]) + tensor.bare.c[entry];
+                        primary[q] = approximation->get(queries[q]) + tensor.bare.c[entry];
                     double source_residual = 0;
                     for (int node : all)
                     {
-                        const auto value = approximation.get(Z{0, result.frequencies[node]});
+                        const auto value = approximation->get(Z{0, result.frequencies[node]});
                         if (!finite(value))
                             throw LIBRPA_RUNTIME_ERROR("nonfinite source reconstruction");
                         source_residual = std::max(source_residual, std::abs(value - data[node]));
@@ -121,7 +123,7 @@ std::vector<CrpaContinuedTensor> continue_crpa_interactions(
                                 for (std::size_t q = 0; q < queries.size(); ++q)
                                 {
                                     const auto estimate =
-                                        reduced.get(queries[q]) + tensor.bare.c[entry];
+                                        reduced->get(queries[q]) + tensor.bare.c[entry];
                                     if (!finite(estimate))
                                         throw LIBRPA_RUNTIME_ERROR("nonfinite subset estimate");
                                     spread[q] =
@@ -131,7 +133,7 @@ std::vector<CrpaContinuedTensor> continue_crpa_interactions(
                                 for (int node : all)
                                 {
                                     const auto estimate =
-                                        reduced.get(Z{0, result.frequencies[node]});
+                                        reduced->get(Z{0, result.frequencies[node]});
                                     if (!finite(estimate))
                                         throw LIBRPA_RUNTIME_ERROR("nonfinite holdout estimate");
                                     holdout = std::max(holdout, std::abs(estimate - data[node]));

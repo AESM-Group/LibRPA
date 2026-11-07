@@ -369,27 +369,29 @@ std::string format_runtime_options(const librpa::Options &opts) noexcept
     using std::boolalpha;
 
     std::stringstream ss;
-    const std::vector<std::pair<std::string, double>> double_params
-        {
-            {"gf_R_threshold", opts.gf_threshold},
-            normal_pair(vq_threshold),
-            normal_pair(minimax_emin),
-            normal_pair(minimax_emax),
-            normal_pair(minimax_regulation),
-            normal_pair(sqrt_coulomb_threshold),
-            normal_pair(libri_chi0_threshold_C),
-            normal_pair(libri_chi0_threshold_G),
-            normal_pair(libri_exx_threshold_C),
-            normal_pair(libri_exx_threshold_D),
-            normal_pair(libri_exx_threshold_V),
-            normal_pair(libri_g0w0_threshold_C),
-            normal_pair(libri_g0w0_threshold_G),
-            normal_pair(libri_g0w0_threshold_Wc),
-            normal_pair(qpe_solver_thres),
-            normal_pair(qpe_solver_damp_factor),
-            normal_pair(sf_gf_omega_shift),
-            normal_pair(sf_sigc_omega_shift),
-        };
+    const std::vector<std::pair<std::string, double>> double_params{
+        {"gf_R_threshold", opts.gf_threshold},
+        normal_pair(vq_threshold),
+        normal_pair(minimax_emin),
+        normal_pair(minimax_emax),
+        normal_pair(minimax_regulation),
+        normal_pair(sqrt_coulomb_threshold),
+        normal_pair(libri_chi0_threshold_C),
+        normal_pair(libri_chi0_threshold_G),
+        normal_pair(libri_exx_threshold_C),
+        normal_pair(libri_exx_threshold_D),
+        normal_pair(libri_exx_threshold_V),
+        normal_pair(libri_g0w0_threshold_C),
+        normal_pair(libri_g0w0_threshold_G),
+        normal_pair(libri_g0w0_threshold_Wc),
+        normal_pair(qpe_solver_thres),
+        normal_pair(qpe_solver_damp_factor),
+        normal_pair(anacon_aaa_tolerance),
+        normal_pair(anacon_ridge_lambda),
+        normal_pair(anacon_ridge_den_weight),
+        normal_pair(sf_gf_omega_shift),
+        normal_pair(sf_sigc_omega_shift),
+    };
 
     const std::vector<std::pair<std::string, int>> int_params
         {
@@ -462,6 +464,7 @@ std::string format_runtime_options(const librpa::Options &opts) noexcept
         };
 
     for (const auto &[k, v] : str_params) ss << k << " = " << v << endl;
+    ss << "anacon_method = " << get_anacon_string(opts.anacon_method) << endl;
 
     for (const auto &[k, v] : int_params) ss << k << " = " << v << endl;
 
@@ -477,6 +480,22 @@ std::string format_runtime_options(const librpa::Options &opts) noexcept
 
 #undef normal_pair
 #undef bool_pair
+
+LibrpaAnalyContMethod get_anacon_method(const std::string &method)
+{
+    if (method == "pade") return LIBRPA_ANACON_PADE;
+    if (method == "aaa") return LIBRPA_ANACON_AAA;
+    if (method == "ridge") return LIBRPA_ANACON_RIDGE;
+    throw std::runtime_error("anacon_method must be pade, aaa or ridge");
+}
+
+std::string get_anacon_string(LibrpaAnalyContMethod method)
+{
+    if (method == LIBRPA_ANACON_PADE) return "pade";
+    if (method == LIBRPA_ANACON_AAA) return "aaa";
+    if (method == LIBRPA_ANACON_RIDGE) return "ridge";
+    throw std::runtime_error("Unknown analytic continuation method");
+}
 
 LibrpaTimeFreqGrid get_tfgrid_type(const std::string& grid_str)
 {

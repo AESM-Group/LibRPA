@@ -10,3 +10,6 @@ parallel_routing = libri
 use_symmetry_exx = t
 use_symmetry_gw = t
 use_symmetry_rpa = t
+
+# Preserve the Pade method used by the stored reference.
+anacon_method = pade

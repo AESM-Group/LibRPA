@@ -151,6 +151,7 @@ void run_mode_test(const CorrelationPotentialMode mode,
     const auto sigma = make_sigma(source_frequencies);
 
     CorrelationPotentialSettings settings;
+    settings.anacon_method = LIBRPA_ANACON_PADE;
     settings.mode = mode;
     settings.n_params_anacon = n_params_anacon;
     settings.n_params_anacon_resample = n_params_anacon_resample;
@@ -199,6 +200,7 @@ void test_two_stage_parameter_counts_follow_upstream_order()
     sigma.at(0.6)(1, 1) -= 0.7e-7;
 
     CorrelationPotentialSettings settings;
+    settings.anacon_method = LIBRPA_ANACON_PADE;
     settings.mode = CorrelationPotentialMode::ModeB;
     settings.n_params_anacon = 2;
     settings.n_params_anacon_resample = 3;
@@ -329,6 +331,7 @@ void run_complex_rational_staticization_test(MeanField& meanfield)
                                 continue;
                             }
                             CorrelationPotentialSettings settings;
+                            settings.anacon_method = LIBRPA_ANACON_PADE;
                             settings.mode = mode;
                             settings.n_params_anacon = final_count;
                             settings.n_params_anacon_resample = source_count;
@@ -367,8 +370,95 @@ void test_spin_and_kpoint_selection_against_analytic_rational_reference()
 
 }  // namespace
 
+void test_ridge_selection_with_noisy_samples()
+{
+    MeanField mf(1, 1, 2, 2);
+    mf.get_efermi() = 0.23;
+    mf.get_eigenvals()[0](0, 0) = -0.6;
+    mf.get_eigenvals()[0](0, 1) = 0.7;
+    const std::vector<double> freqs{0.2, 0.5, 1, 2, 4, 8};
+    const double noise[] = {0.003, -0.002, 0.001, -0.004, 0.002, -0.001};
+    const cplxdb residues[2][2] = {{{0.4, 0}, {0.05, 0.03}}, {{0.05, -0.03}, {0.3, 0}}};
+    std::map<double, Matz> sigma;
+    for (int f = 0; f != freqs.size(); ++f)
+    {
+        Matz matrix(2, 2, librpa_int::MAJOR::ROW);
+        const auto value = 1.0 / cplxdb{2, freqs[f]} + noise[f] * cplxdb{1, 0.3};
+        for (int i = 0; i != 2; ++i)
+            for (int j = 0; j != 2; ++j) matrix(i, j) = residues[i][j] * value;
+        sigma.emplace(freqs[f], matrix);
+    }
+    // Independent NumPy solve of the documented penalized coefficient objective.
+    // Non-rational samples distinguish ridge from interpolation. Unequal source
+    // and final counts distinguish the two resampling stages.
+    const double references[2][3] = {{0.8642652159877527, 0.4059229961160846, 0.5024598494842251},
+                                     {0.8795711963916500, 0.4048744621627424, 0.5034232973694422}};
+    for (int resample = 0; resample != 2; ++resample)
+    {
+        CorrelationPotentialSettings settings;
+        settings.n_params_anacon = 3;
+        settings.n_params_anacon_resample = 4;
+        if (resample) settings.resample_imagfreqs = {{0, .3}, {0, .8}, {0, 1.5}, {0, 3}, {0, 6}};
+        const auto potential = build_qsgw_correlation_potential(mf, freqs, sigma, 0, 0, settings);
+        for (int i = 0; i != 2; ++i)
+            for (int j = 0; j != 2; ++j)
+                assert(std::abs(potential(i, j) -
+                                residues[i][j] * references[resample][i == j ? i : 2]) < 1e-10);
+    }
+}
+
+void test_selected_methods_against_rational_matrix()
+{
+    MeanField mf(1, 1, 2, 2);
+    mf.get_efermi() = 0.23;
+    mf.get_eigenvals()[0](0, 0) = -0.6;
+    mf.get_eigenvals()[0](0, 1) = 0.7;
+    const std::vector<double> freqs{0.2, 0.5, 1.0, 2.0, 4.0, 8.0};
+    const cplxdb residues[2][2] = {{{0.4, 0}, {0.05, 0.03}}, {{0.05, -0.03}, {0.3, 0}}};
+    std::map<double, Matz> sigma;
+    for (const double freq : freqs)
+    {
+        Matz matrix(2, 2, librpa_int::MAJOR::ROW);
+        for (int i = 0; i != 2; ++i)
+            for (int j = 0; j != 2; ++j) matrix(i, j) = residues[i][j] / cplxdb{2.0, freq};
+        sigma.emplace(freq, matrix);
+    }
+    // Default-initialized settings exercise the selected ridge policy as well
+    // as explicit Pade/AAA. The oracle is the analytic input function.
+    for (const auto method : {LIBRPA_ANACON_PADE, LIBRPA_ANACON_AAA, LIBRPA_ANACON_RIDGE})
+        for (const auto mode : {CorrelationPotentialMode::ModeA, CorrelationPotentialMode::ModeB})
+            for (const bool resample : {false, true})
+            {
+                CorrelationPotentialSettings settings;
+                assert(settings.anacon_method == LIBRPA_ANACON_RIDGE);
+                assert(settings.anacon_ridge_lambda == 1.0e-12);
+                settings.anacon_method = method;
+                settings.mode = mode;
+                settings.n_params_anacon = settings.n_params_anacon_resample = 3;
+                if (resample)
+                    settings.resample_imagfreqs = {{0, 0.3}, {0, 0.8}, {0, 1.5}, {0, 3.0}};
+                const auto potential =
+                    build_qsgw_correlation_potential(mf, freqs, sigma, 0, 0, settings);
+                for (int i = 0; i != 2; ++i)
+                    for (int j = 0; j != 2; ++j)
+                    {
+                        const double ei = mf.get_eigenvals()[0](0, i) - mf.get_efermi();
+                        const double ej = mf.get_eigenvals()[0](0, j) - mf.get_efermi();
+                        const auto expected =
+                            residues[i][j] * (i == j ? 1.0 / (2.0 + ei)
+                                              : mode == CorrelationPotentialMode::ModeB
+                                                  ? 0.5
+                                                  : 0.5 * (1.0 / (2.0 + ei) + 1.0 / (2.0 + ej)));
+                        assert(std::abs(potential(i, j) - expected) < 2.0e-7);
+                        assert(std::abs(potential(i, j) - std::conj(potential(j, i))) < 1.0e-14);
+                    }
+            }
+}
+
 int main()
 {
+    test_selected_methods_against_rational_matrix();
+    test_ridge_selection_with_noisy_samples();
     test_mode_a_and_b_match_upstream_pade_without_qsgw_rounding();
     test_optional_resampling_matches_the_upstream_two_stage_pade();
     test_two_stage_parameter_counts_follow_upstream_order();

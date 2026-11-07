@@ -109,6 +109,14 @@ typedef enum
     LIBRPA_TFGRID_SPLIT_GAUSS_LEGENDRE = 6, ///< Finite GL interval plus transformed tail
 } LibrpaTimeFreqGrid;
 
+/** @brief Analytic continuation method for GW and QSGW. */
+typedef enum
+{
+    LIBRPA_ANACON_PADE = 0,   ///< Thiele Pade with barycentric fallback
+    LIBRPA_ANACON_AAA = 1,    ///< Adaptive barycentric rational approximation
+    LIBRPA_ANACON_RIDGE = 2,  ///< Regularized rational coefficient fit (default)
+} LibrpaAnalyContMethod;
+
 /**
  * @brief Method to compute a quantity on the time/frequency grid.
  *

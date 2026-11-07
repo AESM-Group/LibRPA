@@ -18,3 +18,6 @@ use_shrink_chi = t
 use_symmetry_exx = t
 use_symmetry_gw = t
 use_kpara_scf_eigvec = t
+
+# Preserve the Pade method used by the stored reference.
+anacon_method = pade

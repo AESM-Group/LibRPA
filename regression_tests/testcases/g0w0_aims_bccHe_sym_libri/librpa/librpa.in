@@ -11,3 +11,6 @@ use_symmetry_gw = t
 use_symmetry_rpa = t
 # Reference output is generated without parallelizing eigenvectors among k
 use_kpara_scf_eigvec = t
+
+# Preserve the Pade method used by the stored reference.
+anacon_method = pade

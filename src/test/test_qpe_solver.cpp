@@ -264,8 +264,31 @@ void test_perturbative_zero_self_energy()
     assert(derivative == cplxdb(0.0, 0.0));
 }
 
+void test_selected_method_qp_roots()
+{
+    const std::vector<cplxdb> xs{{0, 0.2}, {0, 0.5}, {0, 1}, {0, 2}, {0, 4}};
+    std::vector<cplxdb> data;
+    for (const auto z : xs) data.push_back(0.1 * z + 0.2);
+    const double expected = 0.278 / 0.9;
+    for (const auto method : {LIBRPA_ANACON_PADE, LIBRPA_ANACON_AAA, LIBRPA_ANACON_RIDGE})
+    {
+        const auto fit = make_analycont(method, 3, xs, data);
+        double eqp = 0.0, weight = 0.0;
+        cplxdb sigc, derivative;
+        const int status =
+            qpe_solver_pade_quasi_newton(*fit, 0.1, 0.02, 0.05, 0.03, eqp, sigc, 0.0, 1e-10, 100);
+        assert(status == 0);
+        assert(std::abs(eqp - expected) < 2e-7);
+        assert(qpe_solver_pade_perturbative(*fit, 0.1, 0.02, 0.05, 0.03, eqp, sigc, derivative,
+                                            weight) == 0);
+        assert(std::abs(eqp - expected) < 2e-7);
+        assert(std::abs(weight - 1.0 / 0.9) < 2e-7);
+    }
+}
+
 int main(int argc, char *argv[])
 {
+    test_selected_method_qp_roots();
     check_single_pole_self_energy(false);
     check_single_pole_self_energy(true);
     test_quasi_newton_uses_pade_derivative();

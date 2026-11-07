@@ -16,3 +16,6 @@ restart_from_dir = librpa.d_restart/
 use_symmetry_exx = f
 use_symmetry_gw = f
 use_symmetry_rpa = f
+
+# Preserve the Pade method used by the stored reference.
+anacon_method = pade
