@@ -36,7 +36,7 @@ target_compile_options(test_velocity_reader PRIVATE -UNDEBUG)
 add_test(NAME test_velocity_reader COMMAND $<TARGET_FILE:test_velocity_reader>)
 
 if(BUILD_SHARED_LIBS)
-  foreach(target test_driver_params test_bz_mapping test_velocity_reader)
+  foreach(target test_driver_params test_bz_mapping test_velocity_reader test_shrink_coulomb_basis)
     target_link_libraries(${target} PRIVATE ${math_libs} ${parallel_libs})
   endforeach()
 endif()
