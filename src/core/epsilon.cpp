@@ -725,14 +725,20 @@ static abf_rspace_complex_block_map_t accumulate_symmetry_full_wr_from_ibz_q(
         const auto q_ibz_frac = pbc.kfrac_list.at(static_cast<std::size_t>(star_mapping.iq_ibz));
         const auto blocks_ibz_local =
             collect_symmetry_abf_ibz_blocks_for_q(Wc_q, q_ibz_internal);
+        // Decide on the representatives before the gather: with more than one
+        // rank the gather materialises a block for every atom pair, so a
+        // representative that no rank owns would come back as zero-filled blocks
+        // and would look present. Every rank must still take part in the gather,
+        // so the result of this reduction only steers the counting.
+        const int has_local_blocks = blocks_ibz_local.empty() ? 0 : 1;
+        int has_blocks = 0;
+        comm_h.allreduce(&has_local_blocks, &has_blocks, 1, MPI_MAX);
         auto blocks_ibz =
             gather_symmetry_ibz_blocks_collective(comm_h, blocks_ibz_local, atom_nabf);
-        if (blocks_ibz.empty())
+        if (has_blocks == 0)
         {
-            // `blocks_ibz` is identical on every rank after the collective
-            // gather, so this count is rank-independent. A star whose
-            // representative carries no Wc(q) block is dropped from `W(R)`
-            // without any other sign, which is what this count exposes.
+            // No rank holds a block for this representative, so the star is
+            // dropped from `W(R)` and nothing else reports it.
             ++stars_without_blocks;
             continue;
         }
