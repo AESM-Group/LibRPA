@@ -4780,34 +4780,34 @@ void test_wq_to_wr_reports_star_without_blocks_on_every_rank()
     // Capture the diagnostic through the printf redirect. The message is
     // root-only, so only the root rank writes and checks it.
     const std::string capture_path = "wq_to_wr_missing_star_capture.txt";
-    std::remove(capture_path.c_str());
     const TFGrids dummy_tfg;
     const bool is_root = librpa_int::global::mpi_comm_global_h.is_root();
     FILE *saved_redirect = librpa_int::global::pfile_redirect;
-    std::ofstream capture;
+    // Capture through the printf redirect. Only the root rank touches the file:
+    // if another rank removed the stale file while the root held it open, the
+    // readback would open a path that no longer exists and read nothing.
+    FILE *capture = nullptr;
     if (is_root)
     {
-        capture.open(capture_path, std::ios::trunc);
-        librpa_int::global::pfile_redirect = std::fopen(capture_path.c_str(), "a");
+        std::remove(capture_path.c_str());
+        capture = std::fopen(capture_path.c_str(), "w");
+        assert(capture != nullptr);
+        librpa_int::global::pfile_redirect = capture;
     }
     const auto restored = librpa_int::FT_Wc_q2R(
         librpa_int::global::mpi_comm_global_h, basis_abf, ctx_full, wq_missing,
         dummy_tfg, pbc_full, pbc_full.Rlist, false, "", true);
     if (is_root)
     {
-        std::fflush(librpa_int::global::pfile_redirect);
-        std::fclose(librpa_int::global::pfile_redirect);
+        std::fflush(capture);
+        std::fclose(capture);
         librpa_int::global::pfile_redirect = saved_redirect;
-        capture.close();
         std::ifstream readback(capture_path);
         const std::string text((std::istreambuf_iterator<char>(readback)),
                                std::istreambuf_iterator<char>());
+        readback.close();
         std::remove(capture_path.c_str());
         assert(text.find("K-star restore skipped 1 of 2 k-stars") != std::string::npos);
-    }
-    // The call must still return, and on every rank it produced storage.
-    if (is_root)
-    {
         assert(!restored.empty());
     }
 }
