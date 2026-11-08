@@ -490,12 +490,12 @@ LibrpaAnalyContMethod get_anacon_method(const std::string &method)
     throw std::runtime_error("anacon_method must be pade, aaa or ridge");
 }
 
-std::string get_anacon_string(LibrpaAnalyContMethod method)
+std::string get_anacon_string(LibrpaAnalyContMethod method) noexcept
 {
     if (method == LIBRPA_ANACON_PADE) return "pade";
     if (method == LIBRPA_ANACON_AAA) return "aaa";
     if (method == LIBRPA_ANACON_RIDGE) return "ridge";
-    throw std::runtime_error("Unknown analytic continuation method");
+    return "unset";
 }
 
 LibrpaTimeFreqGrid get_tfgrid_type(const std::string& grid_str)

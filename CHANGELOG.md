@@ -9,7 +9,9 @@
   ridge uses coefficient penalty `1e-12` and denominator weight `10` unless
   overridden. Values and derivatives are shared by quasiparticle solvers,
   spectra, resampling and QSGW matrices. Rebuild host bindings for the extended
-  options structure.
+  options structure. Unmet AAA tolerance is reported; numerical continuation
+  failures leave affected GW diagnostic states or spectral frequencies as NaN.
+  The standalone cRPA fit retains all source nodes independently of GW counts.
 
 - Added conventional k-space RPA energies, for all parallel routings and for
   builds without LibRI. Required replicated scalar or collinear eigenvectors on

@@ -74,14 +74,17 @@ module librpa_f03
    !> @brief Automatic selection value. LibRPA will choose appropriate setting.
    integer, parameter :: LIBRPA_AUTO = -51
 
-   !> @name Parallel routing strategies
-   !> @brief Specifies how computation is distributed across MPI processes.
+   !> @name Analytic continuation methods
+   !> @brief Pade is the default.
    !> @{
-   !> Analytic continuation selectors; Pade is the default.
    integer, parameter, public :: LIBRPA_ANACON_PADE = 0
    integer, parameter, public :: LIBRPA_ANACON_AAA = 1
    integer, parameter, public :: LIBRPA_ANACON_RIDGE = 2
+   !> @}
 
+   !> @name Parallel routing strategies
+   !> @brief Specifies how computation is distributed across MPI processes.
+   !> @{
    integer, parameter, public :: LIBRPA_ROUTING_UNSET = LIBRPA_UNSET  !< Unset
    integer, parameter, public :: LIBRPA_ROUTING_AUTO = LIBRPA_AUTO    !< Auto-select
    integer, parameter, public :: LIBRPA_ROUTING_RTAU = 0              !< Real-space tau decomposition

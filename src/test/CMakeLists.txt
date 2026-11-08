@@ -87,6 +87,10 @@ foreach(target
   config_test(${target} 1)
 endforeach()
 
+add_test(NAME test_qpe_solver_mpi
+  COMMAND mpirun -np 4 $<TARGET_FILE:test_qpe_solver>)
+set_tests_properties(test_qpe_solver_mpi PROPERTIES TIMEOUT 60)
+
 # These suites use standard assert() and must remain active in Release builds.
 target_compile_options(test_sternheimer_rpa PRIVATE -UNDEBUG)
 target_compile_options(test_sternheimer_symmetry PRIVATE -UNDEBUG)

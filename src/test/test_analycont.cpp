@@ -385,18 +385,21 @@ void test_aaa_zero_weight_support_residual()
 {
     const std::vector<cplxdb> xs = {{0, 1}, {0, 2}, {0, 3}, {0, 4}};
     const std::vector<cplxdb> data = {{0, 0}, {1, 0}, {1, 0}, {1, 0}};
-    AnalyContAAA fit(2, xs, data);
-    // The zero-weight support at i is absent from the rational function,
-    // which is the constant one, rather than an interpolant of all four data.
-    assert(!fit.reached_tolerance());
-    assert(std::abs(fit.get_max_source_error() - 1.0) < 1e-14);
-    std::vector<cplxdb> queries = xs;
-    queries.push_back(xs[0] + cplxdb{1e-7, 0});
-    queries.push_back(xs[0] - cplxdb{1e-7, 0});
-    for (const auto z : queries)
+    for (const int cap : {-1, 2, 4, 20})
     {
-        assert(std::abs(fit.get(z) - cplxdb{1, 0}) < 1e-14);
-        assert(std::abs(fit.get_derivative(z)) < 1e-13);
+        AnalyContAAA fit(cap, xs, data);
+        // The zero-weight support at i is absent from the rational function,
+        // which is the constant one, rather than an interpolant of all four data.
+        assert(!fit.reached_tolerance());
+        assert(std::abs(fit.get_max_source_error() - 1.0) < 1e-14);
+        std::vector<cplxdb> queries = xs;
+        queries.push_back(xs[0] + cplxdb{1e-7, 0});
+        queries.push_back(xs[0] - cplxdb{1e-7, 0});
+        for (const auto z : queries)
+        {
+            assert(std::abs(fit.get(z) - cplxdb{1, 0}) < 1e-14);
+            assert(std::abs(fit.get_derivative(z)) < 1e-13);
+        }
     }
 }
 

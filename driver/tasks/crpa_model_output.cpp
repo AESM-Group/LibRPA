@@ -255,9 +255,13 @@ void write_crpa_model(const LibrpaCrpaResult* result, const std::string& directo
     std::unique_ptr<LibrpaCrpaContinuedResult, decltype(&librpa_delete_crpa_continued_result)>
         continued(nullptr, librpa_delete_crpa_continued_result);
     if (!queries.empty())
+    {
+        auto crpa_options = opts;
+        crpa_options.n_params_anacon = -1;
         continued.reset(
-            librpa_continue_crpa_with_options(result, queries.size() / 2, queries.data(), &opts,
+            librpa_continue_crpa_with_options(result, queries.size() / 2, queries.data(), &crpa_options,
                                               driver_params.crpa_fit_tol_ev / librpa_int::HA2EV));
+    }
     std::ofstream local(std::filesystem::path(directory) / "crpa_local_model.dat");
     local.precision(17);
     local << "# parent spin atom a b Hloc_re_eV Hloc_im_eV density_re density_im\n";

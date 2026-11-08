@@ -7,6 +7,8 @@
 #pragma once
 #include <memory>
 #include <optional>
+#include <ostream>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -15,6 +17,13 @@
 
 namespace librpa_int
 {
+
+// Numerical construction/evaluation failure; invalid input remains invalid_argument.
+class AnalyContError : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
 
 class AnalyCont
 {
@@ -126,6 +135,20 @@ public:
     cplxdb get(const cplxdb &x) const override;
     cplxdb get_derivative(const cplxdb &x) const override;
 };
+
+// Rank-local diagnostics: safe even when callers own different state counts.
+void dump_analycont_source_data(std::ostream &os, const std::vector<cplxdb> &xs,
+                                const std::vector<cplxdb> &data, const char *context,
+                                int spin, int kpoint, int state);
+inline void dump_analycont_source_data(std::ostream &os, const AnalyCont &ac,
+                                       const char *context, int spin, int kpoint, int state)
+{
+    dump_analycont_source_data(os, ac.get_source_xs(), ac.get_source_data(), context,
+                               spin, kpoint, state);
+}
+void report_analycont_failure(const char *context, int spin, int kpoint, int state,
+                              const std::vector<cplxdb> &xs, const std::vector<cplxdb> &data,
+                              const AnalyContError &error);
 
 std::unique_ptr<AnalyCont> make_analycont(LibrpaAnalyContMethod method, int n_params,
                                           const std::vector<cplxdb> &xs,

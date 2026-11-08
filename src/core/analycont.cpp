@@ -7,10 +7,12 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <iomanip>
 #include <limits>
 #include <stdexcept>
 
 #include "../interface/blas_lapack.h"
+#include "../io/global_io.h"
 #include "../utils/constants.h"
 // #include <iostream>
 
@@ -59,10 +61,10 @@ cplxdb barycentric_value(const cplxdb &x, const std::vector<cplxdb> &support_xs,
     if (!std::isfinite(denominator_scale) ||
         std::abs(denominator) <= 100.0 * std::numeric_limits<double>::epsilon() * denominator_scale)
     {
-        throw std::runtime_error("AAA barycentric denominator is numerically singular");
+        throw AnalyContError("AAA barycentric denominator is numerically singular");
     }
     const cplxdb result = numerator / denominator;
-    if (!finite_complex(result)) throw std::runtime_error("AAA produced non-finite value");
+    if (!finite_complex(result)) throw AnalyContError("AAA produced non-finite value");
     return result;
 }
 
@@ -72,7 +74,7 @@ void compute_aaa_weights(const std::vector<cplxdb> &xs, const std::vector<cplxdb
     const int n_data = static_cast<int>(xs.size());
     const int n_support = static_cast<int>(support_indices.size());
     const int n_rows = n_data - n_support;
-    if (n_rows <= 0) throw std::runtime_error("AAA has no unsampled points for SVD");
+    if (n_rows <= 0) throw AnalyContError("AAA has no unsampled points for SVD");
 
     std::vector<int> unsampled;
     unsampled.reserve(n_rows);
@@ -92,7 +94,7 @@ void compute_aaa_weights(const std::vector<cplxdb> &xs, const std::vector<cplxdb
             const int j = support_indices[col];
             const cplxdb dz = xs[i] - xs[j];
             if (dz == cplxdb{0.0, 0.0})
-                throw std::runtime_error("AAA encountered duplicate support points");
+                throw AnalyContError("AAA encountered duplicate support points");
             matrix[row + col * n_rows] = (data[i] - data[j]) / dz;
         }
     }
@@ -112,13 +114,13 @@ void compute_aaa_weights(const std::vector<cplxdb> &xs, const std::vector<cplxdb
     zgesvd_(&jobu, &jobvt, &n_rows, &n_support, matrix.data(), &lda, singular_values.data(),
             &u_dummy, &ldu, vt.data(), &ldvt, &work_query, &lwork, rwork.data(), &info);
     if (info != 0 || !finite_complex(work_query) || work_query.real() < 1.0)
-        throw std::runtime_error("AAA complex SVD workspace query failed");
+        throw AnalyContError("AAA complex SVD workspace query failed");
 
     lwork = std::max(1, static_cast<int>(work_query.real()));
     std::vector<cplxdb> work(lwork);
     zgesvd_(&jobu, &jobvt, &n_rows, &n_support, matrix.data(), &lda, singular_values.data(),
             &u_dummy, &ldu, vt.data(), &ldvt, work.data(), &lwork, rwork.data(), &info);
-    if (info != 0) throw std::runtime_error("AAA complex Loewner SVD failed");
+    if (info != 0) throw AnalyContError("AAA complex Loewner SVD failed");
 
     // With JOBVT='A', the last row is the smallest right singular vector,
     // including the exact null space when the Loewner matrix is wide.
@@ -129,11 +131,11 @@ void compute_aaa_weights(const std::vector<cplxdb> &xs, const std::vector<cplxdb
     {
         weights[i] = std::conj(vt[smallest_row + i * ldvt]);
         if (!finite_complex(weights[i]))
-            throw std::runtime_error("AAA SVD returned non-finite weights");
+            throw AnalyContError("AAA SVD returned non-finite weights");
         weight_scale = std::max(weight_scale, std::abs(weights[i]));
     }
     if (!std::isfinite(weight_scale) || weight_scale <= std::numeric_limits<double>::epsilon())
-        throw std::runtime_error("AAA SVD returned machine-zero weights");
+        throw AnalyContError("AAA SVD returned machine-zero weights");
 }
 
 using cplxld = std::complex<long double>;
@@ -387,7 +389,7 @@ AnalyContPadeBarycentric::AnalyContPadeBarycentric(const std::vector<cplxdb> &xs
                     [&](const cplxdb &value) { return value == data.front(); }))
         return;
     if (!initialize_rational())
-        throw std::runtime_error("Barycentric Padé could not fit all selected samples");
+        throw AnalyContError("Barycentric Padé could not fit all selected samples");
 }
 
 bool AnalyContPadeBarycentric::initialize_rational()
@@ -690,7 +692,7 @@ AnalyContAAA::AnalyContAAA(int n_support, const std::vector<cplxdb> &xs,
     }
 
     const int n_data = static_cast<int>(source_xs.size());
-    const int max_support = n_support < 0 ? n_data : n_support;
+    const int max_support = n_support < 0 ? n_data : std::min(n_support, n_data);
     if (max_support < 1) throw std::invalid_argument("AAA support count must be positive");
     if (n_data == 1 || max_support == 1)
     {
@@ -737,7 +739,7 @@ AnalyContAAA::AnalyContAAA(int n_support, const std::vector<cplxdb> &xs,
             const double error =
                 std::abs(source_data[i] -
                          barycentric_value(source_xs[i], support_xs, support_data, weights));
-            if (!std::isfinite(error)) throw std::runtime_error("AAA produced non-finite residual");
+            if (!std::isfinite(error)) throw AnalyContError("AAA produced non-finite residual");
             max_error = std::max(max_error, error);
             // Zero-weight supports need a residual check but cannot be added twice.
             if (error > next_error && std::find(support_indices.begin(), support_indices.end(),
@@ -752,19 +754,10 @@ AnalyContAAA::AnalyContAAA(int n_support, const std::vector<cplxdb> &xs,
         tolerance_reached = tolerance_met;
         const bool support_cap_reached = static_cast<int>(support_indices.size()) >= max_support;
         const bool support_exhausted = static_cast<int>(support_indices.size()) >= n_data - 1;
-        if (tolerance_met || support_cap_reached) break;
-        if (next < 0)
-        {
-            if (max_support >= n_data)
-                throw std::runtime_error("AAA cannot reach tolerance with a zero-weight support");
-            break;
-        }
-        if (support_exhausted)
-        {
-            if (max_support >= n_data)
-                throw std::runtime_error("AAA did not reach tolerance before n_data-1 supports");
-            break;
-        }
+        // The Loewner SVD needs at least one unsampled row. A zero-weight
+        // support can also prevent further improvement. Keep the current fit
+        // and its honest residual for every cap, including the default.
+        if (tolerance_met || support_cap_reached || next < 0 || support_exhausted) break;
 
         support_indices.push_back(next);
         compute_aaa_weights(source_xs, source_data, support_indices, weights);
@@ -785,15 +778,15 @@ cplxdb AnalyContAAA::get_derivative(const cplxdb &x) const
         for (const cplxdb &weight : weights)
         {
             if (!finite_complex(weight))
-                throw std::runtime_error("AAA support derivative has non-finite weights");
+                throw AnalyContError("AAA support derivative has non-finite weights");
             weight_scale = std::max(weight_scale, std::abs(weight));
         }
         if (!std::isfinite(weight_scale) || weight_scale <= std::numeric_limits<double>::epsilon())
-            throw std::runtime_error("AAA support derivative has machine-zero weights");
+            throw AnalyContError("AAA support derivative has machine-zero weights");
         const cplxdb support_weight = weights[support];
         if (std::abs(support_weight) <=
             100.0 * std::numeric_limits<double>::epsilon() * weight_scale)
-            throw std::runtime_error("AAA support derivative weight is numerically zero");
+            throw AnalyContError("AAA support derivative weight is numerically zero");
 
         cplxdb derivative{0.0, 0.0};
         for (int i = 0; i != static_cast<int>(support_xs.size()); ++i)
@@ -801,19 +794,19 @@ cplxdb AnalyContAAA::get_derivative(const cplxdb &x) const
             if (i == support) continue;
             const cplxdb dz = support_xs[support] - support_xs[i];
             if (!finite_complex(dz) || dz == cplxdb{0.0, 0.0})
-                throw std::runtime_error("AAA support derivative abscissa is singular");
+                throw AnalyContError("AAA support derivative abscissa is singular");
             const cplxdb term =
                 weights[i] * (support_data[i] - support_data[support]) / (support_weight * dz);
             if (!finite_complex(term))
-                throw std::runtime_error("AAA support derivative is non-finite");
+                throw AnalyContError("AAA support derivative is non-finite");
             derivative += term;
         }
         if (!finite_complex(derivative))
-            throw std::runtime_error("AAA produced non-finite support derivative");
+            throw AnalyContError("AAA produced non-finite support derivative");
         return derivative;
     }
 
-    if (!finite_complex(x)) throw std::runtime_error("AAA derivative argument is non-finite");
+    if (!finite_complex(x)) throw AnalyContError("AAA derivative argument is non-finite");
     cplxdb numerator{0.0, 0.0};
     cplxdb denominator{0.0, 0.0};
     cplxdb numerator_derivative{0.0, 0.0};
@@ -824,9 +817,9 @@ cplxdb AnalyContAAA::get_derivative(const cplxdb &x) const
         if (weights[i] == cplxdb{0.0, 0.0}) continue;
         const cplxdb dz = x - support_xs[i];
         if (!finite_complex(dz) || dz == cplxdb{0.0, 0.0})
-            throw std::runtime_error("AAA derivative abscissa is singular");
+            throw AnalyContError("AAA derivative abscissa is singular");
         const cplxdb term = weights[i] / dz;
-        if (!finite_complex(term)) throw std::runtime_error("AAA derivative term is non-finite");
+        if (!finite_complex(term)) throw AnalyContError("AAA derivative term is non-finite");
         numerator += term * support_data[i];
         denominator += term;
         numerator_derivative -= term * support_data[i] / dz;
@@ -837,11 +830,11 @@ cplxdb AnalyContAAA::get_derivative(const cplxdb &x) const
         !finite_complex(numerator_derivative) || !finite_complex(denominator_derivative) ||
         !std::isfinite(denominator_scale) || denominator_scale <= 0.0 ||
         std::abs(denominator) <= 100.0 * std::numeric_limits<double>::epsilon() * denominator_scale)
-        throw std::runtime_error("AAA barycentric derivative denominator is numerically singular");
+        throw AnalyContError("AAA barycentric derivative denominator is numerically singular");
     const cplxdb derivative =
         (numerator_derivative * denominator - numerator * denominator_derivative) /
         (denominator * denominator);
-    if (!finite_complex(derivative)) throw std::runtime_error("AAA produced non-finite derivative");
+    if (!finite_complex(derivative)) throw AnalyContError("AAA produced non-finite derivative");
     return derivative;
 }
 
@@ -942,7 +935,7 @@ AnalyContRidge::AnalyContRidge(int n_pars_in, const std::vector<cplxdb> &xs,
 
     if (!solved)
     {
-        throw std::runtime_error("Ridge normal equations are singular after diagonal shifts");
+        throw AnalyContError("Ridge normal equations are singular after diagonal shifts");
     }
 
     numerator.assign(solution.begin(), solution.begin() + n_num);
@@ -956,12 +949,12 @@ AnalyContRidge::AnalyContRidge(int n_pars_in, const std::vector<cplxdb> &xs,
     for (const auto &coeff : numerator)
     {
         if (!finite_complex(coeff))
-            throw std::runtime_error("Ridge produced non-finite coefficients");
+            throw AnalyContError("Ridge produced non-finite coefficients");
     }
     for (const auto &coeff : denominator)
     {
         if (!finite_complex(coeff))
-            throw std::runtime_error("Ridge produced non-finite coefficients");
+            throw AnalyContError("Ridge produced non-finite coefficients");
     }
 }
 
@@ -982,7 +975,7 @@ std::pair<cplxdb, cplxdb> polynomial_value_derivative(const std::vector<cplxdb> 
 void check_ridge_denominator(const cplxdb &denominator)
 {
     if (!finite_complex(denominator) || std::abs(denominator) < 1.0e-12)
-        throw std::runtime_error("Ridge denominator is numerically singular");
+        throw AnalyContError("Ridge denominator is numerically singular");
 }
 }  // namespace
 
@@ -992,7 +985,7 @@ cplxdb AnalyContRidge::get(const cplxdb &x) const
     const auto q = polynomial_value_derivative(denominator, x / x_scale);
     check_ridge_denominator(q.first);
     const auto value = y_scale * p.first / q.first;
-    if (!finite_complex(value)) throw std::runtime_error("Ridge produced a non-finite value");
+    if (!finite_complex(value)) throw AnalyContError("Ridge produced a non-finite value");
     return value;
 }
 
@@ -1004,8 +997,37 @@ cplxdb AnalyContRidge::get_derivative(const cplxdb &x) const
     const auto derivative =
         (y_scale / x_scale) * (p.second * q.first - p.first * q.second) / (q.first * q.first);
     if (!finite_complex(derivative))
-        throw std::runtime_error("Ridge produced a non-finite derivative");
+        throw AnalyContError("Ridge produced a non-finite derivative");
     return derivative;
+}
+
+void dump_analycont_source_data(std::ostream &os, const std::vector<cplxdb> &xs,
+                                const std::vector<cplxdb> &data, const char *context,
+                                int spin, int kpoint, int state)
+{
+    const auto flags = os.flags();
+    const auto precision = os.precision();
+    os << "Source data used by analytic continuation in " << context
+       << " for spin " << spin + 1 << " kpoint " << kpoint + 1
+       << " state " << state + 1 << std::endl;
+    os << "n_analycont_source_data = " << data.size() << std::endl;
+    os << "i x_re x_im y_re y_im" << std::endl;
+    os << std::scientific << std::setprecision(11);
+    for (std::size_t i = 0; i != std::min(xs.size(), data.size()); ++i)
+        os << i + 1 << " " << xs[i].real() << " " << xs[i].imag() << " "
+           << data[i].real() << " " << data[i].imag() << std::endl;
+    os.flags(flags);
+    os.precision(precision);
+}
+
+void report_analycont_failure(const char *context, int spin, int kpoint, int state,
+                              const std::vector<cplxdb> &xs, const std::vector<cplxdb> &data,
+                              const AnalyContError &error)
+{
+    global::ofs_myid << "Warning! Analytic continuation failed in " << context
+                    << " for spin " << spin + 1 << " kpoint " << kpoint + 1
+                    << " state " << state + 1 << ": " << error.what() << std::endl;
+    dump_analycont_source_data(global::ofs_myid, xs, data, context, spin, kpoint, state);
 }
 
 std::unique_ptr<AnalyCont> make_analycont(LibrpaAnalyContMethod method, int n_params,
@@ -1018,7 +1040,14 @@ std::unique_ptr<AnalyCont> make_analycont(LibrpaAnalyContMethod method, int n_pa
         return std::make_unique<AnalyContRidge>(n_params, xs, data, ridge_lambda,
                                                 ridge_denominator_weight);
     if (method == LIBRPA_ANACON_AAA)
-        return std::make_unique<AnalyContAAA>(n_params, xs, data, aaa_tolerance);
+    {
+        auto fit = std::make_unique<AnalyContAAA>(n_params, xs, data, aaa_tolerance);
+        if (!fit->reached_tolerance())
+            global::ofs_myid << "Warning! AAA stopped before reaching source tolerance; "
+                            << "max absolute residual = " << fit->get_max_source_error()
+                            << ", relative tolerance = " << aaa_tolerance << std::endl;
+        return fit;
+    }
     throw std::invalid_argument("Unknown analytic continuation method");
 }
 

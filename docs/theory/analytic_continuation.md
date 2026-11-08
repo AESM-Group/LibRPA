@@ -48,7 +48,10 @@ $$
 
 The quotient derivative is analytic, including its support-point limit.
 Zero-weight supports are absent from the rational sums and remain included in
-the residual check. An explicit support cap may stop before tolerance is met.
+the residual check. A support cap or exhausted supports may stop before tolerance
+is met, including with the default count. The Loewner SVD retains at least one
+unsampled node. The returned residual and tolerance flag describe the actual fit;
+the production factory reports unmet tolerance in the rank-local log.
 
 The existing GW solvers consume the selected value and derivative with the
 same units and energy reference. Optional imaginary-grid resampling fits the
