@@ -8,6 +8,7 @@ remain in the built documentation sections.
 ## Shared numerical methods
 
 - [Padé continuation and numerical breakdown](numerical_methods/pade.md)
+- [Real-space screened interaction from an irreducible q grid](numerical_methods/wr_real_space.md)
 
 ## RPA
 
