@@ -279,7 +279,8 @@ You can use this option to pass linker flags to the ELPA `configure` script thro
 It applies to downloaded ELPA sources and trees supplied through `ELPA_SOURCE_DIR`; installed libraries and parent ELPA targets keep their own link settings.
 
 By default, LibRPA forwards the detected LAPACK and ScaLAPACK libraries to the
-ELPA source build. Set this option only when the autodetected flags are not
+ELPA source build. With MKL, it also forwards the OpenMP runtime that LibRPA
+links, because `mkl_intel_thread` needs it. Set this option only when the autodetected flags are not
 suitable for a particular compiler or math library setup.
 
 When static math libraries are used, ELPA's libtool build may try to include

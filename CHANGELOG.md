@@ -38,6 +38,7 @@
 
 - Detected parent greenX targets automatically, avoiding duplicate targets.
 - Corrected the LibDDLA revision in the license list to `0d576d4`.
+- Passed the OpenMP runtime to the ELPA source build with MKL, so that ELPA's `configure` can link `mkl_intel_thread`.
 
 - Fixed the `map::at` failure of RPA energies with `parallel_routing = rtau` for
   more than one q point on more than one MPI rank.

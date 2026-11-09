@@ -178,6 +178,11 @@ if(NOT _loaded_cmake_inc)
           OpenMP::OpenMP_CXX
           MPI::MPI_CXX
           )
+  # mkl_intel_thread needs an OpenMP runtime. LibRPA gets it from
+  # OpenMP::OpenMP_CXX, but the ELPA configure script sees only LIBS.
+  if(MKLROOT)
+    list(APPEND _librpa_elpa_configure_libs ${OpenMP_CXX_LIBRARIES})
+  endif()
   include_directories(${MPI_CXX_INCLUDE_PATH})
 endif()
 
