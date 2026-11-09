@@ -294,8 +294,8 @@ Retaining C/S alone does not permit an arbitrary new U projection: that also
 requires the matching constrained kernel and RI data. A full auxiliary-space
 Wr/RI cache is not included in this archive.
 
-Static extraction uses native `AnalyContPade` on Delta U = U-v with source
-arguments z=i*nu, evaluates at z=0, then restores v. It uses all original nodes
+Static extraction uses the selected `anacon_method` (default Padé) on Delta U = U-v with source
+arguments z=i*nu, evaluates at z=0, then restores v. It uses the original imaginary-frequency grid
 and no electronic Fermi/Hedin shift. This is an extrapolation, not a direct
 static response calculation. `crpa_continuation_summary.dat` and the archive
 retain per-entry status, subset spread and source/holdout residuals. The
@@ -578,3 +578,10 @@ screened interaction. cRPA normalizes the angular Gamma-cell weights in its
 onsite kernel; the GW optical convention remains the one selected by the
 ordinary GW calculation. Consequently a cRPA fully screened local comparison
 and GW W should be compared only with explicitly matched optical conventions.
+
+Method selection is shared with GW/QSGW; see [analytic continuation](analytic_continuation.md).
+The original C API `librpa_continue_crpa` now uses default Pade settings with
+its requested coefficient count. Use `librpa_continue_crpa_with_options` for
+explicit Padé/AAA/ridge selection and penalties. C++ has the corresponding
+`continue_crpa` overload taking `Options`. The bosonic variable remains z=i*nu,
+without a fermionic energy shift or change to the original response tensors.

@@ -1,7 +1,7 @@
 #include "qp_diagnostics.h"
 
 #include <algorithm>
-#include <iomanip>
+#include <cmath>
 #include <limits>
 #include <map>
 #include <ostream>
@@ -106,8 +106,8 @@ int gw_anacon_resample_n_params(const LibrpaOptions &opts)
     return opts.n_params_anacon_resample < 0 ? opts.n_params_anacon : opts.n_params_anacon_resample;
 }
 
-librpa_int::AnalyContPade make_gw_anacon_pade(
-    const int n_params_anacon, const int n_params_anacon_resample,
+std::unique_ptr<librpa_int::AnalyCont> make_gw_anacon(
+    const LibrpaOptions &opts, const int n_params_anacon, const int n_params_anacon_resample,
     const std::vector<librpa_int::cplxdb> &source_imagfreqs,
     const std::vector<librpa_int::cplxdb> &source_data, const GwAnaconGrid &anacon_grid)
 {
@@ -117,21 +117,27 @@ librpa_int::AnalyContPade make_gw_anacon_pade(
     }
     if (!anacon_grid.resample)
     {
-        return librpa_int::AnalyContPade(n_params_anacon, source_imagfreqs, source_data);
+        return librpa_int::make_analycont(opts.anacon_method, n_params_anacon, source_imagfreqs,
+                                          source_data, opts.anacon_ridge_lambda,
+                                          opts.anacon_ridge_den_weight, opts.anacon_aaa_tolerance);
     }
     if (n_params_anacon_resample == 0)
     {
         throw LIBRPA_RUNTIME_ERROR("n_params_anacon_resample must not be zero");
     }
 
-    librpa_int::AnalyContPade source_pade(n_params_anacon_resample, source_imagfreqs, source_data);
+    const auto source_pade = librpa_int::make_analycont(
+        opts.anacon_method, n_params_anacon_resample, source_imagfreqs, source_data,
+        opts.anacon_ridge_lambda, opts.anacon_ridge_den_weight, opts.anacon_aaa_tolerance);
     std::vector<librpa_int::cplxdb> data;
     data.reserve(anacon_grid.imagfreqs.size());
     for (const auto &freq : anacon_grid.imagfreqs)
     {
-        data.emplace_back(source_pade.get(freq));
+        data.emplace_back(source_pade->get(freq));
     }
-    return librpa_int::AnalyContPade(n_params_anacon, anacon_grid.imagfreqs, data);
+    return librpa_int::make_analycont(opts.anacon_method, n_params_anacon, anacon_grid.imagfreqs,
+                                      data, opts.anacon_ridge_lambda, opts.anacon_ridge_den_weight,
+                                      opts.anacon_aaa_tolerance);
 }
 
 std::vector<librpa_int::cplxdb> extract_sigc_state(const std::vector<librpa_int::cplxdb> &sigc_diag,
@@ -202,12 +208,21 @@ std::vector<double> compute_hedin_shifts(
                 const int ref_idx = start_k + i_ref;
                 const auto sigc_ref_state = extract_sigc_state(sigc_diag, isp, ik_collect, i_ref,
                                                                nk_collect, nfreq, n_states_calc);
-                const auto pade =
-                    make_gw_anacon_pade(opts.n_params_anacon, gw_anacon_resample_n_params(opts),
-                                        imagfreqs, sigc_ref_state, anacon_grid);
-                const auto sigc_ref = pade.get(librpa_int::cplxdb{
-                    mf.get_eigenvals()[isp](ik, state_ref) - mf.get_efermi(), 0.0});
-                return sigc_ref.real() + vexx[ref_idx] - vxc[ref_idx];
+                try
+                {
+                    const auto pade =
+                        make_gw_anacon(opts, opts.n_params_anacon, gw_anacon_resample_n_params(opts),
+                                       imagfreqs, sigc_ref_state, anacon_grid);
+                    const auto sigc_ref = pade->get(librpa_int::cplxdb{
+                        mf.get_eigenvals()[isp](ik, state_ref) - mf.get_efermi(), 0.0});
+                    return sigc_ref.real() + vexx[ref_idx] - vxc[ref_idx];
+                }
+                catch (const librpa_int::AnalyContError &error)
+                {
+                    librpa_int::report_analycont_failure(api_name, isp, ik, state_ref,
+                                                         imagfreqs, sigc_ref_state, error);
+                    return std::numeric_limits<double>::quiet_NaN();
+                }
             };
 
             if (i_state_ref_abs >= 0)
@@ -230,7 +245,7 @@ std::vector<double> compute_hedin_shifts(
     return shifts;
 }
 
-int solve_qpe_with_option(const int option_qpe_solver, const librpa_int::AnalyContPade &pade,
+int solve_qpe_with_option(const int option_qpe_solver, const librpa_int::AnalyCont &pade,
                           const double e_mf, const double e_fermi, const double vxc,
                           const double sigma_x, double &e_qp, librpa_int::cplxdb &sigc,
                           const double diff_init, const double thres, const int n_iter_max,
@@ -268,33 +283,6 @@ int solve_qpe_with_option(const int option_qpe_solver, const librpa_int::AnalyCo
                 ". Available values are 0 (damped residual-mixing), 1 (quasi-Newton), and 2 "
                 "(perturbative).");
     }
-}
-
-constexpr int analycont_source_dump_precision = 11;
-
-
-void dump_analycont_source_data(std::ostream &os, const librpa_int::AnalyCont &ac,
-                                const char *api_name, const int isp, const int ik,
-                                const int i_state)
-{
-    const auto &xs = ac.get_source_xs();
-    const auto &data = ac.get_source_data();
-    const auto flags = os.flags();
-    const auto precision = os.precision();
-
-    os << "Source data used by analytic continuation in " << api_name << " for spin " << isp + 1
-       << " kpoint " << ik + 1 << " state " << i_state + 1 << std::endl;
-    os << "n_analycont_source_data = " << data.size() << std::endl;
-    os << "i x_re x_im y_re y_im" << std::endl;
-    os << std::scientific << std::setprecision(analycont_source_dump_precision);
-    const int n = std::min(static_cast<int>(xs.size()), static_cast<int>(data.size()));
-    for (int i = 0; i != n; ++i)
-    {
-        os << i + 1 << " " << xs[i].real() << " " << xs[i].imag() << " " << data[i].real() << " "
-           << data[i].imag() << std::endl;
-    }
-    os.flags(flags);
-    os.precision(precision);
 }
 
 }  // namespace
@@ -358,31 +346,45 @@ void librpa_int::qsgw::solve_qsgw_qpe_diagonal(
                 sigc_re[start_k + i] = std::numeric_limits<double>::quiet_NaN();
                 sigc_im[start_k + i] = std::numeric_limits<double>::quiet_NaN();
                 eqp[start_k + i] = std::numeric_limits<double>::quiet_NaN();
-                const auto pade =
-                    make_gw_anacon_pade(opts.n_params_anacon, gw_anacon_resample_n_params(opts),
-                                        imagfreqs, sigc_state, anacon_grid);
-                int flag_qpe_solver = solve_qpe_with_option(
-                    option_qpe_solver, pade, eks_state, efermi + hedin_shifts[start_k + i],
-                    vxc_state, exx_state, e_qp, sigc, diff_init, thres_qpe, n_iter_max, damp_fac,
-                    use_adaptive_damp, use_legacy_nonadaptive_update);
-                if (solver_info) solver_info[start_k + i] = flag_qpe_solver;
-                if (flag_qpe_solver != 0)
+                if (!std::isfinite(hedin_shifts[start_k + i]))
                 {
-                    ofs_myid << "Warning! QPE solver failed for spin " << isp + 1 << " kpoint "
-                             << ik + 1 << " state " << i_state + 1 << std::endl;
-                    dump_analycont_source_data(ofs_myid, pade, context, isp, ik, i_state);
-                    if (override_qpe_solver_nan)
+                    if (solver_info) solver_info[start_k + i] = 1;
+                    continue;
+                }
+                try
+                {
+                    const auto pade =
+                        make_gw_anacon(opts, opts.n_params_anacon, gw_anacon_resample_n_params(opts),
+                                       imagfreqs, sigc_state, anacon_grid);
+                    int flag_qpe_solver = solve_qpe_with_option(
+                        option_qpe_solver, *pade, eks_state, efermi + hedin_shifts[start_k + i],
+                        vxc_state, exx_state, e_qp, sigc, diff_init, thres_qpe, n_iter_max, damp_fac,
+                        use_adaptive_damp, use_legacy_nonadaptive_update);
+                    if (solver_info) solver_info[start_k + i] = flag_qpe_solver;
+                    if (flag_qpe_solver != 0)
                     {
-                        ofs_myid << "Using final unconverged QPE result because "
-                                    "override_qpe_solver_nan is on"
-                                 << std::endl;
+                        ofs_myid << "Warning! QPE solver failed for spin " << isp + 1 << " kpoint "
+                                 << ik + 1 << " state " << i_state + 1 << std::endl;
+                        dump_analycont_source_data(ofs_myid, *pade, context, isp, ik, i_state);
+                        if (override_qpe_solver_nan)
+                        {
+                            ofs_myid << "Using final unconverged QPE result because "
+                                        "override_qpe_solver_nan is on"
+                                     << std::endl;
+                        }
+                    }
+                    if (flag_qpe_solver == 0 || override_qpe_solver_nan)
+                    {
+                        sigc_re[start_k + i] = sigc.real();
+                        sigc_im[start_k + i] = sigc.imag();
+                        eqp[start_k + i] = e_qp;
                     }
                 }
-                if (flag_qpe_solver == 0 || override_qpe_solver_nan)
+                catch (const librpa_int::AnalyContError &error)
                 {
-                    sigc_re[start_k + i] = sigc.real();
-                    sigc_im[start_k + i] = sigc.imag();
-                    eqp[start_k + i] = e_qp;
+                    if (solver_info) solver_info[start_k + i] = 1;
+                    librpa_int::report_analycont_failure(context, isp, ik, i_state,
+                                                         imagfreqs, sigc_state, error);
                 }
             }
         }

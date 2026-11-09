@@ -1,0 +1,170 @@
+#%FHI-aims
+
+# General setting
+xc               pbe
+relativistic     atomic_zora scalar 
+occupation_type  gaussian 0.001
+basis_threshold  1.e-5
+
+# Use periodic GW
+qpe_calc         gw_expt
+frequency_points 6
+anacon_type      1
+
+# Kgrids
+k_grid 3 3 3
+symmetry_reduced_k_grid .false.
+
+# # Compute QPE for all states
+# state_upper_limit 100000
+
+output librpa version:1 shrink_LU_inv_thr:1e-5
+
+output band   0.50000  0.50000  0.50000   0.00000  0.00000  0.00000 15 L G
+output band   0.00000  0.00000  0.00000   0.50000  0.00000  0.50000 15 G X
+
+# [insert species for Li and H below]
+################################################################################
+#
+#  FHI-aims code project
+#  VB, Fritz-Haber Institut, 2009
+#
+#  Suggested "light" defaults for Li atom (to be pasted into control.in file)
+#  Be sure to double-check any results obtained with these settings for post-processing,
+#  e.g., with the "tight" defaults and larger basis sets.
+#
+################################################################################
+  species        Li
+#     global species definitions
+    nucleus             3
+    mass                6.941
+#
+    l_hartree           4
+#
+    cut_pot             3.5  1.5  1.0
+    basis_dep_cutoff    1e-4
+#     
+    radial_base         29 5.0
+    radial_multiplier   1
+    angular_grids       specified
+      division   0.4484  110
+      division   0.5659  194
+      division   0.6315  302
+#      division   0.6662  434
+#      division   0.8186  590
+#      division   0.9037  770
+#      division   6.2760  974
+#      outer_grid   974
+      outer_grid   302
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      2  s   1.
+#     ion occupancy
+    ion_occ      1  s   2.
+################################################################################
+#
+#  Suggested additional basis functions. For production calculations, 
+#  uncomment them one after another (the most important basis functions are
+#  listed first).
+#
+#  Constructed for dimers: 1.80 A, 2.25 A, 2.75 A, 3.50 A, 4.50 A
+#
+################################################################################
+#  "First tier" - improvements: -189.23 meV to -6.35 meV
+     hydro 2 p 1.6
+for_aux hydro 4 f 0.0
+for_aux hydro 5 g 6.0
+#     hydro 2 s 2
+#     hydro 3 d 2.6
+#  "Second tier" - improvements: -4.69 meV to -0.41 meV
+#     hydro 3 p 4.6
+#     hydro 2 p 1.8
+#     hydro 3 s 6.2
+#     hydro 4 d 4.7
+#     hydro 4 f 4.1
+#  "Third tier" - improvements: -0.20 meV to -0.15 meV
+#     hydro 4 d 0.95
+#     hydro 3 p 6.2
+#     hydro 3 s 1.7
+#  Further functions, listed for completeness
+#     VB: The following functions are only listed for completeness; test very
+#         carefully before any kind of production use. From the point of view 
+#         of the basis construction, their main role is to fill up space, 
+#         and they are solely determined by the location of the cutoff potential.
+#     hydro 3 p 0.1  # -0.15 meV
+#     hydro 4 d 5    # -0.12 meV
+#     hydro 4 f 0.1  # -0.14 meV
+#     hydro 5 g 0.1  # -0.06 meV
+
+
+################################################################################
+#
+#  FHI-aims code project
+#  VB, Fritz-Haber Institut, 2009
+#
+#  Suggested "light" defaults for H atom (to be pasted into control.in file)
+#  Be sure to double-check any results obtained with these settings for post-processing,
+#  e.g., with the "tight" defaults and larger basis sets.
+#
+################################################################################
+  species        H
+#     global species definitions
+    nucleus             1
+    mass                1.00794
+#
+    l_hartree           4
+#
+    cut_pot             3.5  1.5  1.0
+    basis_dep_cutoff    1e-4
+#     
+    radial_base         24 5.0
+    radial_multiplier   1
+    angular_grids       specified
+      division   0.2421   50
+      division   0.3822  110
+      division   0.4799  194
+      division   0.5341  302
+#      division   0.5626  434
+#      division   0.5922  590
+#      division   0.6542  770
+#      division   0.6868 1202
+#      outer_grid  770
+      outer_grid  302
+################################################################################
+#
+#  Definition of "minimal" basis
+#
+################################################################################
+#     valence basis states
+    valence      1  s   1.
+#     ion occupancy
+    ion_occ      1  s   0.5
+################################################################################
+#
+#  Suggested additional basis functions. For production calculations, 
+#  uncomment them one after another (the most important basis functions are
+#  listed first).
+#
+#  Basis constructed for dimers: 0.5 A, 0.7 A, 1.0 A, 1.5 A, 2.5 A
+#
+################################################################################
+#  "First tier" - improvements: -1014.90 meV to -62.69 meV
+for_aux hydro 4 f 0.0
+for_aux hydro 5 g 6.0
+#     hydro 2 s 2.1
+#     hydro 2 p 3.5
+#  "Second tier" - improvements: -12.89 meV to -1.83 meV
+#     hydro 1 s 0.85
+#     hydro 2 p 3.7
+#     hydro 2 s 1.2
+#     hydro 3 d 7
+#  "Third tier" - improvements: -0.25 meV to -0.12 meV
+#     hydro 4 f 11.2
+#     hydro 3 p 4.8
+#     hydro 4 d 9
+#     hydro 3 s 3.2
+

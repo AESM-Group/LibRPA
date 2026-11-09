@@ -74,6 +74,14 @@ module librpa_f03
    !> @brief Automatic selection value. LibRPA will choose appropriate setting.
    integer, parameter :: LIBRPA_AUTO = -51
 
+   !> @name Analytic continuation methods
+   !> @brief Pade is the default.
+   !> @{
+   integer, parameter, public :: LIBRPA_ANACON_PADE = 0
+   integer, parameter, public :: LIBRPA_ANACON_AAA = 1
+   integer, parameter, public :: LIBRPA_ANACON_RIDGE = 2
+   !> @}
+
    !> @name Parallel routing strategies
    !> @brief Specifies how computation is distributed across MPI processes.
    !> @{
@@ -200,6 +208,10 @@ module librpa_f03
       integer(c_int) :: use_shrink_chi
 
       ! GW specific
+      integer(c_int) :: anacon_method
+      real(c_double) :: anacon_aaa_tolerance
+      real(c_double) :: anacon_ridge_lambda
+      real(c_double) :: anacon_ridge_den_weight
       integer(c_int) :: n_params_anacon
       integer(c_int) :: n_params_anacon_resample
       integer(c_int) :: anacon_tfgrids_type
@@ -330,9 +342,17 @@ module librpa_f03
       logical :: use_shrink_abfs
       !> Experimental: build response matrices in the compressed auxiliary basis.
       logical :: use_shrink_chi
-      !> Number of parameters for analytic continuation.
+      !> Analytic continuation method: LIBRPA_ANACON_*; default Pade.
+      integer :: anacon_method
+      !> Relative AAA source residual tolerance, default 1e-13.
+      real(dp) :: anacon_aaa_tolerance
+      !> Ridge coefficient penalty, default 1e-12.
+      real(dp) :: anacon_ridge_lambda
+      !> Relative ridge penalty for denominator coefficients, default 10.
+      real(dp) :: anacon_ridge_den_weight
+      !> Pade selected-node count, AAA support cap, or ridge coefficient count.
       integer :: n_params_anacon
-      !> Parameters for the source-grid Pade used to resample GW analytic continuation.
+      !> Parameters for the source-grid fit used to resample GW analytic continuation.
       integer :: n_params_anacon_resample
       !> Optional GW analytic-continuation frequency grid type; unset uses original grid.
       integer :: anacon_tfgrids_type
@@ -1205,6 +1225,10 @@ contains
       call sync_opt(opts%use_scalapack_ecrpa,     opts%opts_c%use_scalapack_ecrpa,     direction)
       call sync_opt(opts%use_shrink_abfs,         opts%opts_c%use_shrink_abfs,         direction)
       call sync_opt(opts%use_shrink_chi,          opts%opts_c%use_shrink_chi,          direction)
+      call sync_opt(opts%anacon_method, opts%opts_c%anacon_method, direction)
+      call sync_opt(opts%anacon_aaa_tolerance, opts%opts_c%anacon_aaa_tolerance, direction)
+      call sync_opt(opts%anacon_ridge_lambda, opts%opts_c%anacon_ridge_lambda, direction)
+      call sync_opt(opts%anacon_ridge_den_weight, opts%opts_c%anacon_ridge_den_weight, direction)
       call sync_opt(opts%n_params_anacon,         opts%opts_c%n_params_anacon,         direction)
       call sync_opt(opts%n_params_anacon_resample, opts%opts_c%n_params_anacon_resample, direction)
       call sync_opt(opts%anacon_tfgrids_type,     opts%opts_c%anacon_tfgrids_type,     direction)

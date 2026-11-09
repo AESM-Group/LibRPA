@@ -6,9 +6,9 @@ namespace librpa_int
 {
 
 /*!
- * \brief Solve quasi-particle equation self-consistently by computing self-energy on real frequency through Pade analytic continuation.
+ * \brief Solve quasi-particle equation self-consistently by computing self-energy on real frequency through the selected analytic continuation.
  *
- * \param [in]     pade        AnalyContPade object, constructed from correlation self-energy at imaginary frequency
+ * \param [in]     pade        AnalyCont object, constructed from correlation self-energy at imaginary frequency
  * \param [in]     e_mf        Energy of the state of mean-field calculation
  * \param [in]     e_fermi     Fermi energy
  * \param [in]     vxc         Exchange-correlation potential in the mean-field calculation
@@ -26,7 +26,7 @@ namespace librpa_int
  * \retval         info        0 if QPE is solved successfully, non-zero otherwise
  */
 int qpe_solver_pade_self_consistent(
-        const AnalyContPade &pade,
+        const AnalyCont &pade,
         const double &e_mf,
         const double &e_fermi,
         const double &vxc,
@@ -44,10 +44,10 @@ int qpe_solver_pade_self_consistent(
 /*!
  * \brief Solve quasi-particle equation with a damped quasi-Newton update.
  *
- * The derivative is the analytic derivative of the Pade approximant:
+ * The derivative is the analytic derivative of the selected continuation:
  * dE = F(E) / (1 - Re dSigma_c/dE).
  *
- * \param [in]     pade        AnalyContPade object, constructed from correlation self-energy at imaginary frequency
+ * \param [in]     pade        AnalyCont object, constructed from correlation self-energy at imaginary frequency
  * \param [in]     e_mf        Energy of the state of mean-field calculation
  * \param [in]     e_fermi     Fermi energy
  * \param [in]     vxc         Exchange-correlation potential in the mean-field calculation
@@ -64,7 +64,7 @@ int qpe_solver_pade_self_consistent(
  * \retval         info        0 if QPE is solved successfully, non-zero otherwise
  */
 int qpe_solver_pade_quasi_newton(
-        const AnalyContPade &pade,
+        const AnalyCont &pade,
         const double &e_mf,
         const double &e_fermi,
         const double &vxc,
@@ -81,7 +81,7 @@ int qpe_solver_pade_quasi_newton(
 /*!
  * \brief Solve quasi-particle equation perturbatively by linearizing self-energy at the mean-field energy.
  *
- * \param [in]     pade        AnalyContPade object, constructed from correlation self-energy at imaginary frequency
+ * \param [in]     pade        AnalyCont object, constructed from correlation self-energy at imaginary frequency
  * \param [in]     e_mf        Energy of the state of mean-field calculation
  * \param [in]     e_fermi     Fermi energy
  * \param [in]     vxc         Exchange-correlation potential in the mean-field calculation
@@ -92,7 +92,7 @@ int qpe_solver_pade_quasi_newton(
  * \param [out]    qp_weight   Quasi-particle weight, 1 / (1 - Re sigc_deriv)
  * \retval         info        0 if QPE is solved successfully, non-zero otherwise
  */
-int qpe_solver_pade_perturbative(const AnalyContPade &pade, const double &e_mf,
+int qpe_solver_pade_perturbative(const AnalyCont &pade, const double &e_mf,
                                  const double &e_fermi, const double &vxc, const double &sigma_x,
                                  double &e_qp, cplxdb &sigc, cplxdb &sigc_deriv, double &qp_weight);
 }

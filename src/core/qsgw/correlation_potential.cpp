@@ -133,9 +133,10 @@ void validate_contract(
     }
 }
 
-AnalyContPade fit_element(const std::vector<cplxdb>& source_points,
-                          const std::vector<const Matz*>& source_matrices, const int row,
-                          const int column, const CorrelationPotentialSettings& settings)
+std::unique_ptr<AnalyCont> fit_element(const std::vector<cplxdb>& source_points,
+                                       const std::vector<const Matz*>& source_matrices,
+                                       const int row, const int column,
+                                       const CorrelationPotentialSettings& settings)
 {
     std::vector<cplxdb> source_data;
     source_data.reserve(source_matrices.size());
@@ -146,15 +147,20 @@ AnalyContPade fit_element(const std::vector<cplxdb>& source_points,
 
     if (settings.resample_imagfreqs.empty())
     {
-        return AnalyContPade(settings.n_params_anacon, source_points, source_data);
+        return make_analycont(settings.anacon_method, settings.n_params_anacon, source_points,
+                              source_data, settings.anacon_ridge_lambda,
+                              settings.anacon_ridge_den_weight, settings.anacon_aaa_tolerance);
     }
 
-    const AnalyContPade source_pade(settings.n_params_anacon_resample, source_points, source_data);
+    const auto source_pade =
+        make_analycont(settings.anacon_method, settings.n_params_anacon_resample, source_points,
+                       source_data, settings.anacon_ridge_lambda, settings.anacon_ridge_den_weight,
+                       settings.anacon_aaa_tolerance);
     std::vector<cplxdb> resampled_data;
     resampled_data.reserve(settings.resample_imagfreqs.size());
     for (const cplxdb frequency : settings.resample_imagfreqs)
     {
-        const cplxdb value = source_pade.get(frequency);
+        const cplxdb value = source_pade->get(frequency);
         if (!finite_complex(value))
         {
             throw std::runtime_error(
@@ -162,10 +168,12 @@ AnalyContPade fit_element(const std::vector<cplxdb>& source_points,
         }
         resampled_data.push_back(value);
     }
-    return AnalyContPade(settings.n_params_anacon, settings.resample_imagfreqs, resampled_data);
+    return make_analycont(settings.anacon_method, settings.n_params_anacon,
+                          settings.resample_imagfreqs, resampled_data, settings.anacon_ridge_lambda,
+                          settings.anacon_ridge_den_weight, settings.anacon_aaa_tolerance);
 }
 
-cplxdb evaluate_element(const AnalyContPade& pade, const double target_energy)
+cplxdb evaluate_element(const AnalyCont& pade, const double target_energy)
 {
     const cplxdb result = pade.get(cplxdb(target_energy, 0.0));
     if (!finite_complex(result))
@@ -204,34 +212,33 @@ Matz build_qsgw_correlation_potential(
     for (int row = 0; row < dimension; ++row)
     {
         const double row_energy = meanfield.get_eigenvals()[spin](kpoint, row) - fermi_energy;
-        const AnalyContPade diagonal_pade =
-            fit_element(source_points, source_matrices, row, row, settings);
-        const cplxdb diagonal = evaluate_element(diagonal_pade, row_energy);
+        const auto diagonal_pade = fit_element(source_points, source_matrices, row, row, settings);
+        const cplxdb diagonal = evaluate_element(*diagonal_pade, row_energy);
         result(row, row) = 0.5 * (diagonal + std::conj(diagonal));
 
         for (int column = row + 1; column < dimension; ++column)
         {
             // Fit both ordered elements: Sigma(i omega) need not be Hermitian.
             // Reuse each fit only at the energies required by the static potential.
-            const AnalyContPade forward_pade =
+            const auto forward_pade =
                 fit_element(source_points, source_matrices, row, column, settings);
-            const AnalyContPade reverse_pade =
+            const auto reverse_pade =
                 fit_element(source_points, source_matrices, column, row, settings);
             if (settings.mode == CorrelationPotentialMode::ModeB)
             {
-                result(row, column) = 0.5 * (evaluate_element(forward_pade, 0.0) +
-                                             std::conj(evaluate_element(reverse_pade, 0.0)));
+                result(row, column) = 0.5 * (evaluate_element(*forward_pade, 0.0) +
+                                             std::conj(evaluate_element(*reverse_pade, 0.0)));
             }
             else
             {
                 const double column_energy =
                     meanfield.get_eigenvals()[spin](kpoint, column) - fermi_energy;
                 const cplxdb at_row_energy =
-                    0.5 * (evaluate_element(forward_pade, row_energy) +
-                           std::conj(evaluate_element(reverse_pade, row_energy)));
+                    0.5 * (evaluate_element(*forward_pade, row_energy) +
+                           std::conj(evaluate_element(*reverse_pade, row_energy)));
                 const cplxdb at_column_energy =
-                    0.5 * (evaluate_element(forward_pade, column_energy) +
-                           std::conj(evaluate_element(reverse_pade, column_energy)));
+                    0.5 * (evaluate_element(*forward_pade, column_energy) +
+                           std::conj(evaluate_element(*reverse_pade, column_energy)));
                 result(row, column) = 0.5 * (at_row_energy + at_column_energy);
             }
             result(column, row) = std::conj(result(row, column));

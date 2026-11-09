@@ -1453,6 +1453,41 @@ const SymmetryKStar& find_symmetry_kstar_for_ibz_kpoint(const SymmetryContext& c
     return find_symmetry_kstar_for_kpoint(ctx.kstars, k_ibz);
 }
 
+KPointInputForm classify_kpoint_input_form(const SymmetryContext& ctx,
+                                           const PeriodicBoundaryData& pbc)
+{
+    const auto n_kpoints = pbc.kfrac_list.size();
+    const auto n_cells = static_cast<std::size_t>(pbc.get_n_cells_bvk());
+    // Exact matching.  The full-grid test comes first: a coarse sampling can make
+    // both counts equal, and such a list already holds every member q-point, so
+    // reading it as reduced would demand symmetry that the data does not need.
+    if (n_kpoints == n_cells)
+    {
+        return KPointInputForm::FullGrid;
+    }
+    if (ctx.kstars.empty())
+    {
+        // No symmetry context was built, which happens when the calculation runs
+        // without symmetry.  The stars are then unavailable, so the reduced form
+        // cannot be confirmed against them; a list shorter than the full grid is
+        // still reported as reduced so that the caller can name the real problem,
+        // namely that the missing q-points can only be recovered with symmetry.
+        if (n_kpoints < n_cells)
+        {
+            return KPointInputForm::Reduced;
+        }
+        throw LIBRPA_RUNTIME_ERROR(
+            "K-point input holds more k-points than the Born-von Karman cell");
+    }
+    if (n_kpoints == ctx.kstars.size())
+    {
+        return KPointInputForm::Reduced;
+    }
+    throw LIBRPA_RUNTIME_ERROR(
+        "K-point input matches neither one k-point per k-star nor the full "
+        "Born-von Karman cell; cannot decide whether symmetry must restore the grid");
+}
+
 void SymmetryContext::generate_kstar_grid_mapping(const PeriodicBoundaryData& pbc)
 {
     const auto& klist_internal = pbc.klist;

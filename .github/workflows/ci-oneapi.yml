@@ -90,6 +90,14 @@ jobs:
           cmake --build $BUILDDIR --target test
           cd regression_tests && ./run_regression.py full ../$BUILDDIR/chi0_main.exe -d workspace_libri_np4 --use-libri -n 4 | tee test_libri_np4.log
           ./run_regression.py full ../$BUILDDIR/chi0_main.exe -d workspace_libri_si_np1 --use-libri -n 1 --only g0w0_aims_Si_sym_libri | tee test_libri_si_np1.log
+      - name: Analytic continuation selection and resampling
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          export I_MPI_CBWR=2 MKL_CBWR=COMPATIBLE
+          export OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1
+          cd regression_tests
+          python verification/verify_anacon_workflows.py --binary ../build_libri/chi0_main.exe \
+            --work-dir workspace_anacon_workflows
       - name: QSGW restart, quasiparticle and live head/wing trajectories
         run: |
           source /opt/intel/oneapi/setvars.sh
@@ -148,6 +156,13 @@ jobs:
             regression_tests/test_np4.log
             regression_tests/test_libri_np4.log
             regression_tests/test_libri_si_np1.log
+            regression_tests/workspace_anacon_workflows/comparison.json
+            regression_tests/workspace_anacon_workflows/**/run.log
+            regression_tests/workspace_anacon_workflows/**/librpa.in
+            regression_tests/workspace_anacon_workflows/**/energy_qp
+            regression_tests/workspace_anacon_workflows/**/librpa.d/spectral_function_kgrid.dat
+            regression_tests/workspace_anacon_workflows/**/librpa.d/qsgw_eigenvalues.dat
+            regression_tests/workspace_anacon_workflows/**/librpa.d/qsgw_qp.csv
             regression_tests/workspace_hartree_band/comparison.json
             regression_tests/workspace_hartree_band/*/run.log
             regression_tests/test_crpa_workflows.log

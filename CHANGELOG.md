@@ -12,6 +12,14 @@
 
 - Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and separate download and source-preparation scripts with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
 - Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibRI/LibComm/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `GREENX_PATH` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
+- Added opt-in AAA and ridge analytic continuation for GW/QSGW/cRPA, retaining
+  the original Pade default. Set `anacon_method=aaa` or `anacon_method=ridge`;
+  ridge uses coefficient penalty `1e-12` and denominator weight `10` unless
+  overridden. Values and derivatives are shared by quasiparticle solvers,
+  spectra, resampling and QSGW matrices. Rebuild host bindings for the extended
+  options structure. Unmet AAA tolerance is reported; numerical continuation
+  failures leave affected GW diagnostic states or spectral frequencies as NaN.
+  The standalone cRPA fit retains all source nodes independently of GW counts.
 - Added conventional k-space RPA energies, for all parallel routings and for
   builds without LibRI. Required replicated scalar or collinear eigenvectors on
   the full k mesh, `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.
@@ -42,6 +50,11 @@
 
 - Fixed the `map::at` failure of RPA energies with `parallel_routing = rtau` for
   more than one q point on more than one MPI rank.
+- Restored the full-BZ `W(R)` reconstruction for the auxiliary-basis shrink
+  path when the k list holds every Brillouin-zone member, which is how the
+  FHI-aims reader exports its SCF k-points. Both k-point forms, the reduced
+  (IBZ) list and the full-Brillouin-zone list, are now accepted and reach the
+  same accumulation.
 
 ## [0.9.0] - 2026-10-31
 

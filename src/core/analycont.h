@@ -5,14 +5,25 @@
  * @date      2024-04-23
  */
 #pragma once
+#include <memory>
 #include <optional>
+#include <ostream>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
 #include "../utils/base_utility.h"
+#include "librpa_enums.h"
 
 namespace librpa_int
 {
+
+// Numerical construction/evaluation failure; invalid input remains invalid_argument.
+class AnalyContError : public std::runtime_error
+{
+public:
+    using std::runtime_error::runtime_error;
+};
 
 class AnalyCont
 {
@@ -23,6 +34,7 @@ protected:
 public:
     virtual ~AnalyCont() = default;
     virtual cplxdb get(const cplxdb &x) const = 0;
+    virtual cplxdb get_derivative(const cplxdb &x) const = 0;
 
     /*!
      * @brief get the complex source points used by the analytic continuation
@@ -53,7 +65,7 @@ public:
     AnalyContPadeBarycentric(const std::vector<cplxdb> &xs, const std::vector<cplxdb> &data);
 
     cplxdb get(const cplxdb &x) const override;
-    cplxdb get_derivative(const cplxdb &x) const;
+    cplxdb get_derivative(const cplxdb &x) const override;
 };
 
 // Thiele reciprocal differences, with explicit delegation to the barycentric
@@ -77,7 +89,7 @@ public:
      *
      * @return    a complex double, the value of function at x
      */
-    cplxdb get(const cplxdb &x) const;
+    cplxdb get(const cplxdb &x) const override;
 
     /*!
      * @brief get the analytic derivative of continued function at complex number
@@ -86,8 +98,64 @@ public:
      *
      * @return    a complex double, the derivative of function at x
      */
-    cplxdb get_derivative(const cplxdb &x) const;
+    cplxdb get_derivative(const cplxdb &x) const override;
 };
+
+class AnalyContAAA : public AnalyCont
+{
+private:
+    double tolerance;
+    double max_source_error = 0.0;
+    bool tolerance_reached = false;
+    std::vector<cplxdb> support_xs;
+    std::vector<cplxdb> support_data;
+    std::vector<cplxdb> weights;
+
+public:
+    AnalyContAAA(int n_support, const std::vector<cplxdb> &xs, const std::vector<cplxdb> &data,
+                 double tolerance_in = 1.0e-13);
+
+    cplxdb get(const cplxdb &x) const override;
+    cplxdb get_derivative(const cplxdb &x) const override;
+    double get_max_source_error() const { return max_source_error; }
+    bool reached_tolerance() const { return tolerance_reached; }
+};
+
+class AnalyContRidge : public AnalyCont
+{
+private:
+    double x_scale = 1.0;
+    double y_scale = 1.0;
+    std::vector<cplxdb> numerator;
+    std::vector<cplxdb> denominator;
+
+public:
+    AnalyContRidge(int n_params, const std::vector<cplxdb> &xs, const std::vector<cplxdb> &data,
+                   double lambda = 1.0e-12, double denominator_weight = 10.0);
+    cplxdb get(const cplxdb &x) const override;
+    cplxdb get_derivative(const cplxdb &x) const override;
+};
+
+// Rank-local diagnostics: safe even when callers own different state counts.
+void dump_analycont_source_data(std::ostream &os, const std::vector<cplxdb> &xs,
+                                const std::vector<cplxdb> &data, const char *context,
+                                int spin, int kpoint, int state);
+inline void dump_analycont_source_data(std::ostream &os, const AnalyCont &ac,
+                                       const char *context, int spin, int kpoint, int state)
+{
+    dump_analycont_source_data(os, ac.get_source_xs(), ac.get_source_data(), context,
+                               spin, kpoint, state);
+}
+void report_analycont_failure(const char *context, int spin, int kpoint, int state,
+                              const std::vector<cplxdb> &xs, const std::vector<cplxdb> &data,
+                              const AnalyContError &error);
+
+std::unique_ptr<AnalyCont> make_analycont(LibrpaAnalyContMethod method, int n_params,
+                                          const std::vector<cplxdb> &xs,
+                                          const std::vector<cplxdb> &data,
+                                          double ridge_lambda = 1.0e-12,
+                                          double ridge_denominator_weight = 10.0,
+                                          double aaa_tolerance = 1.0e-13);
 
 /*!
  * @brief get the spectral function from Pade approximant, based on diagonal approximation

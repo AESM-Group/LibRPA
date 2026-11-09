@@ -70,7 +70,7 @@ bool qpe_complex_is_finite(const cplxdb &x)
     return std::isfinite(x.real()) && std::isfinite(x.imag());
 }
 
-QpeEvaluation qpe_evaluate(const AnalyContPade &pade, const double energy,
+QpeEvaluation qpe_evaluate(const AnalyCont &pade, const double energy,
                            const double e0, const double e_fermi)
 {
     QpeEvaluation result;
@@ -108,7 +108,7 @@ double qpe_quasi_newton_step(const QpeEvaluation &eval)
 } /* end of anonymous namespace */
 
 int qpe_solver_pade_self_consistent(
-        const AnalyContPade &pade,
+        const AnalyCont &pade,
         const double &e_mf,
         const double &e_fermi,
         const double &vxc,
@@ -262,7 +262,7 @@ int qpe_solver_pade_self_consistent(
 }
 
 int qpe_solver_pade_quasi_newton(
-        const AnalyContPade &pade,
+        const AnalyCont &pade,
         const double &e_mf,
         const double &e_fermi,
         const double &vxc,
@@ -405,7 +405,7 @@ int qpe_solver_pade_quasi_newton(
 }
 
 int qpe_solver_pade_perturbative(
-        const AnalyContPade &pade,
+        const AnalyCont &pade,
         const double &e_mf,
         const double &e_fermi,
         const double &vxc,
