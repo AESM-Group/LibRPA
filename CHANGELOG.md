@@ -4,6 +4,15 @@
 
 ### Added
 
+- Added opt-in AAA and ridge analytic continuation for GW/QSGW/cRPA, retaining
+  the original Pade default. Set `anacon_method=aaa` or `anacon_method=ridge`;
+  ridge uses coefficient penalty `1e-12` and denominator weight `10` unless
+  overridden. Values and derivatives are shared by quasiparticle solvers,
+  spectra, resampling and QSGW matrices. Rebuild host bindings for the extended
+  options structure. Unmet AAA tolerance is reported; numerical continuation
+  failures leave affected GW diagnostic states or spectral frequencies as NaN.
+  The standalone cRPA fit retains all source nodes independently of GW counts.
+
 - Added conventional k-space RPA energies, for all parallel routings and for
   builds without LibRI. Required replicated scalar or collinear eigenvectors on
   the full k mesh, `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.

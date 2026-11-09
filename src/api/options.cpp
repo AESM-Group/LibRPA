@@ -87,6 +87,10 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->use_shrink_abfs = LIBRPA_SWITCH_OFF;
     opts->use_shrink_chi = LIBRPA_SWITCH_ON;
 
+    opts->anacon_method = LIBRPA_ANACON_PADE;
+    opts->anacon_aaa_tolerance = 1.0e-13;
+    opts->anacon_ridge_lambda = 1.0e-12;
+    opts->anacon_ridge_den_weight = 10.0;
     opts->n_params_anacon = -1;
     opts->n_params_anacon_resample = -1;
     opts->anacon_tfgrids_type = LIBRPA_TFGRID_UNSET;

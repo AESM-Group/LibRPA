@@ -170,6 +170,20 @@ def run_rank(binary, mpiexec, ranks, root, template, dataset):
         if key.startswith("U_"):
             assert np.max(abs(alone[key] - alone["W_" + key[2:]])) > 1e-6, key
 
+    # cRPA's standalone all-node continuation must not inherit the GW fit count.
+    continuation = []
+    for count in (-1, 2):
+        directory = home / f"static-nparams-{count}"
+        stage_input(template, dataset, directory, {
+            **common, "task": "crpa", "crpa_output_static": "true",
+            "crpa_real_frequencies_ev": "1.0", "n_params_anacon": str(count),
+        })
+        run(binary, mpiexec, ranks, directory)
+        values = np.loadtxt(directory / "librpa.d/crpa_continuation_summary.dat", ndmin=2)
+        assert values.size and np.all(np.isfinite(values)), directory
+        continuation.append(values)
+    np.testing.assert_allclose(continuation[0], continuation[1], rtol=0, atol=1e-10)
+
     continuous, initial, resumed, uncoupled = (
         home / name for name in ("continuous", "initial", "resumed", "uncoupled"))
     qsgw = {
@@ -196,6 +210,7 @@ def run_rank(binary, mpiexec, ranks, root, template, dataset):
     assert np.max(abs(states[2]["orbital_PDOS_Lowdin"] - states[0]["orbital_PDOS_Lowdin"])) > 1e-6
     return {"shared": together[0], "qsgw": states}, {
         "standalone_shared": equality, "crpa_restart": restart,
+        "static_count_independence": float(np.max(abs(continuation[0] - continuation[1]))),
         "maximum_U_minus_V_ha": max(float(np.max(abs(value - alone["v_" + key[2:]])))
                                        for key, value in alone.items() if key.startswith("U_")),
         "maximum_U_minus_W_ha": max(float(np.max(abs(value - alone["W_" + key[2:]])))

@@ -317,16 +317,37 @@ typedef struct
     /* ============================================================================= */
     /* GW specific */
 
-    //! Number of parameters for analytic continuation.
+    //! Analytic continuation method for GW energies, spectra and QSGW matrices.
+    //! Available driver values: `pade`, `aaa`, `ridge`.
     //! @par Default
-    //! -1 (uses all `nfreq` data)
+    //! LIBRPA_ANACON_PADE
+    LibrpaAnalyContMethod anacon_method;
+
+    //! Relative maximum source residual requested by AAA.
+    //! @par Default
+    //! 1.0e-13
+    double anacon_aaa_tolerance;
+
+    //! Ridge penalty on scaled nonconstant rational coefficients.
+    //! @par Default
+    //! 1.0e-12
+    double anacon_ridge_lambda;
+
+    //! Relative ridge penalty on denominator coefficients.
+    //! @par Default
+    //! 10.0
+    double anacon_ridge_den_weight;
+
+    //! Pade selected-node count, AAA support cap, or ridge coefficient count.
+    //! @par Default
+    //! -1 (uses the source point count)
     int n_params_anacon;
 
-    //! Number of parameters for the source-grid Pade used to resample GW analytic continuation.
+    //! Number of parameters for the source-grid fit used to resample GW analytic continuation.
     //! Negative values use `n_params_anacon`.
     //! This parameter only works when resampling imaginary-frequency grids is enabled via
-    //! a different frequency grids type (`anacon_tfgrids_type`) or number of grids points (`anacon_nfreq`)
-    //! from the direct evaluation of \f$\Sigma_c(i\omega)\f$.
+    //! a different frequency grids type (`anacon_tfgrids_type`) or number of grids points
+    //! (`anacon_nfreq`) from the direct evaluation of \f$\Sigma_c(i\omega)\f$.
     //! @par Default
     //! -1
     //! @par Status
@@ -363,7 +384,7 @@ typedef struct
     /*!
      * Available values:
      * - 0: damped residual-mixing self-consistent solver
-     * - 1: quasi-Newton self-consistent solver using the Pade derivative
+     * - 1: quasi-Newton self-consistent solver using the selected continuation derivative
      * - 2: perturbative solver linearized at the mean-field energy
      *
      * @par Default

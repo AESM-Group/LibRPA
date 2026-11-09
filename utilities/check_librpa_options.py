@@ -316,6 +316,7 @@ def parse_c_field_kind(raw_type: str, array: str) -> str:
         "LibrpaParallelRouting",
         "LibrpaTimeFreqGrid",
         "LibrpaMethod",
+        "LibrpaAnalyContMethod",
         "LibrpaVerbose",
         "LibrpaKind",
     }:
