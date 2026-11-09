@@ -412,7 +412,7 @@ The default cache value is empty. In that case, LibRPA selects the level in this
 | Condition | Selected level |
 | --- | --- |
 | `LIBRPA_USE_ELPA=ON`, with neither CUDA nor HIP | `MPI_THREAD_MULTIPLE` |
-| Otherwise, LibComm status is `managed` or `pinned` | `MPI_THREAD_FUNNELED` |
+| Otherwise, LibComm status is `managed`, `pinned` or `overlay` | `MPI_THREAD_FUNNELED` |
 | Otherwise | `MPI_THREAD_MULTIPLE` |
 
 Modified managed LibComm headers have status `unpinned` and select `MPI_THREAD_MULTIPLE` automatically. A parent LibComm target has status `target`. LibRPA does not infer its pinned status from the target name or include path. An explicit value takes precedence over the automatic selection.
@@ -507,9 +507,9 @@ Set it to the include directory containing `Comm/Comm_Tools.h`.
 If a parent project supplies `LibComm::LibComm`, LibRPA uses that target.
 Otherwise, it uses a nonempty CMake value first, then the environment variable of the same name. If you supply an invalid directory, configuration stops without searching system paths or downloading a replacement.
 
-Headers matching the pinned upstream tree are used directly (`pinned`). LibComm has no managed patch, so it does not need an overlay. Other headers are used with an `unpinned` warning. The required LibRI compile probe checks the selected combination.
+Headers matching the pinned, patched tree are used directly (`pinned`). Headers matching the pinned upstream tree are copied and patched in managed storage (`overlay`). Other headers are used with an `unpinned` warning. The required LibRI compile probe checks the selected combination.
 
-If no target or path is supplied, LibRPA prepares managed headers. Unmodified managed and pinned LibComm influence the automatic [MPI thread-level selection](#librpa-mpi-thread-level).
+If no target or path is supplied, LibRPA prepares managed headers. Unmodified managed, pinned and overlay LibComm influence the automatic [MPI thread-level selection](#librpa-mpi-thread-level).
 
 ```sh
 cmake -B build -DLIBCOMM_INCLUDE_DIR=/path/to/LibComm/include

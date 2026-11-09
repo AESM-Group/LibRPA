@@ -225,12 +225,12 @@ CMake checks explicit paths before it prepares the headers.
 | Header source | Result |
 | --- | --- |
 | Headers match the pinned, patched tree | Used directly, status `pinned` |
-| LibRI headers match the pinned pristine tree | Copied and patched in managed storage, status `overlay` if unchanged |
+| LibRI or LibComm headers match the pinned pristine tree | Copied and patched in managed storage, status `overlay` if unchanged |
 | Other header contents | Used with a warning, status `unpinned` |
 | Existing parent target | Headers supplied by the parent project, status `target` |
 
 LibRPA applies patches to a copy in managed storage, keeping your source directory unchanged.
-LibComm and cereal currently use their upstream headers directly, with status `pinned` when they match the manifest.
+cereal uses its upstream headers directly, with status `pinned` when they match the manifest.
 During configuration, a compile check tests the three header libraries together. For other revisions, regression tests can help assess numerical compatibility.
 
 Parent projects can provide `LibRI::LibRI`, `LibComm::LibComm` and `cereal::cereal` before adding LibRPA. See {ref}`Parent-project integration <thirdparty-parent-projects>` for a complete example.

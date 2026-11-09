@@ -17,7 +17,9 @@ librpa_thirdparty_declare(LibComm
   ARCHIVE "LibComm-12457e7.tar.gz"
   ARCHIVE_SHA256 39abea1dd9389b48608aedfd27881d6a67e1d2a06ee49b25fd138b9cac1dd1c0
   HASH_SUBDIR include
-  TREE_SHA256 79a2fd32e9d83a25f3b41d5546c47af33d66f54bd81ff79dbc0c24109422ea36
+  PATCHES LibComm/0001-wait-for-receive-task.patch
+  PRISTINE_SHA256 79a2fd32e9d83a25f3b41d5546c47af33d66f54bd81ff79dbc0c24109422ea36
+  TREE_SHA256 7974339ca1c8a94964f36089d5d09e3dacb2738c1c4ef720d455fa8ce82d0afe
   LICENSE LGPL-3.0)
 
 librpa_thirdparty_declare(cereal

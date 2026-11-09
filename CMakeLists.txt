@@ -315,7 +315,7 @@ if(LIBRPA_USE_LIBRI)
     Comm/Comm_Tools.h LibComm_INCLUDE_DIR _libcomm_status)
   librpa_thirdparty_resolve_headers(LibRI LibRI::LibRI LIBRI_INCLUDE_DIR
     RI/ri/LRI.h LibRI_INCLUDE_DIR _libri_status)
-  if(_libcomm_status STREQUAL "managed" OR _libcomm_status STREQUAL "pinned")
+  if(_libcomm_status MATCHES "^(managed|pinned|overlay)$")
     set(_LIBRPA_LIBCOMM_IS_PINNED ON)
   endif()
   foreach(_name LibRI LibComm cereal)

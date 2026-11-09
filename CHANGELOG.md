@@ -6,13 +6,12 @@
 
 - Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone download and source-preparation scripts remain compatible with 3.13.
 - Stopped shipping third-party sources. Default configuration uses network access, cached archives or prepared sources. For offline builds, download archives with `cmake/LibRPADownloadThirdparty.cmake` on a connected machine and transfer them to the build machine.
-- Restored unmodified upstream LibComm by removing the local `.wait()` patch.
 - Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
 
 ### Added
 
 - Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and separate download and source-preparation scripts with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
-- Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibRI/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `GREENX_PATH` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
+- Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibRI/LibComm/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `GREENX_PATH` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
 - Added conventional k-space RPA energies, for all parallel routings and for
   builds without LibRI. Required replicated scalar or collinear eigenvectors on
   the full k mesh, `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.
