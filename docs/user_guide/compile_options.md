@@ -469,17 +469,8 @@ Set it to the include directory containing `RI/ri/LRI.h`.
 If a parent project supplies `LibRI::LibRI`, LibRPA uses that target.
 Otherwise, it uses a nonempty CMake value first, then the environment variable of the same name. If you supply an invalid directory, configuration stops without searching system paths or downloading a replacement.
 
-For an explicit path, LibRPA hashes the include tree on every configuration:
-
-| Match | Action and status |
-| --- | --- |
-| Pinned patched headers | Use the directory directly (`pinned`) |
-| Pinned pristine headers | Copy into managed storage, apply the LibRI patch and compare with the reference (`overlay` if unchanged) |
-| Any other headers | Use directly with a warning (`unpinned`) |
-
-LibRPA applies patches to a copy, keeping your supplied directory unchanged.
-If you edit that copy, LibRPA continues to use it with an `unpinned` warning.
-Creating the copy requires a writable `thirdparty/src/` directory in the LibRPA checkout and also works with downloads disabled.
+For an explicit path, LibRPA hashes the include tree on every configuration.
+Headers matching the pinned upstream tree are used directly (`pinned`). LibRI has no managed patch, so it does not need an overlay. Other headers are used with an `unpinned` warning.
 
 If no target or path is supplied, LibRPA prepares managed headers.
 During configuration, a compile check instantiates `RI::LRI<int,int,3,double>` with the selected LibComm and cereal headers to test that the three work together.

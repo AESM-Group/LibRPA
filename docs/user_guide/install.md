@@ -225,7 +225,7 @@ CMake checks explicit paths before it prepares the headers.
 | Header source | Result |
 | --- | --- |
 | Headers match the pinned, patched tree | Used directly, status `pinned` |
-| LibRI or LibComm headers match the pinned pristine tree | Copied and patched in managed storage, status `overlay` if unchanged |
+| LibComm headers match the pinned pristine tree | Copied and patched in managed storage, status `overlay` if unchanged |
 | Other header contents | Used with a warning, status `unpinned` |
 | Existing parent target | Headers supplied by the parent project, status `target` |
 

@@ -30,7 +30,7 @@ Use the CMake helper as the authoritative definition for all trees, including th
 3. Generate `-p1` patches with `a/` and `b/` paths relative to the archive root. Record the source, reason, upstream submission status and license in the patch header and `thirdparty/patches/README.md`.
 4. Apply the patches to a fresh upstream tree. Compute pristine and patched hashes with `cmake/LibRPAThirdparty.cmake`, and independently cross-check a header tree with the shell command above.
 5. Update the declaration's full version, URL, archive name, patch list and hashes. Update the license list in `docs/develop/licensing.md`, then run `python3 utilities/update_readme_licensing_list.py`.
-6. Prepare sources in a fresh LibRPA checkout. Test upstream downloads, cached archives with downloads disabled, repeated configuration, archive hash rejection, and warnings that preserve modified managed trees. For LibRI, greenX and ELPA, also check pristine-path overlays and verify that the original tree is unchanged.
+6. Prepare sources in a fresh LibRPA checkout. Test upstream downloads, cached archives with downloads disabled, repeated configuration, archive hash rejection, and warnings that preserve modified managed trees. For LibComm, greenX and ELPA, also check pristine-path overlays and verify that the original tree is unchanged.
 7. Run `python3 utilities/test_thirdparty.py` to check helper failure paths, overlays, concurrent preparation and directory-symlink handling.
 8. Build with and without LibRI, run unit and numerical regression tests, and run the QSGW, Hartree and cRPA verification scripts used in CI. Check parent targets and explicit paths. For ELPA and greenX, verify the source hashes again after building.
 
@@ -101,7 +101,7 @@ set_target_properties(cereal::cereal PROPERTIES
 
 Each target independently takes precedence over its path variable and managed source. A parent may provide only some of these targets. LibRPA resolves the others through their paths or managed sources.
 
-Header targets have status `target`. LibRPA does not hash or patch them. The parent must supply compatible headers, including required portability fixes. Use a path variable instead if pristine pinned LibRI headers need LibRPA's managed patch overlay.
+Header targets have status `target`. LibRPA does not hash or patch them. The parent must supply compatible headers, including required portability fixes. Use a path variable instead if pristine pinned LibComm headers need LibRPA's managed patch overlay.
 
 The required configure-time compile probe reads each target's direct `INTERFACE_INCLUDE_DIRECTORIES`. Absolute paths and simple `BUILD_INTERFACE` expressions are supported. `INSTALL_INTERFACE` entries are ignored, and other generator expressions cause an error. The probe does not traverse transitive include directories or inherit arbitrary target compile definitions. Expose the required header paths directly on these targets.
 

@@ -11,7 +11,7 @@
 ### Added
 
 - Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and separate download and source-preparation scripts with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
-- Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibRI/LibComm/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `GREENX_PATH` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
+- Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibComm/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `GREENX_PATH` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
 - Added opt-in AAA and ridge analytic continuation for GW/QSGW/cRPA, retaining
   the original Pade default. Set `anacon_method=aaa` or `anacon_method=ridge`;
   ridge uses coefficient penalty `1e-12` and denominator weight `10` unless
@@ -41,6 +41,7 @@
 - Standardized installation prefix options as `LIBDDLA_PATH`, `ELPA_PATH` and `GREENX_PATH`.
 - Unified ELPA selection under `LIBRPA_USE_ELPA`, which defaults to `OFF`. Setting it to `ON` builds managed sources when no dependency is supplied. A parent ELPA target, source path or installation prefix enables ELPA automatically.
 - Updated cereal to `d81e2f7df7b334fee057e53017388d02e555a836`.
+- Updated LibRI to `ab81ac9`, which includes the portable allocator cleanup. LibRPA no longer patches LibRI. Headers of `a0661cb` with the former patch now have status `unpinned`.
 
 ### Fixed
 
