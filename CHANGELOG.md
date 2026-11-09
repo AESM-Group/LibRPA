@@ -27,6 +27,8 @@
   FHI-aims reader exports its SCF k-points. Both k-point forms, the reduced
   (IBZ) list and the full-Brillouin-zone list, are now accepted and reach the
   same accumulation.
+- Linked `mkl_gnu_thread` instead of `mkl_intel_thread` when the C++ compiler
+  is GCC, so that the MKL threading layer matches the libgomp runtime.
 
 ## [0.9.0] - 2026-10-31
 
