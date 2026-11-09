@@ -4,13 +4,12 @@ At each momentum and imaginary frequency, LibRPA constructs the screened
 interaction from a Hermitian independent-particle response. This note covers
 `option_dielect_func = 0` with `replace_w_head = false`.
 
-| Symbol | Definition | Dense-path variable |
-| :--- | :--- | :--- |
-| $V$ | Coulomb matrix used in the dielectric matrix | `Vq_all`, before diagonalization |
-| $T$ | Positive square root of the cutoff Coulomb matrix | `sqrtVqcut_all` |
-| $S$ | Positive square root of $V$ | `sqrtVq_all` |
-| $\chi_0$ | Independent-particle response | `chi0fq_all` |
-| $\epsilon$ | Symmetrized dielectric matrix | `eps_fq`, before inversion |
+| Symbol | Definition |
+| :--- | :--- |
+| $V$ | Coulomb matrix used in the dielectric matrix |
+| $V_\mathrm{t}$ | Cutoff Coulomb matrix |
+| $\chi_0$ | Independent-particle response |
+| $\tilde{\varepsilon}$ | Symmetrized dielectric matrix |
 
 On the retained Coulomb subspace, the Dyson equation is
 
@@ -18,21 +17,21 @@ $$
 W = V + V\chi_0 W.
 $$
 
-Substitution of $V=S^2$ and $W=SXS$ gives
+Substitution of $W=V^{1/2}XV^{1/2}$ gives
 
 $$
-X = I + S\chi_0 S X,
+X = I + V^{1/2}\chi_0 V^{1/2} X,
 \qquad
-X = (I-S\chi_0 S)^{-1}.
+X = (I-V^{1/2}\chi_0 V^{1/2})^{-1}.
 $$
 
 LibRPA uses $V$ for the screening and the cutoff Coulomb matrix for the
 external factors. Subtraction of the cutoff bare interaction gives
 
 $$
-\epsilon = I-S\chi_0 S,
+\tilde{\varepsilon} = I-V^{1/2}\chi_0 V^{1/2},
 \qquad
-W_c = T(\epsilon^{-1}-I)T.
+W_c = V_\mathrm{t}^{1/2}(\tilde{\varepsilon}^{-1}-I)V_\mathrm{t}^{1/2}.
 $$
 
 When the two Coulomb matrices are equal, this expression reduces to
@@ -43,9 +42,9 @@ products. Matrix square roots preserve that storage order. A row-major factor
 would violate the multiplication interface even when its mathematical entries
 are Hermitian (`src/core/epsilon.cpp`, `compute_Wc_freq_q`).
 
-The `test_dense_wc_layout` test constructs positive-definite $S$ and $T$,
-forms their squares with scalar products, and evaluates the formula with an
-explicit two-by-two inverse. It checks every entry from both production paths
+The `test_dense_wc_layout` test constructs positive-definite $V^{1/2}$ and
+$V_\mathrm{t}^{1/2}$, forms their squares with scalar products, and evaluates the formula with
+an explicit two-by-two inverse. It checks every entry from both production paths
 against this result. The cases include real matrices at Gamma, complex
 conjugate matrices at opposite momenta, and zero response
 (`src/test/test_epsilon.cpp`).
