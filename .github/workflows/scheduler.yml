@@ -63,3 +63,32 @@ jobs:
       ${{ !cancelled() && needs.checks.result == 'success' &&
           needs.changes.result == 'success' && needs.changes.outputs.build == 'true' }}
     uses: ./.github/workflows/ci-oneapi.yml
+
+  # The only check that branch rules require. A skipped reusable workflow
+  # reports no check under its job names, so the rules cannot require those.
+  result:
+    name: CI result
+    needs: [tier, checks, changes, oneapi]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the results of the required jobs
+        env:
+          EVENT: ${{ github.event_name }}
+          TIER: ${{ needs.tier.result }}
+          CHECKS: ${{ needs.checks.result }}
+          CHANGES: ${{ needs.changes.result }}
+          BUILD: ${{ needs.changes.outputs.build }}
+          ONEAPI: ${{ needs.oneapi.result }}
+        run: |
+          echo "tier=$TIER checks=$CHECKS changes=$CHANGES build=$BUILD oneapi=$ONEAPI"
+          status=0
+          if [[ "$TIER" != success && ! ( "$EVENT" == push && "$TIER" == skipped ) ]]; then
+            echo "::error::Risk tier did not pass"; status=1
+          fi
+          [[ "$CHECKS" == success ]] || { echo "::error::Checks did not pass"; status=1; }
+          [[ "$CHANGES" == success ]] || { echo "::error::Build selection did not pass"; status=1; }
+          if [[ "$BUILD" == true && "$ONEAPI" != success ]]; then
+            echo "::error::The oneAPI build did not pass"; status=1
+          fi
+          exit $status

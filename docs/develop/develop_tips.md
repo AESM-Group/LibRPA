@@ -66,7 +66,9 @@ with its merge base, or the commits before and after a push. If an excluded
 script becomes part of a build test, update these rules.
 
 Checks, Risk tier, and dependent build jobs share one workflow run.
-Branch protection rules must use the check names shown by GitHub.
+The `CI result` job ends each run. It fails if a job fails, and it accepts a
+skipped build only when the changes need none. Branch rules require only
+`CI result`, because a skipped build reports no check under its own name.
 
 When you push a new commit to a pull request, the runs for the earlier commit
 stop. On `master`, a run that started does not stop, and a new run waits in a
