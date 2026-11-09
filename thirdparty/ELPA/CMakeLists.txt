@@ -243,6 +243,8 @@ ExternalProject_Add(librpa_bundled_elpa
       install-nobase_nodist_elpa_includeHEADERS
       install-pkgconfigDATA
   BUILD_BYPRODUCTS "${_elpa_library}"
+  # CI runs only the configure step to check the arguments without compiling.
+  STEP_TARGETS configure
 )
 
 # Some libtool configurations copy static dependency archives, such as

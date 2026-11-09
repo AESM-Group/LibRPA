@@ -117,6 +117,16 @@ jobs:
             --work-dir workspace_crpa_workflows 2>&1 | tee test_crpa_workflows.log
           python verification/verify_magnetic_crpa_workflows.py --binary ../build_libri/chi0_main.exe \
             --work-dir workspace_magnetic_crpa_workflows 2>&1 | tee test_magnetic_crpa_workflows.log
+      - name: Configure managed ELPA
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          export BUILDDIR="build_elpa"
+          # Run the upstream configure script, which checks the version-dependent
+          # arguments and the toolchain, but do not compile ELPA.
+          CXX=mpiicpx FC=mpiifx cmake -DCMAKE_BUILD_TYPE=Debug -B $BUILDDIR \
+            -DLIBRPA_USE_LIBRI=OFF -DLIBRPA_ENABLE_FORTRAN_BIND=OFF -DLIBRPA_ENABLE_TEST=OFF \
+            -DENABLE_GREENX_CTEST=OFF -DLIBRPA_USE_ELPA=ON
+          cmake --build $BUILDDIR --target librpa_bundled_elpa-configure
       - name: Build Fortran binding (with LibRI), static library, and binding test
         run: |
           source /opt/intel/oneapi/setvars.sh
@@ -134,6 +144,7 @@ jobs:
             build/Testing/Temporary/LastTest.log
             build_libri/Testing/Temporary/LastTest.log
             build_fortran_bind/Testing/Temporary/LastTest.log
+            build_elpa/**/config.log
             regression_tests/test_np4.log
             regression_tests/test_libri_np4.log
             regression_tests/test_libri_si_np1.log
