@@ -12,7 +12,7 @@ remain in the built documentation sections.
 
 ## GW
 
-- [Correlation part of the screened Coulomb interaction](gw/screened_coulomb.md)
+- [Correlation part of the screened Coulomb interaction](gw/correlation_screened_coulomb.md)
 
 ## RPA
 
