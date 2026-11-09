@@ -717,47 +717,46 @@ class IncludePrecedenceTest(unittest.TestCase):
     @unittest.skipIf(os.name == "nt", "CPATH is not used by MSVC")
     def test_selected_header_wins_over_cpath(self):
         with tempfile.TemporaryDirectory(prefix="librpa-include-precedence-") as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             selected = root / "selected"
             ambient = root / "ambient"
-            (selected / "vendor").mkdir(parents=True)
-            (ambient / "vendor").mkdir(parents=True)
+            other = root / "other"
+            for directory in (selected, ambient, other):
+                (directory / "vendor").mkdir(parents=True)
             (selected / "vendor/header.hpp").write_text("#define SELECTED_VALUE 17\n")
             (ambient / "vendor/header.hpp").write_text("#define SELECTED_VALUE 99\n")
+            (other / "vendor/other.hpp").write_text("// another imported dependency\n")
             (root / "probe.cpp").write_text(
                 "#include <vendor/header.hpp>\n"
+                "#include <vendor/other.hpp>\n"
                 'static_assert(SELECTED_VALUE == 17, "ambient dependency header was selected");\n'
                 "int main() { return 0; }\n")
             (root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.18)
 project(IncludePrecedence CXX)
 include("{MODULE}")
-if(APPLY_FIX)
-  librpa_thirdparty_use_plain_includes()
-endif()
-add_library(Dependency::Dependency INTERFACE IMPORTED GLOBAL)
-set_target_properties(Dependency::Dependency PROPERTIES
-  INTERFACE_INCLUDE_DIRECTORIES "{selected}")
+librpa_thirdparty_declare(Fixture VERSION 1 URL unused ARCHIVE unused ARCHIVE_SHA256 unused
+  HASH_SUBDIR include TREE_SHA256 {tree_hash(selected)} LICENSE test)
+librpa_thirdparty_resolve_headers(Fixture Fixture::Fixture LIBRI_INCLUDE_DIR
+  vendor/header.hpp resolved status)
+add_library(Other::Other INTERFACE IMPORTED GLOBAL)
+set_target_properties(Other::Other PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "{other}")
 add_executable(probe probe.cpp)
-target_link_libraries(probe PRIVATE Dependency::Dependency)
+target_link_libraries(probe PRIVATE Fixture::Fixture Other::Other)
 ''')
             environment = fixture_environment()
             environment["CPATH"] = str(ambient)
-
-            def configure_and_build(apply_fix):
-                build = root / ("build-fixed" if apply_fix else "build-unfixed")
-                result = subprocess.run(
-                    ["cmake", "-S", str(root), "-B", str(build),
-                     f"-DAPPLY_FIX={'ON' if apply_fix else 'OFF'}"],
-                    capture_output=True, text=True, env=environment)
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                return subprocess.run(["cmake", "--build", str(build)],
-                                      capture_output=True, text=True, env=environment)
-
-            unfixed = configure_and_build(False)
-            self.assertNotEqual(unfixed.returncode, 0)
-            self.assertIn("ambient dependency header was selected", unfixed.stdout + unfixed.stderr)
-            fixed = configure_and_build(True)
-            self.assertEqual(fixed.returncode, 0, fixed.stdout + fixed.stderr)
+            build = root / "build"
+            result = subprocess.run(
+                ["cmake", "-S", str(root), "-B", str(build), f"-DLIBRI_INCLUDE_DIR={selected}"],
+                capture_output=True, text=True, env=environment)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run(["cmake", "--build", str(build), "--verbose"],
+                                    capture_output=True, text=True, env=environment)
+            output = result.stdout + result.stderr
+            self.assertEqual(result.returncode, 0, output)
+            # Only the selected dependency loses SYSTEM. Other imported targets keep it.
+            self.assertIn(f"-I{selected}", output)
+            self.assertIn(f"-isystem {other}", output)
 
 
 class ELPABuildOptionsTest(unittest.TestCase):

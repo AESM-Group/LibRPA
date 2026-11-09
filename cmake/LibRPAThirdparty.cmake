@@ -316,15 +316,6 @@ function(librpa_thirdparty_warn_installed name prefix managed_hint source_variab
   message(WARNING "${name}: using a prebuilt installation (${prefix}). Prebuilt libraries may be incompatible with the compilers and flags used for LibRPA. Prefer the managed source (${managed_hint}), then a parent-project target, then ${source_variable}.")
 endfunction()
 
-# Imported targets export their INTERFACE_INCLUDE_DIRECTORIES as SYSTEM.
-# GCC and Clang search CPATH before -isystem, so an ambient dependency can
-# override the headers selected by librpa_thirdparty_resolve_headers while the
-# configure probes, which use -I, still pass.  Preserve ordinary include
-# precedence for the LibRPA targets that compile against the selected headers.
-function(librpa_thirdparty_use_plain_includes)
-  set(CMAKE_NO_SYSTEM_FROM_IMPORTED ON PARENT_SCOPE)
-endfunction()
-
 # Resolve header-only dependencies without searching unrelated system paths.
 function(librpa_thirdparty_resolve_headers name target variable marker out status)
   if(TARGET ${target})
@@ -341,8 +332,14 @@ function(librpa_thirdparty_resolve_headers name target variable marker out statu
       librpa_thirdparty_prepare("${name}" _source _status)
       set(_include "${_source}/include")
     endif()
-    add_library(${target} INTERFACE IMPORTED GLOBAL)
-    set_target_properties(${target} PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${_include}")
+    # Use a non-imported target, so that consumers get -I instead of -isystem.
+    # GCC and Clang search CPATH before -isystem, so an ambient copy of the
+    # dependency could otherwise replace the selected headers.  Targets from a
+    # parent project and other imported targets keep their own settings.
+    set(_library librpa_thirdparty_${name})
+    add_library(${_library} INTERFACE)
+    target_include_directories(${_library} INTERFACE "${_include}")
+    add_library(${target} ALIAS ${_library})
   endif()
   message(STATUS "${name}: ${_status}, includes=${_include}")
   set(${out} "${_include}" PARENT_SCOPE)
