@@ -51,7 +51,9 @@ Zero-weight supports are absent from the rational sums and remain included in
 the residual check. A support cap or exhausted supports may stop before tolerance
 is met, including with the default count. The Loewner SVD retains at least one
 unsampled node. The returned residual and tolerance flag describe the actual fit;
-the production factory reports unmet tolerance in the rank-local log.
+the production factory reports the first unmet-tolerance AAA fit per process in
+the rank-local log, with a relative residual compared to the relative tolerance.
+This report describes that fit, not the worst residual across all later fits.
 
 The existing GW solvers consume the selected value and derivative with the
 same units and energy reference. Optional imaginary-grid resampling fits the

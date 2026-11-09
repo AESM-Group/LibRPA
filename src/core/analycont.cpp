@@ -5,6 +5,7 @@
 #include "analycont.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <iomanip>
@@ -1042,10 +1043,21 @@ std::unique_ptr<AnalyCont> make_analycont(LibrpaAnalyContMethod method, int n_pa
     if (method == LIBRPA_ANACON_AAA)
     {
         auto fit = std::make_unique<AnalyContAAA>(n_params, xs, data, aaa_tolerance);
-        if (!fit->reached_tolerance())
-            global::ofs_myid << "Warning! AAA stopped before reaching source tolerance; "
-                            << "max absolute residual = " << fit->get_max_source_error()
-                            << ", relative tolerance = " << aaa_tolerance << std::endl;
+        static std::atomic_flag warned = ATOMIC_FLAG_INIT;
+        if (!fit->reached_tolerance() && global::ofs_myid.is_open()
+            && !warned.test_and_set(std::memory_order_relaxed))
+        {
+            double scale = 0.0;
+            for (const auto &value : fit->get_source_data())
+                scale = std::max(scale, std::abs(value));
+            if (scale == 0.0) scale = 1.0;
+            global::ofs_myid << "Warning! AAA source tolerance unmet (first fit reported in this process); "
+                            << "max relative residual = " << fit->get_max_source_error() / scale
+                            << ", relative tolerance = " << aaa_tolerance
+                            << ", max absolute residual = " << fit->get_max_source_error()
+                            << ". Further AAA tolerance warnings in this process are suppressed."
+                            << std::endl;
+        }
         return fit;
     }
     throw std::invalid_argument("Unknown analytic continuation method");

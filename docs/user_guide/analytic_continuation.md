@@ -23,8 +23,12 @@ existing Thiele construction and barycentric fallback. AAA selects support nodes
 greedily and computes barycentric weights with a complex Loewner SVD. A capped
 AAA fit may stop before reaching tolerance, including with the default count
 when supports are exhausted. The count is capped at the number of distinct input
-nodes; the Loewner SVD keeps at least one unsampled node. A warning in the
-rank-local log reports the residual if the tolerance is unmet. Source residuals include zero-weight
+nodes; the Loewner SVD keeps at least one unsampled node. The rank-local log
+reports the first unmet-tolerance AAA fit per process, comparing its relative
+residual against the relative tolerance and also giving the absolute residual.
+Further AAA tolerance warnings are suppressed for that process lifetime; this
+first-fit report is not a count or a worst-case summary of subsequent fits.
+Source residuals include zero-weight
 supports; evaluating a non-support input point returns the fitted value, not an
 unconditional copy of the original datum.
 
