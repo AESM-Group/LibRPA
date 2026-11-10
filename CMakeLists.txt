@@ -27,7 +27,6 @@ set(LIBRPA_DRIVER_NAME         "chi0_main.exe")
 option(LIBRPA_USE_LIBRI            "Use LibRI for tensor contraction in LibRPA" ON)
 option(LIBRPA_USE_LIBRI_GPU        "Use GPU tensor contractions in LibRI" OFF)
 option(LIBRPA_USE_ELPA             "Use ELPA for distributed eigensolvers" OFF)
-option(LIBRPA_USE_CMAKE_INC        "Use cmake.inc for configure (deprecated)" OFF)
 option(LIBRPA_ENABLE_TEST          "Flag to build LibRPA tests" ON)
 option(LIBRPA_ENABLE_DRIVER        "Flag to build LibRPA driver executable" ON)
 option(LIBRPA_ENABLE_FORTRAN_BIND  "Flag to build LibRPA Fotran binding" OFF)
@@ -49,6 +48,12 @@ set(ELPA_SOURCE_DIR "${ELPA_SOURCE_DIR}" CACHE PATH "External ELPA source tree t
 set(ELPA_PATH "${ELPA_PATH}" CACHE PATH "External ELPA installation prefix")
 
 # Deprecation stops
+if(LIBRPA_USE_CMAKE_INC)
+  message(FATAL_ERROR
+    "LIBRPA_USE_CMAKE_INC is no longer supported. "
+    "Use -C <initial-cache.cmake> or -D<variable>=<value> instead, "
+    "and remove the old option with -U LIBRPA_USE_CMAKE_INC.")
+endif()
 if (DEFINED USE_GREENX_MINIMAX)
   message(FATAL_ERROR "USE_GREENX_MINIMAX is deprecated: GreenX is now always used. Please remove USE_GREENX_MINIMAX")
 endif()
@@ -70,17 +75,7 @@ set(LIBRPA_THIRDPARTY_SUMMARY "")
 set(math_libs "")
 set(parallel_libs "")
 set(_librpa_elpa_configure_libs "")
-set(_loaded_cmake_inc OFF)
 set(_LIBRPA_LIBCOMM_IS_PINNED OFF)
-
-# TODO: maybe better way to customize environments?
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake.inc" AND LIBRPA_USE_CMAKE_INC)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake.inc")
-  list(APPEND math_libs ${LAPACK_LIBRARIES})
-  list(APPEND _librpa_elpa_configure_libs ${LAPACK_LIBRARIES} ${SCALAPACK_LIBRARIES})
-  set(_loaded_cmake_inc ON)
-  message(STATUS "Using customize environemnt variables from ${CMAKE_CURRENT_SOURCE_DIR}/cmake.inc")
-endif()
 
 include(ELPABuildOptions)
 include(ValidateELPAOptions)
@@ -89,7 +84,6 @@ include(ValidateELPAOptions)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# enable_language later than cmake.inc to take the variables therein into accout
 # require Fortran for GreenX library and Fortran binding
 if(_elpa_mode STREQUAL "source")
   # require C for managed ELPA
@@ -141,50 +135,48 @@ else()
   endif()
 endif()
 
-if(NOT _loaded_cmake_inc)
-  if(DEFINED ENV{MKLROOT} AND NOT DEFINED MKLROOT)
-    set(MKLROOT "$ENV{MKLROOT}")
-  endif()
-  if(MKLROOT)
-    find_package(IntelMKL REQUIRED)
-    # include_directories(${MKL_INCLUDE_DIRS} ${MKL_INCLUDE_DIRS}/fftw)
-    include_directories(${MKL_INCLUDE_DIRS})
-    list(APPEND math_libs IntelMKL::MKL)
-    list(APPEND _librpa_elpa_configure_libs ${MKL_LIBRARIES})
-  else()
-    find_package(LAPACK REQUIRED)
-    find_package(ScaLAPACK REQUIRED)
-    list(APPEND math_libs
-            ${LAPACK_LIBRARIES}
-            ${ScaLAPACK_LIBRARIES}
-            )
-    list(APPEND _librpa_elpa_configure_libs
-            ${LAPACK_LIBRARIES}
-            ${ScaLAPACK_LIBRARIES}
-            )
-  endif()
-
-  find_package(MPI REQUIRED)
-  if (MPI_CXX_FOUND)
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_FLAGS}")
-  endif()
-
-  # message(INFO "${CMAKE_C_COMPILER_LOADED} ${CMAKE_CXX_COMPILER_LOADED} ${CMAKE_Fortran_COMPILER_LOADED}")
-  find_package(OpenMP REQUIRED)
-  if (OpenMP_CXX_FOUND)
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  endif()
-  list(APPEND parallel_libs
-          OpenMP::OpenMP_CXX
-          MPI::MPI_CXX
-          )
-  # mkl_intel_thread needs an OpenMP runtime. LibRPA gets it from
-  # OpenMP::OpenMP_CXX, but the ELPA configure script sees only LIBS.
-  if(MKLROOT)
-    list(APPEND _librpa_elpa_configure_libs ${OpenMP_CXX_LIBRARIES})
-  endif()
-  include_directories(${MPI_CXX_INCLUDE_PATH})
+if(DEFINED ENV{MKLROOT} AND NOT DEFINED MKLROOT)
+  set(MKLROOT "$ENV{MKLROOT}")
 endif()
+if(MKLROOT)
+  find_package(IntelMKL REQUIRED)
+  # include_directories(${MKL_INCLUDE_DIRS} ${MKL_INCLUDE_DIRS}/fftw)
+  include_directories(${MKL_INCLUDE_DIRS})
+  list(APPEND math_libs IntelMKL::MKL)
+  list(APPEND _librpa_elpa_configure_libs ${MKL_LIBRARIES})
+else()
+  find_package(LAPACK REQUIRED)
+  find_package(ScaLAPACK REQUIRED)
+  list(APPEND math_libs
+          ${LAPACK_LIBRARIES}
+          ${ScaLAPACK_LIBRARIES}
+          )
+  list(APPEND _librpa_elpa_configure_libs
+          ${LAPACK_LIBRARIES}
+          ${ScaLAPACK_LIBRARIES}
+          )
+endif()
+
+find_package(MPI REQUIRED)
+if (MPI_CXX_FOUND)
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_FLAGS}")
+endif()
+
+# message(INFO "${CMAKE_C_COMPILER_LOADED} ${CMAKE_CXX_COMPILER_LOADED} ${CMAKE_Fortran_COMPILER_LOADED}")
+find_package(OpenMP REQUIRED)
+if (OpenMP_CXX_FOUND)
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+list(APPEND parallel_libs
+        OpenMP::OpenMP_CXX
+        MPI::MPI_CXX
+        )
+# mkl_intel_thread needs an OpenMP runtime. LibRPA gets it from
+# OpenMP::OpenMP_CXX, but the ELPA configure script sees only LIBS.
+if(MKLROOT)
+  list(APPEND _librpa_elpa_configure_libs ${OpenMP_CXX_LIBRARIES})
+endif()
+include_directories(${MPI_CXX_INCLUDE_PATH})
 
 # TODO: always switch on MPI, until test program for non-MPI case is implemented.
 #       This will require a more comprehensive stub MPI library in LibRPA,

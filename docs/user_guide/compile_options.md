@@ -40,7 +40,6 @@ It also includes selected standard CMake options for reference, but does not cov
 | [`LIBRPA_USE_LIBRI_GPU`](#librpa-use-libri-gpu)             | bool              | `OFF`      |
 | [`LIBRPA_USE_CUDA`](#librpa-use-cuda)                       | bool              | `OFF`      |
 | [`LIBRPA_USE_HIP`](#librpa-use-hip)                         | bool              | `OFF`      |
-| [`LIBRPA_USE_CMAKE_INC`](#librpa-use-cmake-inc)             | bool              | `OFF`      |
 | [`LIBRPA_USE_EXTERNAL_GREENX`](#librpa-use-external-greenx) | bool (deprecated, ignored) | unset |
 | [`LIBRPA_ENABLE_FORTRAN_BIND`](#librpa-enable-fortran-bind) | bool              | `OFF`      |
 | [`LIBRPA_FORTRAN_DP`](#librpa-fortran-dp)                   | string or integer | `c_double` |
@@ -311,12 +310,6 @@ These options apply only when LibRPA builds ELPA from source.
 CMake warns when an old name is defined and uses its value to initialize the replacement if the new name is unset.
 A value supplied under the new name takes precedence, including `OFF` or an empty string.
 After migrating, remove the old cache entries to stop the warnings.
-
-(librpa-use-cmake-inc)=
-### `LIBRPA_USE_CMAKE_INC`
-
-This option initializes compilers and other build options from `cmake.inc`.
-It is **deprecated**; for new configurations, use standard CMake command-line options such as `-C` or `-D`.
 
 (librpa-use-external-greenx)=
 ### `LIBRPA_USE_EXTERNAL_GREENX` (deprecated)

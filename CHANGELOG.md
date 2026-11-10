@@ -7,6 +7,7 @@
 - Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone download and source-preparation scripts remain compatible with 3.13.
 - Stopped shipping third-party sources. Default configuration uses network access, cached archives or prepared sources. For offline builds, download archives with `cmake/LibRPADownloadThirdparty.cmake` on a connected machine and transfer them to the build machine.
 - Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
+- Removed automatic loading of `cmake.inc` and the `LIBRPA_USE_CMAKE_INC` build option. Use CMake `-C` initial cache files or `-D` arguments instead ([#85](https://github.com/AESM-Group/LibRPA/issues/85)).
 
 ### Added
 

@@ -265,6 +265,50 @@ See {ref}`Parent-project integration <thirdparty-parent-projects>` for the setup
 
 ## Troubleshooting
 
+### Migration from `cmake.inc`
+
+LibRPA no longer loads `cmake.inc`. Setting `LIBRPA_USE_CMAKE_INC=ON`
+stops configuration and prints migration instructions.
+
+Move your compiler settings, flags, and library settings to an initial cache
+file, using `set(... CACHE <type> <description>)` for each entry:
+
+```cmake
+set(CMAKE_CXX_COMPILER "mpicxx" CACHE FILEPATH "C++ compiler")
+set(CMAKE_Fortran_COMPILER "mpifort" CACHE FILEPATH "Fortran compiler")
+set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type")
+set(SCALAPACK_DIR "/path/to/scalapack" CACHE PATH "ScaLAPACK installation")
+```
+
+Load this file with CMake's `-C` option:
+
+```bash
+cmake -B build -C initial-cache.cmake
+
+# Remove the old option when reusing an existing build directory.
+cmake -B build -C initial-cache.cmake -U LIBRPA_USE_CMAKE_INC
+```
+
+The `-U` argument clears the old option from the cache. You can leave an
+existing `LIBRPA_USE_CMAKE_INC=OFF` entry in place.
+Use a new build directory if you change compilers.
+
+Do not copy the math library line from `cmake.inc` without a check.
+The old `cmake.inc` path linked its `LAPACK_LIBRARIES` value, often a full MKL
+link line, and skipped the search for math, MPI and OpenMP libraries.
+LibRPA now always does this search:
+
+- If `MKLROOT` is set, LibRPA links Intel MKL from that installation.
+  A `LAPACK_LIBRARIES` value does not replace it, so an MKL setup needs no
+  library entry.
+- If `MKLROOT` is empty, LibRPA uses `LAPACK_LIBRARIES` from the cache, or
+  detects LAPACK. It finds ScaLAPACK separately, with `SCALAPACK_DIR` as a
+  hint. LibRPA does not read `SCALAPACK_LIBRARIES`.
+
+For details, see {ref}`MKLROOT <mklroot>`,
+{ref}`LAPACK_LIBRARIES <lapack-libraries>` and
+{ref}`SCALAPACK_DIR <scalapack-dir>`.
+
 ### A dependency is missing or a download fails
 
 The CMake message gives the component name, archive filename and upstream URL.
