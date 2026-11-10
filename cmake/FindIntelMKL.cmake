@@ -22,16 +22,44 @@ endif()
 find_library(MKL_THREAD NAMES ${_mkl_thread_name} HINTS ${MKLROOT}/lib ${MKLROOT}/lib/intel64)
 find_library(MKL_CORE NAMES mkl_core HINTS ${MKLROOT}/lib ${MKLROOT}/lib/intel64)
 find_library(MKL_SCALAPACK NAMES mkl_scalapack_lp64 HINTS ${MKLROOT}/lib ${MKLROOT}/lib/intel64)
-find_library(MKL_BLACS_INTELMPI NAMES mkl_blacs_intelmpi_lp64 HINTS ${MKLROOT}/lib ${MKLROOT}/lib/intel64)
+# Test the selected MPI headers, not the compiler wrapper's filename.
+# Intel MPI and MPICH use the Intel-MPI BLACS ABI; Open MPI has its own.
+include(CheckCXXSourceCompiles)
+include(CMakePushCheckState)
+cmake_push_check_state(RESET)
+set(CMAKE_REQUIRED_LIBRARIES MPI::MPI_CXX)
+unset(_mkl_mpi_is_openmpi CACHE)
+unset(_mkl_mpi_is_mpich CACHE)
+check_cxx_source_compiles("#include <mpi.h>
+#ifndef OMPI_MAJOR_VERSION
+#error Not Open MPI
+#endif
+int main() { return 0; }" _mkl_mpi_is_openmpi)
+check_cxx_source_compiles("#include <mpi.h>
+#if !defined(MPICH_VERSION) && !defined(I_MPI_VERSION)
+#error Not MPICH or Intel MPI
+#endif
+int main() { return 0; }" _mkl_mpi_is_mpich)
+cmake_pop_check_state()
+if(_mkl_mpi_is_openmpi)
+  set(_mkl_blacs_name mkl_blacs_openmpi_lp64)
+elseif(_mkl_mpi_is_mpich)
+  set(_mkl_blacs_name mkl_blacs_intelmpi_lp64)
+else()
+  message(FATAL_ERROR "MKL BLACS: cannot identify the selected MPI as Open MPI, MPICH or Intel MPI. Use a supported MPI toolchain or supply separate LAPACK/ScaLAPACK libraries with -DMKLROOT=.")
+endif()
+# Re-select on reconfiguration, including when the MPI headers change.
+unset(MKL_BLACS CACHE)
+find_library(MKL_BLACS NAMES ${_mkl_blacs_name} HINTS ${MKLROOT}/lib ${MKLROOT}/lib/intel64)
 
 include(FindPackageHandleStandardArgs)
 # handle the QUIETLY and REQUIRED arguments and set MKL_FOUND to TRUE
 # if all listed variables are TRUE
 
-find_package_handle_standard_args(IntelMKL DEFAULT_MSG MKL_INTEL MKL_THREAD MKL_CORE MKL_SCALAPACK MKL_BLACS_INTELMPI MKL_INCLUDE_DIR)
+find_package_handle_standard_args(IntelMKL DEFAULT_MSG MKL_INTEL MKL_THREAD MKL_CORE MKL_SCALAPACK MKL_BLACS MKL_INCLUDE_DIR)
 
 if(IntelMKL_FOUND)
-  set(MKL_LIBRARIES ${MKL_INTEL} ${MKL_THREAD} ${MKL_CORE} ${MKL_SCALAPACK} ${MKL_BLACS_INTELMPI})
+  set(MKL_LIBRARIES ${MKL_INTEL} ${MKL_THREAD} ${MKL_CORE} ${MKL_SCALAPACK} ${MKL_BLACS})
   set(MKL_INCLUDE_DIRS ${MKL_INCLUDE_DIR})
 
   if(NOT TARGET IntelMKL::INTEL)
@@ -58,19 +86,19 @@ if(IntelMKL_FOUND)
       IMPORTED_LOCATION "${MKL_SCALAPACK}"
       INTERFACE_INCLUDE_DIRECTORIES "${MKL_INCLUDE_DIR}")
   endif()
-  if(NOT TARGET IntelMKL::BLACS_INTELMPI)
-    add_library(IntelMKL::BLACS_INTELMPI UNKNOWN IMPORTED)
-    set_target_properties(IntelMKL::BLACS_INTELMPI PROPERTIES
-      IMPORTED_LOCATION "${MKL_BLACS_INTELMPI}"
+  if(NOT TARGET IntelMKL::BLACS)
+    add_library(IntelMKL::BLACS UNKNOWN IMPORTED)
+    set_target_properties(IntelMKL::BLACS PROPERTIES
+      IMPORTED_LOCATION "${MKL_BLACS}"
       INTERFACE_INCLUDE_DIRECTORIES "${MKL_INCLUDE_DIR}")
   endif()
   add_library(IntelMKL::MKL INTERFACE IMPORTED)
   set_property(TARGET IntelMKL::MKL PROPERTY
   INTERFACE_LINK_LIBRARIES
   "-Wl,--start-group"
-  IntelMKL::INTEL IntelMKL::THREAD IntelMKL::CORE IntelMKL::SCALAPACK IntelMKL::BLACS_INTELMPI
+  IntelMKL::INTEL IntelMKL::THREAD IntelMKL::CORE IntelMKL::SCALAPACK IntelMKL::BLACS
   "-Wl,--end-group"
   )
 endif()
 
-mark_as_advanced(MKL_INCLUDE_DIR MKL_INTEL MKL_THREAD MKL_CORE MKL_SCALAPACK MKL_BLACS_INTELMPI)
+mark_as_advanced(MKL_INCLUDE_DIR MKL_INTEL MKL_THREAD MKL_CORE MKL_SCALAPACK MKL_BLACS)
