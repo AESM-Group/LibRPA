@@ -18,8 +18,12 @@ class CMakeIncTest(unittest.TestCase):
         self.root = Path(tmp.name)
         self.source = self.root / "source"
         (self.source / "src").mkdir(parents=True)
+        (self.source / "thirdparty").mkdir()
         shutil.copy2(ROOT / "CMakeLists.txt", self.source)
         shutil.copy2(ROOT / "src/version.h", self.source / "src")
+        # Files that CMakeLists.txt includes before compiler discovery.
+        shutil.copytree(ROOT / "cmake", self.source / "cmake")
+        shutil.copy2(ROOT / "thirdparty/manifest.cmake", self.source / "thirdparty")
 
     def configure(self, name, *args):
         result = subprocess.run(
