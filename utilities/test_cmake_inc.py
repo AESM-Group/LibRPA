@@ -48,9 +48,13 @@ class CMakeIncTest(unittest.TestCase):
                 if has_cmake_inc:
                     self.write_legacy_file()
                 output = self.configure(str(has_cmake_inc), "-DLIBRPA_USE_CMAKE_INC=ON")
-                self.assertIn("LIBRPA_USE_CMAKE_INC is no longer supported", output)
-                self.assertIn("-C", output)
-                self.assertIn("-D", output)
+                # CMake wraps the message text, so compare it without line breaks.
+                text = " ".join(output.split())
+                self.assertIn("LIBRPA_USE_CMAKE_INC is no longer supported", text)
+                self.assertIn(
+                    "Use -C <initial-cache.cmake> or -D<variable>=<value> instead", text
+                )
+                self.assertIn("-U LIBRPA_USE_CMAKE_INC", text)
                 self.assertNotIn("CXX compiler identification", output)
 
     def test_default_and_old_off_cache_reach_compiler_discovery(self):
