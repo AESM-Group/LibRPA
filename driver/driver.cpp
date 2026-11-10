@@ -387,6 +387,9 @@ std::string format_runtime_options(const librpa::Options &opts) noexcept
             normal_pair(libri_g0w0_threshold_Wc),
             normal_pair(qpe_solver_thres),
             normal_pair(qpe_solver_damp_factor),
+            normal_pair(anacon_aaa_tolerance),
+            normal_pair(anacon_ridge_lambda),
+            normal_pair(anacon_ridge_den_weight),
             normal_pair(sf_gf_omega_shift),
             normal_pair(sf_sigc_omega_shift),
         };
@@ -421,6 +424,7 @@ std::string format_runtime_options(const librpa::Options &opts) noexcept
             {"tfgrids_type", get_tfgrid_string(opts.tfgrids_type)},
             {"anacon_tfgrids_type", get_tfgrid_string(opts.anacon_tfgrids_type)},
             {"parallel_routing", get_routing_string(opts.parallel_routing)},
+            {"chi0_method", get_method_string(opts.chi0_method)},
             {"rpa_headwing_mode", opts.rpa_headwing_mode},
         };
 
@@ -461,6 +465,7 @@ std::string format_runtime_options(const librpa::Options &opts) noexcept
         };
 
     for (const auto &[k, v] : str_params) ss << k << " = " << v << endl;
+    ss << "anacon_method = " << get_anacon_string(opts.anacon_method) << endl;
 
     for (const auto &[k, v] : int_params) ss << k << " = " << v << endl;
 
@@ -476,6 +481,22 @@ std::string format_runtime_options(const librpa::Options &opts) noexcept
 
 #undef normal_pair
 #undef bool_pair
+
+LibrpaAnalyContMethod get_anacon_method(const std::string &method)
+{
+    if (method == "pade") return LIBRPA_ANACON_PADE;
+    if (method == "aaa") return LIBRPA_ANACON_AAA;
+    if (method == "ridge") return LIBRPA_ANACON_RIDGE;
+    throw std::runtime_error("anacon_method must be pade, aaa or ridge");
+}
+
+std::string get_anacon_string(LibrpaAnalyContMethod method) noexcept
+{
+    if (method == LIBRPA_ANACON_PADE) return "pade";
+    if (method == LIBRPA_ANACON_AAA) return "aaa";
+    if (method == LIBRPA_ANACON_RIDGE) return "ridge";
+    return "unset";
+}
 
 LibrpaTimeFreqGrid get_tfgrid_type(const std::string& grid_str)
 {
@@ -532,6 +553,22 @@ std::string get_routing_string(LibrpaParallelRouting routing)
     if (routing == LIBRPA_ROUTING_ATOMPAIR) return "atompair";
     if (routing == LIBRPA_ROUTING_RTAU) return "rtau";
     if (routing == LIBRPA_ROUTING_LIBRI) return "libri";
+    return "unset";
+}
+
+LibrpaMethod get_method(const std::string& method_str_low)
+{
+    if (method_str_low == "auto") return LIBRPA_METHOD_AUTO;
+    if (method_str_low == "space_time") return LIBRPA_METHOD_SPACE_TIME;
+    if (method_str_low == "conventional") return LIBRPA_METHOD_CONVENTIONAL;
+    throw std::runtime_error("Unknown method string: " + method_str_low);
+}
+
+std::string get_method_string(LibrpaMethod method)
+{
+    if (method == LIBRPA_METHOD_AUTO) return "auto";
+    if (method == LIBRPA_METHOD_SPACE_TIME) return "space_time";
+    if (method == LIBRPA_METHOD_CONVENTIONAL) return "conventional";
     return "unset";
 }
 

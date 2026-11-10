@@ -536,6 +536,17 @@ static std::complex<double> build_ft_wq_phase(const PeriodicBoundaryData& pbc,
            / static_cast<double>(pbc.get_n_cells_bvk());
 }
 
+static bool symmetry_qstar_wr_uses_full_grid_kpoints(
+    const librpa_int::SymmetryContext& ctx,
+    const PeriodicBoundaryData& pbc)
+{
+    // Decided by exact list lengths, so a reader that exports every SCF k-point
+    // and a reader that exports the irreducible list take the same path here;
+    // nothing depends on which program produced the input.
+    return librpa_int::classify_kpoint_input_form(ctx, pbc)
+           == librpa_int::KPointInputForm::FullGrid;
+}
+
 static bool can_use_symmetry_qstar_wr_restore(
     const librpa_int::SymmetryContext& ctx,
     const std::vector<SpeciesBasisLayout>& abf_layouts,
@@ -547,15 +558,66 @@ static bool can_use_symmetry_qstar_wr_restore(
     {
         return false;
     }
-    return ctx.available
-           && !ctx.kstars.empty()
-           && ctx.kstars.size() == pbc.kfrac_list.size()
-           && ctx.kstar_grid_mapping.size() == ctx.kstars.size()
-           && ctx.count_kstar_members() == static_cast<std::size_t>(pbc.get_n_cells_bvk())
-           && ctx.atom_to_type.size() == atom_nabf.size()
-           && ctx.input_coord_frac.size() == atom_nabf.size()
-           && pbc.klist.size() < static_cast<std::size_t>(pbc.get_n_cells_bvk())
-           && !ctx.rspace_operations.empty();
+    if (!ctx.available || ctx.kstars.empty() || ctx.rspace_operations.empty()
+        || ctx.atom_to_type.size() != atom_nabf.size()
+        || ctx.input_coord_frac.size() != atom_nabf.size()
+        || ctx.count_kstar_members() != static_cast<std::size_t>(pbc.get_n_cells_bvk()))
+    {
+        return false;
+    }
+    // `generate_kstar_grid_mapping` sizes the mapping to this k list and throws
+    // when a k-star is unmatched, so this single invariant states that the
+    // mapping belongs to the k list the caller passed.
+    return ctx.kstar_grid_mapping.size() == pbc.kfrac_list.size();
+}
+
+/// @brief Select the grid-mapping entry that carries each k-star's representative q-point.
+///
+/// Both k-point forms reduce to the same output: one entry per k-star.  A reduced
+/// list already has that layout, so its mapping is used as it stands.  A full list
+/// repeats each star once per member, so the recorded representative is selected
+/// from the same builder that the chi0 and EXX restores use.
+static std::vector<const librpa_int::SymmetryKStarGridMappingEntry*>
+select_symmetry_qstar_wr_star_entries(
+    const librpa_int::SymmetryContext& ctx,
+    const PeriodicBoundaryData& pbc)
+{
+    std::vector<const librpa_int::SymmetryKStarGridMappingEntry*> star_entries;
+    if (librpa_int::classify_kpoint_input_form(ctx, pbc)
+        == librpa_int::KPointInputForm::Reduced)
+    {
+        star_entries.reserve(ctx.kstar_grid_mapping.size());
+        for (const auto& entry : ctx.kstar_grid_mapping)
+        {
+            star_entries.push_back(&entry);
+        }
+        return star_entries;
+    }
+
+    const auto representative_indices =
+        librpa_int::build_symmetry_full_grid_kstar_representative_indices(ctx, pbc.kfrac_list);
+    if (representative_indices.size() != ctx.kstars.size())
+    {
+        throw LIBRPA_RUNTIME_ERROR(
+            "Full-grid k-point input has no usable k-star representatives");
+    }
+    star_entries.reserve(ctx.kstars.size());
+    for (std::size_t istar = 0; istar != ctx.kstars.size(); ++istar)
+    {
+        const int iq_rep = representative_indices[istar];
+        const auto entry_iter = std::find_if(
+            ctx.kstar_grid_mapping.cbegin(), ctx.kstar_grid_mapping.cend(),
+            [istar, iq_rep](const librpa_int::SymmetryKStarGridMappingEntry& entry) {
+                return entry.star_list_index == static_cast<int>(istar) && entry.iq_ibz == iq_rep;
+            });
+        if (entry_iter == ctx.kstar_grid_mapping.cend())
+        {
+            throw LIBRPA_RUNTIME_ERROR(
+                "Full-grid k-point input is missing a representative in the k-star grid mapping");
+        }
+        star_entries.push_back(&(*entry_iter));
+    }
+    return star_entries;
 }
 
 static bool can_symmetrize_symmetry_chi0_ibz_blocks(
@@ -644,18 +706,46 @@ static abf_rspace_complex_block_map_t accumulate_symmetry_full_wr_from_ibz_q(
     const bool use_full_grid_member_targets =
         full_grid_member_targets.size() == ctx.kstars.size();
 
-    for (const auto& star_mapping : ctx.kstar_grid_mapping)
+    // One entry per k-star, whichever k-point form the reader supplied.
+    std::vector<const SymmetryKStarGridMappingEntry*> star_entries =
+        select_symmetry_qstar_wr_star_entries(ctx, pbc);
+    if (star_entries.size() != ctx.kstars.size())
     {
+        throw LIBRPA_RUNTIME_ERROR(
+            "K-star grid mapping does not provide one representative per k-star");
+    }
+
+    std::size_t stars_without_blocks = 0;
+    for (const auto* star_entry : star_entries)
+    {
+        const auto& star_mapping = *star_entry;
         const auto& star = ctx.kstars.at(static_cast<std::size_t>(star_mapping.star_list_index));
 
         const auto q_ibz_internal = pbc.klist.at(static_cast<std::size_t>(star_mapping.iq_ibz));
         const auto q_ibz_frac = pbc.kfrac_list.at(static_cast<std::size_t>(star_mapping.iq_ibz));
         const auto blocks_ibz_local =
             collect_symmetry_abf_ibz_blocks_for_q(Wc_q, q_ibz_internal);
+        // Decide on the representatives before the gather: with more than one
+        // rank the gather materialises a block for every atom pair, so a
+        // representative that no rank owns would come back as zero-filled blocks
+        // and would look present. Every rank must still take part in the gather,
+        // so the result of this reduction only steers the counting.
+        const int has_local_blocks = blocks_ibz_local.empty() ? 0 : 1;
+        int has_blocks = 0;
+        comm_h.allreduce(&has_local_blocks, &has_blocks, 1, MPI_MAX);
         auto blocks_ibz =
             gather_symmetry_ibz_blocks_collective(comm_h, blocks_ibz_local, atom_nabf);
-        if (local_target_pairs.empty() || blocks_ibz.empty())
+        if (has_blocks == 0)
         {
+            // No rank holds a block for this representative, so the star is
+            // dropped from `W(R)` and nothing else reports it.
+            ++stars_without_blocks;
+            continue;
+        }
+        if (local_target_pairs.empty())
+        {
+            // This rank owns no target atom pairs, so the star contributes
+            // nothing here; other ranks still accumulate it.
             continue;
         }
         const auto rotation_atom_pairs =
@@ -713,7 +803,13 @@ static abf_rspace_complex_block_map_t accumulate_symmetry_full_wr_from_ibz_q(
         }
     }
 
-
+    if (stars_without_blocks != 0)
+    {
+        librpa_int::global::lib_printf_root(
+            "K-star restore skipped %zu of %zu k-stars because their representative q-point "
+            "carries no Wc(q) block; `W(R)` lacks their screening\n",
+            stars_without_blocks, ctx.kstars.size());
+    }
 
     return convert_dense_rspace_blocks_to_row_major(blocks_by_R_full);
 }
@@ -1918,7 +2014,9 @@ CorrEnergy compute_RPA_correlation(LibrpaParallelRouting routing, const Chi0 &ch
         for (const auto &q : chi0.active_qpoints())
         {
             atom_mapping<ComplexMatrix>::pair_t_old q_MuNupi;
-            if (!chi0.get_chi0_q().empty()) q_MuNupi = freq_q_MuNupi.at(q);
+            // The R-tau routing keeps each q on one rank. The other ranks add zero.
+            const auto found_q = freq_q_MuNupi.find(q);
+            if (found_q != freq_q_MuNupi.end()) q_MuNupi = found_q->second;
             const auto MuNupi = q_MuNupi;
             pi_freq_q[freq][q].create(range_all, range_all);
 
@@ -5120,10 +5218,14 @@ atom_mapping<std::map<Vector3_Order<int>, matrix_m<complex<double>>>>::pair_t_ol
     if (!has_full_q && use_symmetry_context &&
         can_use_symmetry_qstar_wr_restore(symmetry_context, abf_layouts, atom_nabf, pbc))
     {
-        lib_printf_root(
-            "GW symmetry accumulates full `W(R)` directly from IBZ q-stars\n");
-        Wc_R = accumulate_symmetry_full_wr_from_ibz_q(
-            comm_h, symmetry_context, abf_layouts, Wc_q, pbc, Rlist, atom_nabf);
+        if (symmetry_qstar_wr_uses_full_grid_kpoints(symmetry_context, pbc))
+            lib_printf_root(
+                "GW symmetry accumulates full `W(R)` from full-BZ k input via IBZ q-stars\n");
+        else
+            lib_printf_root(
+                "GW symmetry accumulates full `W(R)` directly from IBZ q-stars\n");
+        Wc_R = accumulate_symmetry_full_wr_from_ibz_q(comm_h, symmetry_context, abf_layouts, Wc_q,
+                                                      pbc, Rlist, atom_nabf);
         comm_h.barrier();
         lib_printf_root("Done converting Wc q -> R\n");
         return Wc_R;

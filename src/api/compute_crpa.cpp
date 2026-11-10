@@ -469,14 +469,29 @@ LibrpaCrpaContinuedResult* librpa_continue_crpa(const LibrpaCrpaResult* result, 
                                                 const double* queries_ha_ri, int n_parameters,
                                                 double tolerance_ha)
 {
-    if (!result || n_queries <= 0 || !queries_ha_ri)
-        throw LIBRPA_INVALID_ARGUMENT("missing cRPA continuation queries");
+    LibrpaOptions options;
+    librpa_init_options(&options);
+    options.n_params_anacon = n_parameters;
+    return librpa_continue_crpa_with_options(result, n_queries, queries_ha_ri, &options,
+                                             tolerance_ha);
+}
+
+LibrpaCrpaContinuedResult* librpa_continue_crpa_with_options(const LibrpaCrpaResult* result,
+                                                             int n_queries,
+                                                             const double* queries_ha_ri,
+                                                             const LibrpaOptions* options,
+                                                             double tolerance_ha)
+{
+    if (!result || !options || n_queries <= 0 || !queries_ha_ri)
+        throw LIBRPA_INVALID_ARGUMENT("missing cRPA continuation options or queries");
     std::vector<std::complex<double>> queries;
     for (int i = 0; i < n_queries; ++i)
         queries.emplace_back(queries_ha_ri[2 * i], queries_ha_ri[2 * i + 1]);
     auto output = std::make_unique<LibrpaCrpaContinuedResult>();
-    output->tensors = librpa_int::continue_crpa_interactions(result->data().values, queries,
-                                                             n_parameters, tolerance_ha);
+    output->tensors = librpa_int::continue_crpa_interactions(
+        result->data().values, queries, options->n_params_anacon, tolerance_ha,
+        options->anacon_method, options->anacon_ridge_lambda, options->anacon_ridge_den_weight,
+        options->anacon_aaa_tolerance);
     return output.release();
 }
 

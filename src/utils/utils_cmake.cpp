@@ -31,6 +31,8 @@ const std::string& cmake_info_storage()
         << "| Use LibRI                : " << envs::use_libri << "\n"
         << "| LibRI include directory  : " << envs::libri_include_dir << "\n"
         << "| LibComm include directory: " << envs::libcomm_include_dir << "\n"
+        << "| cereal include directory : " << envs::cereal_include_dir << "\n"
+        << "| Third-party sources      : " << envs::thirdparty_sources << "\n"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
         << "| DDLA_USE_CCL             : " << envs::ddla_use_ccl << "\n"
         << "| DDLA_USE_GPU_CPU_TUNNEL  : " << envs::ddla_use_gpu_cpu_tunnel << "\n"

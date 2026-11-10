@@ -229,6 +229,7 @@ This will run the LibRPA calculation using 4 MPI processes, each with 4 OpenMP t
 ```{toctree}
 :maxdepth: 1
 
+Conventional k-space RPA <conventional_rpa>
 QSGW <qsgw>
 cRPA <crpa>
 Hartree AO operator <hartree>

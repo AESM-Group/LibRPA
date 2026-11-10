@@ -3,8 +3,11 @@
 #include <cassert>
 #include <cmath>
 #include <complex>
+#include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <memory>
@@ -3120,7 +3123,8 @@ void test_complex_soc_bubble_matches_lindhard()
     Chi0 chi(ds.mf, ds.basis_wfc, ds.basis_aux, ds.pbc, ds.symmetry_context, ds.tfg,
              ds.scfk_blacs_ctxt, ds.desc_wfc_kb_full, false, false);
     chi.gf_threshold = chi.libri_threshold_C = chi.libri_threshold_G = 0;
-    chi.build(LIBRPA_ROUTING_LIBRI, ds.cs_data, pairs, ds.basis_aux, no_shrink, ds.blacs_h);
+    chi.build(LIBRPA_ROUTING_LIBRI, LIBRPA_METHOD_AUTO, ds.cs_data, pairs, ds.basis_aux, no_shrink,
+              ds.blacs_h);
     double maximum = 0;
     for (const double frequency : ds.tfg.get_freq_nodes())
         for (int iq = 0; iq < 4; ++iq)
@@ -4614,6 +4618,200 @@ void test_wq_to_wr_symmetry_collective_handles_empty_local_rank()
     }
 }
 
+void test_wq_to_wr_full_grid_k_input_restores_from_ibz_stars()
+{
+    // FHI-aims hands the shrink run the full-BZ SCF k list, so the symmetry
+    // context folds that list into IBZ q-stars while pbc.klist keeps every
+    // full-grid point.  The W(R) restore must pick the star representatives
+    // and still reproduce the direct full-BZ transform.
+    const auto pbc_full = make_wq_full_pbc();
+    auto ctx_full = make_two_atom_inversion_context(pbc_full);
+    assert(ctx_full.kstars.size() < pbc_full.kfrac_list.size());
+    assert(ctx_full.count_kstar_members() == pbc_full.kfrac_list.size());
+    assert(ctx_full.kstar_grid_mapping.size() == pbc_full.kfrac_list.size());
+
+    AtomicBasis basis_abf(std::vector<std::size_t>{1, 1});
+    basis_abf.set_l_shells({{0}, {0}});
+
+    // The production shrink path evaluates Wc only at the IBZ q points.
+    atom_mapping<std::map<Vector3_Order<double>, matrix_m<std::complex<double>>>>::pair_t_old
+        wq_full;
+    atom_mapping<std::map<Vector3_Order<double>, matrix_m<std::complex<double>>>>::pair_t_old
+        wq_ibz;
+    const auto representative_indices =
+        librpa_int::build_symmetry_full_grid_kstar_representative_indices(
+            ctx_full, pbc_full.kfrac_list);
+    assert(representative_indices.size() == 2);
+    if (librpa_int::global::mpi_comm_global_h.is_root())
+    {
+        const auto gamma_blocks = scalar_wq_to_blocks({
+            {0, {{0, {1.5, 0.0}}, {1, {0.4, 0.0}}}},
+            {1, {{0, {0.4, 0.0}}, {1, {1.5, 0.0}}}}});
+        const auto rep_blocks = scalar_wq_to_blocks({
+            {0, {{0, {2.1, 0.0}}, {1, {-0.7, 0.5}}}},
+            {1, {{0, {-0.7, -0.5}}, {1, {1.4, 0.0}}}}});
+        const auto inversion_minus_blocks = scalar_wq_to_blocks({
+            {0, {{0, {1.4, 0.0}}, {1, {-0.7, -0.5}}}},
+            {1, {{0, {-0.7, 0.5}}, {1, {2.1, 0.0}}}}});
+
+        add_scalar_wq_blocks(wq_full, pbc_full.klist.at(0), gamma_blocks);
+        add_scalar_wq_blocks(wq_full, pbc_full.klist.at(1), rep_blocks);
+        add_scalar_wq_blocks(wq_full, pbc_full.klist.at(2), inversion_minus_blocks);
+
+        for (const auto ik: representative_indices)
+        {
+            const auto &kfrac = pbc_full.kfrac_list.at(ik);
+            if (std::abs(kfrac.x) < 1e-8)
+            {
+                add_scalar_wq_blocks(wq_ibz, pbc_full.klist.at(ik), gamma_blocks);
+            }
+            else if (kfrac.x < 0.5)
+            {
+                add_scalar_wq_blocks(wq_ibz, pbc_full.klist.at(ik), rep_blocks);
+            }
+            else
+            {
+                add_scalar_wq_blocks(wq_ibz, pbc_full.klist.at(ik), inversion_minus_blocks);
+            }
+        }
+    }
+
+    const TFGrids dummy_tfg;
+    SymmetryContext no_symmetry;
+    const auto expected = librpa_int::FT_Wc_q2R(
+        librpa_int::global::mpi_comm_global_h, basis_abf, no_symmetry, wq_full,
+        dummy_tfg, pbc_full, pbc_full.Rlist, false, "", false);
+    const auto restored = librpa_int::FT_Wc_q2R(
+        librpa_int::global::mpi_comm_global_h, basis_abf, ctx_full, wq_ibz,
+        dummy_tfg, pbc_full, pbc_full.Rlist, false, "", true);
+
+    assert_wq_rspace_maps_close(restored, expected);
+    if (!librpa_int::global::mpi_comm_global_h.is_root())
+    {
+        assert(expected.empty());
+        assert(restored.empty());
+    }
+}
+
+void test_wq_to_wr_full_grid_k_input_rejects_unresolved_representatives()
+{
+    // A full-BZ k list whose k-stars cannot be folded onto distinct
+    // representative k-points must be reported, not silently treated as a
+    // reduced input.  Falling through would walk the grid mapping once per
+    // member k-point and repeat every star, inflating W(R) without a warning.
+    const auto pbc_full = make_wq_full_pbc();
+    auto ctx = make_two_atom_inversion_context(pbc_full);
+    assert(ctx.kstars.size() < pbc_full.kfrac_list.size());
+
+    // Collapse every star onto the same representative k-point so the shared
+    // builder cannot resolve a distinct index per star and returns an empty list.
+    for (auto& star : ctx.kstars)
+    {
+        star.k_ibz = pbc_full.kfrac_list.at(0);
+    }
+    assert(librpa_int::build_symmetry_full_grid_kstar_representative_indices(
+               ctx, pbc_full.kfrac_list)
+               .empty());
+
+    AtomicBasis basis_abf(std::vector<std::size_t>{1, 1});
+    basis_abf.set_l_shells({{0}, {0}});
+
+    atom_mapping<std::map<Vector3_Order<double>, matrix_m<std::complex<double>>>>::pair_t_old
+        wq_ibz;
+    if (librpa_int::global::mpi_comm_global_h.is_root())
+    {
+        add_scalar_wq_blocks(wq_ibz, pbc_full.klist.at(0),
+                             scalar_wq_to_blocks({{0, {{0, {1.5, 0.0}}}},
+                                                  {1, {{1, {1.5, 0.0}}}}}));
+    }
+
+    const TFGrids dummy_tfg;
+    bool raised = false;
+    std::string message;
+    try
+    {
+        librpa_int::FT_Wc_q2R(librpa_int::global::mpi_comm_global_h, basis_abf, ctx, wq_ibz,
+                              dummy_tfg, pbc_full, pbc_full.Rlist, false, "", true);
+    }
+    catch (const std::exception& ex)
+    {
+        raised = true;
+        message = ex.what();
+    }
+    assert(raised);
+    assert(message.find("no usable k-star representatives") != std::string::npos);
+}
+
+void test_wq_to_wr_reports_star_without_blocks_on_every_rank()
+{
+    // A star whose representative q-point carries no Wc(q) block on any rank is
+    // dropped from W(R). With more than one rank the collective gather fills a
+    // block for every atom pair, so the missing representative comes back as a
+    // zero-filled block and looks present. The count must be decided before the
+    // gather, otherwise the report only appears on a single rank.
+    const auto pbc_full = make_wq_full_pbc();
+    auto ctx_full = make_two_atom_inversion_context(pbc_full);
+    const auto representative_indices =
+        librpa_int::build_symmetry_full_grid_kstar_representative_indices(
+            ctx_full, pbc_full.kfrac_list);
+    assert(representative_indices.size() == 2);
+
+    AtomicBasis basis_abf(std::vector<std::size_t>{1, 1});
+    basis_abf.set_l_shells({{0}, {0}});
+
+    // Supply Wc(q) only for the Gamma representative; the second star's
+    // representative is missing on every rank.
+    atom_mapping<std::map<Vector3_Order<double>, matrix_m<std::complex<double>>>>::pair_t_old
+        wq_missing;
+    if (librpa_int::global::mpi_comm_global_h.is_root())
+    {
+        const auto gamma_blocks = scalar_wq_to_blocks({
+            {0, {{0, {1.5, 0.0}}, {1, {0.4, 0.0}}}},
+            {1, {{0, {0.4, 0.0}}, {1, {1.5, 0.0}}}}});
+        for (const auto ik : representative_indices)
+        {
+            if (std::abs(pbc_full.kfrac_list.at(ik).x) < 1e-8)
+            {
+                add_scalar_wq_blocks(wq_missing, pbc_full.klist.at(ik), gamma_blocks);
+            }
+        }
+    }
+
+    // Capture the diagnostic through the printf redirect. The message is
+    // root-only, so only the root rank writes and checks it.
+    const std::string capture_path = "wq_to_wr_missing_star_capture.txt";
+    const TFGrids dummy_tfg;
+    const bool is_root = librpa_int::global::mpi_comm_global_h.is_root();
+    FILE *saved_redirect = librpa_int::global::pfile_redirect;
+    // Capture through the printf redirect. Only the root rank touches the file:
+    // if another rank removed the stale file while the root held it open, the
+    // readback would open a path that no longer exists and read nothing.
+    FILE *capture = nullptr;
+    if (is_root)
+    {
+        std::remove(capture_path.c_str());
+        capture = std::fopen(capture_path.c_str(), "w");
+        assert(capture != nullptr);
+        librpa_int::global::pfile_redirect = capture;
+    }
+    const auto restored = librpa_int::FT_Wc_q2R(
+        librpa_int::global::mpi_comm_global_h, basis_abf, ctx_full, wq_missing,
+        dummy_tfg, pbc_full, pbc_full.Rlist, false, "", true);
+    if (is_root)
+    {
+        std::fflush(capture);
+        std::fclose(capture);
+        librpa_int::global::pfile_redirect = saved_redirect;
+        std::ifstream readback(capture_path);
+        const std::string text((std::istreambuf_iterator<char>(readback)),
+                               std::istreambuf_iterator<char>());
+        readback.close();
+        std::remove(capture_path.c_str());
+        assert(text.find("K-star restore skipped 1 of 2 k-stars") != std::string::npos);
+        assert(!restored.empty());
+    }
+}
+
 void test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(const BlacsCtxtHandler &blacs_h)
 {
     const auto pbc_full = make_wq_full_pbc();
@@ -4957,6 +5155,9 @@ int main(int argc, char *argv[])
         test_bn_kstar_green_function_matches_explicit_full_bz_on_odd_and_even_meshes();
         test_wq_to_wr_symmetry_reduced_q_matches_full_bz();
         test_wq_to_wr_symmetry_collective_handles_empty_local_rank();
+        test_wq_to_wr_full_grid_k_input_restores_from_ibz_stars();
+        test_wq_to_wr_full_grid_k_input_rejects_unresolved_representatives();
+        test_wq_to_wr_reports_star_without_blocks_on_every_rank();
         test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(blacs_h);
         test_gamma_only_dense_wq_fourier_weight_scales_as_inverse_bvk_cells();
         test_abf_space_wing_rewrite_matches_coulomb_basis(blacs_h);

@@ -4,7 +4,59 @@
 
 ### Breaking changes
 
+- Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone download and source-preparation scripts remain compatible with 3.13.
+- Stopped shipping third-party sources. Default configuration uses network access, cached archives or prepared sources. For offline builds, download archives with `cmake/LibRPADownloadThirdparty.cmake` on a connected machine and transfer them to the build machine.
+- Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
 - Removed automatic loading of `cmake.inc` and the `LIBRPA_USE_CMAKE_INC` build option. Use CMake `-C` initial cache files or `-D` arguments instead ([#85](https://github.com/AESM-Group/LibRPA/issues/85)).
+
+### Added
+
+- Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and separate download and source-preparation scripts with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
+- Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibComm/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `GREENX_PATH` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
+- Added opt-in AAA and ridge analytic continuation for GW/QSGW/cRPA, retaining
+  the original Pade default. Set `anacon_method=aaa` or `anacon_method=ridge`;
+  ridge uses coefficient penalty `1e-12` and denominator weight `10` unless
+  overridden. Values and derivatives are shared by quasiparticle solvers,
+  spectra, resampling and QSGW matrices. Rebuild host bindings for the extended
+  options structure. Unmet AAA tolerance is reported; numerical continuation
+  failures leave affected GW diagnostic states or spectral frequencies as NaN.
+  The standalone cRPA fit retains all source nodes independently of GW counts.
+- Added conventional k-space RPA energies, for all parallel routings and for
+  builds without LibRI. Required replicated scalar or collinear eigenvectors on
+  the full k mesh, `use_symmetry_rpa = false`, and `use_shrink_abfs = false`.
+- Added the option `chi0_method` (`auto`, `space_time`, `conventional`) and the
+  enum `LibrpaMethod`. `auto` selected the conventional method on frequency-only
+  grids such as `tfgrids_type = GL`, and the space-time method otherwise.
+  `conventional` also used the frequency nodes of grids with time nodes, such as
+  `minimax`.
+- Rejected frequency-only grids and `chi0_method = conventional` at the start
+  of GW and cRPA calculations.
+- Stopped RPA energy calculations at the start in builds without LibRI when
+  `use_scalapack_ecrpa = true` with the `atompair` or `libri` routing. They
+  previously stopped after the response was built.
+
+### Changed
+
+- GreenX selection now uses the supplied target, source path or installation prefix, with managed sources as the default. The legacy selection switch is deprecated and ignored.
+- Renamed ELPA source-build settings to `LIBRPA_ELPA_KERNEL`, `LIBRPA_ELPA_OPENMP`, `LIBRPA_ELPA_CONFIGURE_ARGS` and `LIBRPA_ELPA_LIBS`. Source versions now come from the selected source tree; the manifest controls the downloaded release.
+- Standardized installation prefix options as `LIBDDLA_PATH`, `ELPA_PATH` and `GREENX_PATH`.
+- Unified ELPA selection under `LIBRPA_USE_ELPA`, which defaults to `OFF`. Setting it to `ON` builds managed sources when no dependency is supplied. A parent ELPA target, source path or installation prefix enables ELPA automatically.
+- Updated cereal to `d81e2f7df7b334fee057e53017388d02e555a836`.
+- Updated LibRI to `ab81ac9`, which includes the portable allocator cleanup. LibRPA no longer patches LibRI. Headers of `a0661cb` with the former patch now have status `unpinned`.
+
+### Fixed
+
+- Detected parent greenX targets automatically, avoiding duplicate targets.
+- Corrected the LibDDLA revision in the license list to `0d576d4`.
+- Passed the OpenMP runtime to the ELPA source build with MKL, so that ELPA's `configure` can link `mkl_intel_thread`.
+
+- Fixed the `map::at` failure of RPA energies with `parallel_routing = rtau` for
+  more than one q point on more than one MPI rank.
+- Restored the full-BZ `W(R)` reconstruction for the auxiliary-basis shrink
+  path when the k list holds every Brillouin-zone member, which is how the
+  FHI-aims reader exports its SCF k-points. Both k-point forms, the reduced
+  (IBZ) list and the full-Brillouin-zone list, are now accepted and reach the
+  same accumulation.
 
 ## [0.9.0] - 2026-10-31
 

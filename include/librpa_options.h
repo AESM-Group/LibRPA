@@ -79,6 +79,8 @@ typedef struct
     /*!
      * Available driver values: `GL`, `GC-I`, `GL-II`, `minimax`, `evenspaced`, `evenspaced_tf`.
      * The driver maps the unset API value to `minimax`.
+     * Only `minimax` and `evenspaced_tf` have time nodes.
+     * The other grids have frequency nodes only. See `chi0_method`.
      *
      * @par Default
      * LIBRPA_TFGRID_UNSET
@@ -250,6 +252,27 @@ typedef struct
     /* ============================================================================= */
     /* RPA specific */
 
+    //! Method to compute the response function chi0.
+    /*!
+     * Available driver values: `auto`, `space_time`, `conventional`.
+     * `auto` selects `space_time` for grids with time nodes, and `conventional` for
+     * frequency-only grids. The unset value is the same as `auto`.
+     *
+     * `space_time` uses the real-space Green's function at the time nodes, and needs a grid
+     * with time nodes.
+     *
+     * `conventional` sums over band transitions at the frequency nodes of any grid.
+     * It is available for RPA energies only. It requires replicated scalar or collinear
+     * eigenvectors on the full k mesh, `use_symmetry_rpa = false`, and
+     * `use_shrink_abfs = false`.
+     *
+     * GW and cRPA use `space_time`, and stop on a frequency-only grid or with `conventional`.
+     *
+     * @par Default
+     * LIBRPA_METHOD_AUTO
+     */
+    LibrpaMethod chi0_method;
+
     //! Threshold for real-space Green's function in response function calculation.
     //! @par Default
     //! 0.0
@@ -294,16 +317,37 @@ typedef struct
     /* ============================================================================= */
     /* GW specific */
 
-    //! Number of parameters for analytic continuation.
+    //! Analytic continuation method for GW energies, spectra and QSGW matrices.
+    //! Available driver values: `pade`, `aaa`, `ridge`.
     //! @par Default
-    //! -1 (uses all `nfreq` data)
+    //! LIBRPA_ANACON_PADE
+    LibrpaAnalyContMethod anacon_method;
+
+    //! Relative maximum source residual requested by AAA.
+    //! @par Default
+    //! 1.0e-13
+    double anacon_aaa_tolerance;
+
+    //! Ridge penalty on scaled nonconstant rational coefficients.
+    //! @par Default
+    //! 1.0e-12
+    double anacon_ridge_lambda;
+
+    //! Relative ridge penalty on denominator coefficients.
+    //! @par Default
+    //! 10.0
+    double anacon_ridge_den_weight;
+
+    //! Pade selected-node count, AAA support cap, or ridge coefficient count.
+    //! @par Default
+    //! -1 (uses the source point count)
     int n_params_anacon;
 
-    //! Number of parameters for the source-grid Pade used to resample GW analytic continuation.
+    //! Number of parameters for the source-grid fit used to resample GW analytic continuation.
     //! Negative values use `n_params_anacon`.
     //! This parameter only works when resampling imaginary-frequency grids is enabled via
-    //! a different frequency grids type (`anacon_tfgrids_type`) or number of grids points (`anacon_nfreq`)
-    //! from the direct evaluation of \f$\Sigma_c(i\omega)\f$.
+    //! a different frequency grids type (`anacon_tfgrids_type`) or number of grids points
+    //! (`anacon_nfreq`) from the direct evaluation of \f$\Sigma_c(i\omega)\f$.
     //! @par Default
     //! -1
     //! @par Status
@@ -340,7 +384,7 @@ typedef struct
     /*!
      * Available values:
      * - 0: damped residual-mixing self-consistent solver
-     * - 1: quasi-Newton self-consistent solver using the Pade derivative
+     * - 1: quasi-Newton self-consistent solver using the selected continuation derivative
      * - 2: perturbative solver linearized at the mean-field energy
      *
      * @par Default

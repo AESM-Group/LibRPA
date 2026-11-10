@@ -27,6 +27,30 @@
       />
     </testcase>
     
+    <testcase name="Water molecule in box, conventional GL grid (aims input)" directory="rpa_aims_mole_H2O_GL">
+      <run ntasks_disable="none"
+           nthreads_disable="none"
+           ntasks_enable="none"
+           nthreads_enable="none"
+      />
+      <validate name="Correlation energy"
+                regex="Total EcRPA: \s+([-+]?\d*\.\d+)"
+                comparison="cmp_float.abs_diff(1e-7)"
+      />
+    </testcase>
+
+    <testcase name="Water molecule in box, conventional on minimax grid (aims input)" directory="rpa_aims_mole_H2O_conv_minimax">
+      <run ntasks_disable="none"
+           nthreads_disable="none"
+           ntasks_enable="none"
+           nthreads_enable="none"
+      />
+      <validate name="Correlation energy"
+                regex="Total EcRPA: \s+([-+]?\d*\.\d+)"
+                comparison="cmp_float.abs_diff(1e-7)"
+      />
+    </testcase>
+
     <testcase name="BN (abacus input)" directory="rpa_abacus_BN_libri">
       <build require_libri="true"
       />
@@ -799,6 +823,23 @@
       <validate name="QP band structure (nosym)"
                 file_test="librpa/GW_band_spin_*.dat"
                 file_refr="librpa/kpara_nosym_np4/GW_band_spin_*.dat"
+                comparison="cmp_table.abs_diff(1e-4)"
+      />
+    </testcase>
+
+    <testcase name="LiH, k333 with symmetry and auxiliary-basis shrink (aims input)"
+              directory="g0w0_aims_LiH_k333_sym_shrink_libri">
+      <build require_libri="true"
+      />
+      <run ntasks_disable="none"
+           nthreads_disable="none"
+           ntasks_enable="none"
+           nthreads_enable="none"
+      />
+      <validate name="Quasi-particle energies on k-grid (shrink, symmetry)"
+                regex="State\s+occ\s+e_mf\s+v_xc\s+v_exx\s+ReSigc\s+ImSigc\s+e_qp"
+                headers="2"
+                rows="6"
                 comparison="cmp_table.abs_diff(1e-4)"
       />
     </testcase>

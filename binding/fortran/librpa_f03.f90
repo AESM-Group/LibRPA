@@ -74,6 +74,14 @@ module librpa_f03
    !> @brief Automatic selection value. LibRPA will choose appropriate setting.
    integer, parameter :: LIBRPA_AUTO = -51
 
+   !> @name Analytic continuation methods
+   !> @brief Pade is the default.
+   !> @{
+   integer, parameter, public :: LIBRPA_ANACON_PADE = 0
+   integer, parameter, public :: LIBRPA_ANACON_AAA = 1
+   integer, parameter, public :: LIBRPA_ANACON_RIDGE = 2
+   !> @}
+
    !> @name Parallel routing strategies
    !> @brief Specifies how computation is distributed across MPI processes.
    !> @{
@@ -94,6 +102,15 @@ module librpa_f03
    integer, parameter, public :: LIBRPA_TFGRID_MINIMAX = 3              !< Minimax grid
    integer, parameter, public :: LIBRPA_TFGRID_EVENSPACED = 4           !< Evenly spaced
    integer, parameter, public :: LIBRPA_TFGRID_EVENSPACED_TF = 5        !< Evenly spaced in time-frequency
+   !> @}
+
+   !> @name Methods on the time-frequency grid
+   !> @brief Method to compute a quantity, for example chi0_method.
+   !> @{
+   integer, parameter, public :: LIBRPA_METHOD_UNSET = LIBRPA_UNSET     !< Unset
+   integer, parameter, public :: LIBRPA_METHOD_AUTO = LIBRPA_AUTO       !< Select from the grid type
+   integer, parameter, public :: LIBRPA_METHOD_SPACE_TIME = 0           !< Real space and imaginary time
+   integer, parameter, public :: LIBRPA_METHOD_CONVENTIONAL = 1         !< Reciprocal space and imaginary frequency
    !> @}
 
    !> @name Angular basis ordering conventions
@@ -181,6 +198,7 @@ module librpa_f03
       integer(c_int) :: option_bvk_remap
 
       ! RPA specific
+      integer(c_int) :: chi0_method
       real(c_double) :: gf_threshold
       integer(c_int) :: libri_chi0_collect_s0_chunk
       integer(c_long_long) :: libri_chi0_collect_max_bytes
@@ -190,6 +208,10 @@ module librpa_f03
       integer(c_int) :: use_shrink_chi
 
       ! GW specific
+      integer(c_int) :: anacon_method
+      real(c_double) :: anacon_aaa_tolerance
+      real(c_double) :: anacon_ridge_lambda
+      real(c_double) :: anacon_ridge_den_weight
       integer(c_int) :: n_params_anacon
       integer(c_int) :: n_params_anacon_resample
       integer(c_int) :: anacon_tfgrids_type
@@ -306,6 +328,8 @@ module librpa_f03
       integer :: n_bands_exclude_sigc
       !> BvK remapping option for band interpolation: 0 single nearest image, 1 Wigner-Seitz.
       integer :: option_bvk_remap
+      !> Method to compute chi0; use LIBRPA_METHOD_* constants.
+      integer :: chi0_method
       !> Real-space Green's function screening threshold for response function.
       real(dp) :: gf_threshold
       !> Number of first-index atoms per LibRI chi0 collection chunk.
@@ -318,9 +342,17 @@ module librpa_f03
       logical :: use_shrink_abfs
       !> Experimental: build response matrices in the compressed auxiliary basis.
       logical :: use_shrink_chi
-      !> Number of parameters for analytic continuation.
+      !> Analytic continuation method: LIBRPA_ANACON_*; default Pade.
+      integer :: anacon_method
+      !> Relative AAA source residual tolerance, default 1e-13.
+      real(dp) :: anacon_aaa_tolerance
+      !> Ridge coefficient penalty, default 1e-12.
+      real(dp) :: anacon_ridge_lambda
+      !> Relative ridge penalty for denominator coefficients, default 10.
+      real(dp) :: anacon_ridge_den_weight
+      !> Pade selected-node count, AAA support cap, or ridge coefficient count.
       integer :: n_params_anacon
-      !> Parameters for the source-grid Pade used to resample GW analytic continuation.
+      !> Parameters for the source-grid fit used to resample GW analytic continuation.
       integer :: n_params_anacon_resample
       !> Optional GW analytic-continuation frequency grid type; unset uses original grid.
       integer :: anacon_tfgrids_type
@@ -827,7 +859,8 @@ module librpa_f03
          real(c_double), dimension(*), intent(in) :: wfc_imag
       end subroutine librpa_set_wfc_band_c
 
-      subroutine librpa_set_wfc_band_spinor_c(h, ik_band, nstates_local, nbasis_local, wfc_up_real, wfc_up_imag, wfc_dn_real, wfc_dn_imag) &
+      subroutine librpa_set_wfc_band_spinor_c(h, ik_band, nstates_local, nbasis_local, &
+            wfc_up_real, wfc_up_imag, wfc_dn_real, wfc_dn_imag) &
             bind(c, name="librpa_set_wfc_band_spinor")
          import :: c_ptr, c_int, c_double
          type(c_ptr), value :: h
@@ -1185,12 +1218,17 @@ contains
       call sync_opt(opts%n_bands_exclude_chi0,    opts%opts_c%n_bands_exclude_chi0, direction)
       call sync_opt(opts%n_bands_exclude_sigc,    opts%opts_c%n_bands_exclude_sigc, direction)
       call sync_opt(opts%option_bvk_remap,        opts%opts_c%option_bvk_remap,        direction)
+      call sync_opt(opts%chi0_method,             opts%opts_c%chi0_method,             direction)
       call sync_opt(opts%gf_threshold,            opts%opts_c%gf_threshold,            direction)
       call sync_opt(opts%libri_chi0_collect_s0_chunk, opts%opts_c%libri_chi0_collect_s0_chunk, direction)
       call sync_opt(opts%libri_chi0_collect_max_bytes, opts%opts_c%libri_chi0_collect_max_bytes, direction)
       call sync_opt(opts%use_scalapack_ecrpa,     opts%opts_c%use_scalapack_ecrpa,     direction)
       call sync_opt(opts%use_shrink_abfs,         opts%opts_c%use_shrink_abfs,         direction)
       call sync_opt(opts%use_shrink_chi,          opts%opts_c%use_shrink_chi,          direction)
+      call sync_opt(opts%anacon_method, opts%opts_c%anacon_method, direction)
+      call sync_opt(opts%anacon_aaa_tolerance, opts%opts_c%anacon_aaa_tolerance, direction)
+      call sync_opt(opts%anacon_ridge_lambda, opts%opts_c%anacon_ridge_lambda, direction)
+      call sync_opt(opts%anacon_ridge_den_weight, opts%opts_c%anacon_ridge_den_weight, direction)
       call sync_opt(opts%n_params_anacon,         opts%opts_c%n_params_anacon,         direction)
       call sync_opt(opts%n_params_anacon_resample, opts%opts_c%n_params_anacon_resample, direction)
       call sync_opt(opts%anacon_tfgrids_type,     opts%opts_c%anacon_tfgrids_type,     direction)
@@ -2780,7 +2818,8 @@ contains
       call sync_opts(opts, SYNC_OPTS_F2C)
       if (dp == c_double) then
          call librpa_get_g0w0_sigc_band_k_c(this%ptr_c_handle, opts%opts_c, n_spins_c, n_kpts_band_this_c, &
-                                            iks_band_this_c, i_state_low_c, i_state_high_c, vxc_band, vexx_band, sigc_re_c, sigc_im_c)
+                                            iks_band_this_c, i_state_low_c, i_state_high_c, &
+                                            vxc_band, vexx_band, sigc_re_c, sigc_im_c)
       else
          allocate(vexx_c(n_states_calc, max(n_kpts_band_this, 1), n_spins))
          allocate(vxc_c(n_states_calc, max(n_kpts_band_this, 1), n_spins))
@@ -2827,8 +2866,10 @@ contains
       real(dp), contiguous, dimension(:), intent(in) :: omegas
       real(dp), dimension(i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(in) :: vxc_band
       real(dp), dimension(i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(in) :: vexx_band
-      real(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(inout) :: spectral_function_band
-      complex(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(inout), optional :: sigc_band
+      real(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), &
+            intent(inout) :: spectral_function_band
+      complex(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), &
+            intent(inout), optional :: sigc_band
 
       integer(c_int), allocatable :: iks_band_this_c(:)
       real(c_double), allocatable :: omegas_c(:)

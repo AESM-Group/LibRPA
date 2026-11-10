@@ -951,6 +951,9 @@ extern int requested_option_dielect_func;
 // TODO: consider move to public API
 std::string format_runtime_options(const librpa::Options &opts) noexcept;
 
+LibrpaAnalyContMethod get_anacon_method(const std::string &method);
+std::string get_anacon_string(LibrpaAnalyContMethod method) noexcept;
+
 LibrpaTimeFreqGrid get_tfgrid_type(const std::string& grid_str);
 
 std::string get_tfgrid_string(const LibrpaTimeFreqGrid& grid_type) noexcept;
@@ -968,6 +971,10 @@ inline bool get_bool(LibrpaSwitch switch_in) noexcept
 LibrpaParallelRouting get_parallel_routing(const std::string& routing_str_low);
 
 std::string get_routing_string(LibrpaParallelRouting routing);
+
+LibrpaMethod get_method(const std::string& method_str_low);
+
+std::string get_method_string(LibrpaMethod method);
 
 LibrpaVerbose get_verbose(const std::string& verbose_str_low);
 

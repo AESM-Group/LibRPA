@@ -78,6 +78,7 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->n_bands_exclude_sigc = 0;
     opts->option_bvk_remap = 1;
 
+    opts->chi0_method = LIBRPA_METHOD_AUTO;
     opts->gf_threshold = 0.0e0;
     opts->libri_chi0_collect_s0_chunk = 0;
     opts->libri_chi0_collect_max_bytes = 0;
@@ -86,6 +87,10 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->use_shrink_abfs = LIBRPA_SWITCH_OFF;
     opts->use_shrink_chi = LIBRPA_SWITCH_ON;
 
+    opts->anacon_method = LIBRPA_ANACON_PADE;
+    opts->anacon_aaa_tolerance = 1.0e-13;
+    opts->anacon_ridge_lambda = 1.0e-12;
+    opts->anacon_ridge_den_weight = 10.0;
     opts->n_params_anacon = -1;
     opts->n_params_anacon_resample = -1;
     opts->anacon_tfgrids_type = LIBRPA_TFGRID_UNSET;

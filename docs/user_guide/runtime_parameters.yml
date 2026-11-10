@@ -170,6 +170,7 @@ blocks:
       These parameters may affect subsequent calculations
       using response function as input, e.g. RPA, GW.
     fields:
+      - api.chi0_method
       - api.gf_threshold
       - api.n_bands_chi0
       - api.n_bands_exclude_chi0
@@ -241,6 +242,10 @@ blocks:
 
   - heading: GW
     fields:
+      - api.anacon_method
+      - api.anacon_aaa_tolerance
+      - api.anacon_ridge_lambda
+      - api.anacon_ridge_den_weight
       - api.n_params_anacon
       - api.n_params_anacon_resample
       - api.anacon_tfgrids_type

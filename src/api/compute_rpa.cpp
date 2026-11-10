@@ -93,6 +93,15 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
             pds->redistribute_eigvecs_kpara();
     }
 
+    const bool use_blacs = opts.use_scalapack_ecrpa && (routing == LIBRPA_ROUTING_ATOMPAIR || routing == LIBRPA_ROUTING_LIBRI);
+#ifndef LIBRPA_USE_LIBRI
+    // Stop before the response is built, instead of in the energy routine.
+    if (use_blacs)
+        throw LIBRPA_RUNTIME_ERROR(
+            "use_scalapack_ecrpa requires a build with LibRI for the atompair and libri routings; "
+            "set use_scalapack_ecrpa = false");
+#endif
+
     // Determine the atom pairs that this process is responsible for
     initialize_ds_atpairs_local(*pds, routing);
 
@@ -116,8 +125,8 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
     // std::cout << "n_abf * " << pds->p_chi0->atbasis_abf.nb_total;
 
     profiler.start("chi0_build", "Build response function chi0");
-    chi0.build(routing, pds->cs_data, pds->atpairs_local, pds->basis_aux, pds->sinvS,
-               pds->blacs_h);
+    chi0.build(routing, opts.chi0_method, pds->cs_data, pds->atpairs_local, pds->basis_aux,
+               pds->sinvS, pds->blacs_h);
     profiler.stop("chi0_build");
 
     if (debug)
@@ -151,7 +160,6 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
     profiler.start("EcRPA", "Compute RPA correlation Energy");
     CorrEnergy corr;
 
-    const bool use_blacs = opts.use_scalapack_ecrpa && (routing == LIBRPA_ROUTING_ATOMPAIR || routing == LIBRPA_ROUTING_LIBRI);
     const bool use_rpa_headwing =
         opts.replace_w_head == LIBRPA_SWITCH_ON && opts.option_dielect_func == 3 &&
         pds->p_headwing != nullptr;

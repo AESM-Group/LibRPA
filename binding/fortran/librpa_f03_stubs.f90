@@ -71,6 +71,14 @@ module librpa_f03
    !> @brief Automatic selection value. LibRPA will choose appropriate setting.
    integer, parameter :: LIBRPA_AUTO = -51
 
+   !> @name Analytic continuation methods
+   !> @brief Pade is the default.
+   !> @{
+   integer, parameter, public :: LIBRPA_ANACON_PADE = 0
+   integer, parameter, public :: LIBRPA_ANACON_AAA = 1
+   integer, parameter, public :: LIBRPA_ANACON_RIDGE = 2
+   !> @}
+
    !> @name Parallel routing strategies
    !> @brief Specifies how computation is distributed across MPI processes.
    !> @{
@@ -91,6 +99,15 @@ module librpa_f03
    integer, parameter, public :: LIBRPA_TFGRID_MINIMAX = 3              !< Minimax grid
    integer, parameter, public :: LIBRPA_TFGRID_EVENSPACED = 4           !< Evenly spaced
    integer, parameter, public :: LIBRPA_TFGRID_EVENSPACED_TF = 5        !< Evenly spaced in time-frequency
+   !> @}
+
+   !> @name Methods on the time-frequency grid
+   !> @brief Method to compute a quantity, for example chi0_method.
+   !> @{
+   integer, parameter, public :: LIBRPA_METHOD_UNSET = LIBRPA_UNSET     !< Unset
+   integer, parameter, public :: LIBRPA_METHOD_AUTO = LIBRPA_AUTO       !< Select from the grid type
+   integer, parameter, public :: LIBRPA_METHOD_SPACE_TIME = 0           !< Real space and imaginary time
+   integer, parameter, public :: LIBRPA_METHOD_CONVENTIONAL = 1         !< Reciprocal space and imaginary frequency
    !> @}
 
    !> @name Angular basis ordering conventions
@@ -183,6 +200,8 @@ module librpa_f03
       integer :: n_bands_exclude_sigc
       !> BvK remapping option for band interpolation: 0 single nearest image, 1 Wigner-Seitz.
       integer :: option_bvk_remap
+      !> Method to compute chi0; use LIBRPA_METHOD_* constants.
+      integer :: chi0_method
       !> Real-space Green's function screening threshold for response function.
       real(dp) :: gf_threshold
       !> Number of first-index atoms per LibRI chi0 collection chunk.
@@ -194,9 +213,17 @@ module librpa_f03
       logical :: use_shrink_abfs
       !> Experimental: build response matrices in the compressed auxiliary basis.
       logical :: use_shrink_chi
-      !> Number of parameters for analytic continuation.
+      !> Analytic continuation method: LIBRPA_ANACON_*; default Pade.
+      integer :: anacon_method
+      !> Relative AAA source residual tolerance, default 1e-13.
+      real(dp) :: anacon_aaa_tolerance
+      !> Ridge coefficient penalty, default 1e-12.
+      real(dp) :: anacon_ridge_lambda
+      !> Relative ridge penalty for denominator coefficients, default 10.
+      real(dp) :: anacon_ridge_den_weight
+      !> Pade selected-node count, AAA support cap, or ridge coefficient count.
       integer :: n_params_anacon
-      !> Parameters for the source-grid Pade used to resample GW analytic continuation.
+      !> Parameters for the source-grid fit used to resample GW analytic continuation.
       integer :: n_params_anacon_resample
       !> Optional GW analytic-continuation frequency grid type; unset uses original grid.
       integer :: anacon_tfgrids_type
@@ -1140,8 +1167,10 @@ contains
       real(dp), contiguous, dimension(:), intent(in) :: omegas
       real(dp), dimension(i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(in) :: vxc_band
       real(dp), dimension(i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(in) :: vexx_band
-      real(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(inout) :: spectral_function_band
-      complex(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(inout), optional :: sigc_band
+      real(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), &
+            intent(inout) :: spectral_function_band
+      complex(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), &
+            intent(inout), optional :: sigc_band
       call error_on_call("librpa_get_g0w0_spectral_function_band_k")
    end subroutine librpa_get_g0w0_spectral_function_band_k
 
