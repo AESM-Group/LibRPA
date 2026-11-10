@@ -11,11 +11,13 @@ Hamiltonian or introduce a Hartree inner self-consistency loop.
 
 ## Build support
 
-The bundled CPU LibRI is the unmodified official upstream snapshot
-`a0661cbb4b4f89ceeb23e040d49accb00943093f`. No separate installation or
-auxiliary-potential extension is needed. With external headers,
-`RI/physics/Hartree.h` enables standalone Hartree and QSGW feedback.
+The default build prepares the unmodified LibRI revision
+`ab81ac939d820b1350c1e00f0e09e8e1edfc3d96`. No separate LibRI installation or auxiliary-potential
+extension is needed. With `LIBRPA_USE_LIBRI=ON`, CMake checks for
+`RI/physics/Hartree.h` in the resolved headers, including external headers.
+This header enables standalone Hartree and QSGW feedback.
 CMake reports this capability; unsupported Hartree requests fail explicitly.
+See {ref}`Installation <install-local-dependencies>` for dependency selection.
 
 Band-path matrices use the ordinary mesh Hartree result: inverse Fourier
 transform to AO real-space blocks, then the same atom-pair BvK image averaging

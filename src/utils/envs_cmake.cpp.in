@@ -26,15 +26,17 @@ const char * build_time = __DATE__ " " __TIME__;
 
 const char * use_libri = "${LIBRPA_USE_LIBRI}";
 
-const char * use_external_elpa = "${LIBRPA_USE_EXTERNAL_ELPA}";
+const char * use_elpa = "${LIBRPA_USE_ELPA}";
 
-const char * external_elpa_dir = "${EXTERNAL_ELPA_DIR}";
-
-const char * use_bundled_elpa = "${LIBRPA_USE_BUNDLED_ELPA}";
+const char * external_elpa_dir = "${ELPA_PATH}";
 
 const char * libri_include_dir = "${LibRI_INCLUDE_DIR}";
 
 const char * libcomm_include_dir = "${LibComm_INCLUDE_DIR}";
+
+const char * cereal_include_dir = "${Cereal_INCLUDE_DIR}";
+
+const char * thirdparty_sources = "${LIBRPA_THIRDPARTY_SUMMARY}";
 
 const char * greenx_commit_hash = "${LIBRPA_GREENX_COMMIT_HASH}";
 
@@ -44,7 +46,7 @@ const char * ddla_use_gpu_cpu_tunnel = "${DDLA_USE_GPU_CPU_TUNNEL}";
 
 const char * libddla_path = "${LIBDDLA_PATH}";
 
-const char * elpa_dir = "${EXTERNAL_ELPA_DIR}";
+const char * elpa_dir = "${ELPA_PATH}";
 
 } /* end of namespace envs */
 } /* end of namespace librpa_int */

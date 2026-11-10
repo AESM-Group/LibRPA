@@ -8,6 +8,8 @@ recipes.
 
 Depending on your local environment, you may need to adjust compiler commands,
 library paths, MPI settings, and CMake options accordingly.
+For all defaults and dependency selection rules, see
+:doc:`../../user_guide/compile_options`.
 
 The following examples are currently available:
 

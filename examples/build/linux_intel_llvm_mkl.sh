@@ -26,7 +26,8 @@ export USE_LIBRI="${USE_LIBRI:=ON}"
 export ENABLE_FORTRAN_BIND="${ENABLE_FORTRAN_BIND:=OFF}"
 
 # Optionally, one can specify the path of their own LibRI and LibComm libraries.
-# If not set or set to empty string, those bundled under thirdparty/ will be used.
+# If unset or empty, CMake prepares the pinned managed sources.
+# See docs/user_guide/install.md for offline preparation and cache settings.
 export LIBRI_INCLUDE="${LIBRI_INCLUDE:=}"
 export LIBCOMM_INCLUDE="${LIBCOMM_INCLUDE:=}"
 

@@ -26,26 +26,21 @@ through both file-based and API-based workflows.
 
 LibRPA requires:
 
-- a C++ compiler with MPI support
-- a Fortran compiler
-- BLAS and LAPACK libraries
-- a ScaLAPACK library
-- CMake
+- a C++17 compiler with `std::filesystem` support and a Fortran compiler
+- compatible MPI and OpenMP development libraries
+- BLAS, LAPACK and ScaLAPACK libraries
+- CMake 3.18 or newer, and a supported build tool
+- Git or `patch` for source preparation when patches are needed
 
-LibRPA uses the bundled [GreenX](https://github.com/nomad-coe/greenX) library
-by default for minimax time-frequency grids.
+CMake prepares pinned source dependencies from the [manifest](thirdparty/manifest.cmake).
+The default build uses GreenX for minimax grids and LibRI, LibComm and cereal
+for RI tensor contractions. GW and EXX require LibRI. CUDA and HIP builds also
+use LibDDLA. ELPA is optional. Compatible external dependencies can be supplied.
 
-For GW calculations, the following libraries are additionally required:
-
-- [LibRI](https://github.com/abacusmodeling/LibRI)
-- [LibComm](https://github.com/abacusmodeling/LibComm)
-- [cereal](https://uscilab.github.io/cereal)
-
-These libraries are bundled with LibRPA by default, but external versions may also be provided.
-
-CUDA and HIP builds additionally use [LibDDLA](https://github.com/userchba/LibDDLA)
-for distributed GPU linear algebra. LibRPA bundles a compatible revision and
-also supports an external LibDDLA installation.
+Dependency source trees are downloaded during configuration and are not included
+in the repository. A first build needs network access or a prepared cache.
+See [Installation](docs/user_guide/install.md) for external dependencies,
+offline builds and dependency configuration.
 
 ## Download
 
@@ -58,14 +53,37 @@ cd LibRPA
 
 ## Build
 
-A minimal out-of-source build can be done with:
+After initializing your compiler, MPI and math-library environment, configure,
+build and install with:
 
 ```bash
-cmake -B build
-cmake --build build -j4
+cmake -B build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_SHARED_LIBS=ON \
+  -DLIBRPA_ENABLE_TEST=OFF \
+  -DCMAKE_INSTALL_PREFIX="$HOME/opt/librpa"
+cmake --build build --parallel 2
+cmake --build build --target install
 ```
 
-More example build scripts are provided under [`examples/build`](examples/build).
+This example selects a shared library and disables test targets. The standalone
+default is a static library with tests enabled. Add compiler and library paths
+as shown in [Installation](docs/user_guide/install.md), or adapt a script under
+[`examples/build`](examples/build). See [Compile Options](docs/user_guide/compile_options.md)
+for defaults and dependency selection.
+
+To download and verify dependency archives on a connected machine:
+
+```bash
+cmake -DLIBRPA_THIRDPARTY_ARCHIVE_DIR="$HOME/Downloads" \
+  -P cmake/LibRPADownloadThirdparty.cmake
+```
+
+Upload the downloaded archives to `LibRPA/thirdparty/downloads/` on the build
+machine, then configure with `-DLIBRPA_THIRDPARTY_DOWNLOAD=OFF`. For a different
+archive location on that machine, also set `LIBRPA_THIRDPARTY_ARCHIVE_DIR`.
+CMake prepares the sources in each checkout's `thirdparty/src/`. See the
+installation guide for examples and component selection.
 
 ## Usage
 
@@ -104,11 +122,11 @@ Please consult the [How to Cite](./docs/user_guide/cite.rst) page for more detai
 LibRPA is licensed under the GNU Lesser General Public License v3.0
 (LGPL-3.0).
 
-The bundled or included third-party components are licensed as follows:
+LibRPA uses the following third-party components as selected by the build configuration. It can reuse supplied dependencies or cached sources, and download or build components when necessary. These components retain their own licenses:
 
 - [greenX (`c90d131`)](https://github.com/nomad-coe/greenX/tree/c90d131873eeec68406c335dc22ae8ad4b445dd8): Apache-2.0
-- [cereal (1.3.0)](https://github.com/USCiLab/cereal/tree/v1.3.0): BSD-3-Clause
-- [LibRI (`a0661cb`)](https://github.com/abacusmodeling/LibRI/tree/a0661cbb4b4f89ceeb23e040d49accb00943093f): LGPL-3.0
-- [LibComm (`12457e7`)](https://github.com/abacusmodeling/LibComm/tree/12457e7): LGPL-3.0
-- [LibDDLA (`f1f3295`)](https://github.com/userchba/LibDDLA/tree/f1f32953605c434be383abc195e5d1fb41eb1316): LGPL-3.0
+- [cereal (`d81e2f7`)](https://github.com/USCiLab/cereal/tree/d81e2f7df7b334fee057e53017388d02e555a836): BSD-3-Clause
+- [LibRI (`ab81ac9`)](https://github.com/abacusmodeling/LibRI/tree/ab81ac939d820b1350c1e00f0e09e8e1edfc3d96): LGPL-3.0
+- [LibComm (`12457e7`)](https://github.com/abacusmodeling/LibComm/tree/12457e7ebd2092dfb6b5d6d0e1fd956c1eb12c53): LGPL-3.0
+- [LibDDLA (`0d576d4`)](https://github.com/userchba/LibDDLA/tree/0d576d4d297b8f7dcdf456ba1ca2e6f72e2a4530): LGPL-3.0
 - [ELPA (2026.02.001)](https://elpa.mpcdf.mpg.de/): LGPL-3.0

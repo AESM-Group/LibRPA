@@ -29,4 +29,7 @@ if(LIBRPA_USE_LIBRI)
   config_test_f03(test_f03_binding_libri 1)
   config_test_f03(test_f03_binding_call_internal_test 2)
   config_test_f03(test_f03_binding_exx_bccHe 4)
+  # This numerical fixture stores generated arrays on long free-form lines.
+  target_compile_options(test_f03_binding_exx_bccHe PRIVATE
+    $<$<Fortran_COMPILER_ID:GNU>:-ffree-line-length-none>)
 endif()

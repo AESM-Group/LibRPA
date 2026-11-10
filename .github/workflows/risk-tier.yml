@@ -1,17 +1,11 @@
 name: Risk tier
 
-# Give the minimum risk tier from the diff. Fail if the description has no tier
-# or gives a lower tier. The check runs again when the description changes.
+# Check the minimum risk tier and the PR description.
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, edited]
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: risk-tier-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 jobs:
   tier:
