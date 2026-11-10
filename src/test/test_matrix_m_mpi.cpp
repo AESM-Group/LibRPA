@@ -110,14 +110,17 @@ void test_invert_scalapack()
     int pid_src, irsrc, icsrc;
     pid_src = 2;
     blacs_ctxt_h.get_pcoord(pid_src, irsrc, icsrc);
-    // initialize a non-singular matrix at source process
+    // Initialize a well-conditioned matrix at the source process.
+    // The random elements are in [-1, 1], so adding n to the diagonal makes
+    // the matrix strictly diagonally dominant and keeps the error of
+    // inv(A) A well below thres. Without the shift, about 0.1% of the
+    // random matrices are ill-conditioned enough to fail the check.
     if (blacs_ctxt_h.myid == pid_src)
     {
-        bool is_singular = true;
-        while (is_singular)
+        mat = random<T>(n, n, -1.0, 1.0, MAJOR::COL);
+        for (int i = 0; i < n; i++)
         {
-            mat = random<T>(n, n, -1.0, 1.0, MAJOR::COL);
-            is_singular = fequal(get_determinant(mat), T(0.0), thres);
+            mat(i, i) += T(n);
         }
     }
 
