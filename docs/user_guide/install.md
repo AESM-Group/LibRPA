@@ -293,6 +293,22 @@ The `-U` argument clears the old option from the cache. You can leave an
 existing `LIBRPA_USE_CMAKE_INC=OFF` entry in place.
 Use a new build directory if you change compilers.
 
+Do not copy the math library line from `cmake.inc` without a check.
+The old `cmake.inc` path linked its `LAPACK_LIBRARIES` value, often a full MKL
+link line, and skipped the search for math, MPI and OpenMP libraries.
+LibRPA now always does this search:
+
+- If `MKLROOT` is set, LibRPA links Intel MKL from that installation.
+  A `LAPACK_LIBRARIES` value does not replace it, so an MKL setup needs no
+  library entry.
+- If `MKLROOT` is empty, LibRPA uses `LAPACK_LIBRARIES` from the cache, or
+  detects LAPACK. It finds ScaLAPACK separately, with `SCALAPACK_DIR` as a
+  hint. LibRPA does not read `SCALAPACK_LIBRARIES`.
+
+For details, see {ref}`MKLROOT <mklroot>`,
+{ref}`LAPACK_LIBRARIES <lapack-libraries>` and
+{ref}`SCALAPACK_DIR <scalapack-dir>`.
+
 ### A dependency is missing or a download fails
 
 The CMake message gives the component name, archive filename and upstream URL.
