@@ -602,14 +602,16 @@ def make_stub_for_proc(block: List[str], kind: str, name: str) -> List[str]:
     out.extend(header_lines)
 
     kept_decl: List[str] = []
-    for ln in block[after_header:]:
-        end = strip_inline_comment(ln).strip().lower()
+    i = after_header
+    while i < len(block):
+        statement, next_i = _gather_continued_statement(block, i)
+        end = statement.lower()
         if end.startswith("end subroutine") or end.startswith("end function"):
             break
-        if re.match(r"^\s*use\b", strip_inline_comment(ln).strip(), flags=re.IGNORECASE) and "iso_c_binding" in ln.lower():
-            continue
-        if keep_decl_line_for_args(ln, dummy_args):
-            kept_decl.append(ln)
+        # Classify the complete declaration, but preserve its source formatting.
+        if keep_decl_line_for_args(statement, dummy_args):
+            kept_decl.extend(block[i:next_i])
+        i = next_i
 
     if not any(strip_inline_comment(ln).strip().lower() == "implicit none" for ln in kept_decl):
         indent = re.match(r"^(\s*)", header_lines[0]).group(1)

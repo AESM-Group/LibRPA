@@ -1,8 +1,30 @@
-/* Make wide tables horizontally scrollable */
+/* Keep horizontal scrollbars visible on documentation tables. */
 .bd-content .pst-scrollable-table-container {
-    overflow-x: auto;
+    overflow-x: scroll;
+}
+
+/* An explicit height keeps Chromium/WebKit overlay scrollbars visible. */
+.bd-content .pst-scrollable-table-container::-webkit-scrollbar {
+    height: 12px;
+}
+
+.bd-content .pst-scrollable-table-container::-webkit-scrollbar-track {
+    background: var(--pst-color-surface);
+}
+
+.bd-content .pst-scrollable-table-container::-webkit-scrollbar-thumb {
+    background: var(--pst-color-text-muted);
+    border: 3px solid var(--pst-color-surface);
+    border-radius: 6px;
 }
 
 .bd-content .pst-scrollable-table-container table {
     white-space: nowrap;
+}
+
+/* Default alignment for documentation table cells. */
+.bd-content table th,
+.bd-content table td {
+    /* text-align: left; */
+    vertical-align: middle;
 }

@@ -1,0 +1,2 @@
+# Patch context must retain upstream line endings and whitespace.
+thirdparty/patches/**/*.patch -text -whitespace

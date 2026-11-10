@@ -1,5 +1,8 @@
 # main CMake file for LibRPA
-cmake_minimum_required(VERSION 3.13)
+# Minimum version set by LibRPA's own build code: FindCUDAToolkit
+# (introduced in CMake 3.17) and policy CMP0104 (introduced in CMake 3.18).
+# Dependencies check their own requirements in their subdirectories.
+cmake_minimum_required(VERSION 3.18)
 
 project(librpa NONE)
 
@@ -23,11 +26,7 @@ set(LIBRPA_DRIVER_NAME         "chi0_main.exe")
 # - `LIBRPA_ENABLE_` for internal components (binding, test, ...)
 option(LIBRPA_USE_LIBRI            "Use LibRI for tensor contraction in LibRPA" ON)
 option(LIBRPA_USE_LIBRI_GPU        "Use GPU tensor contractions in LibRI" OFF)
-option(LIBRPA_USE_EXTERNAL_ELPA    "Use an external ELPA eigensolver library from an installation prefix" OFF)
-option(LIBRPA_USE_BUNDLED_ELPA     "Build and use a bundled ELPA eigensolver library from thirdparty/ELPA" OFF)
-option(LIBRPA_BUNDLED_ELPA_OPENMP  "Build bundled ELPA with OpenMP support" OFF)
-option(LIBRPA_USE_CMAKE_INC        "Use cmake.inc for configure (deprecated)" OFF)
-option(LIBRPA_USE_EXTERNAL_GREENX  "Use an external GreenX target provided by the parent project instead of the bundled copy" OFF)
+option(LIBRPA_USE_ELPA             "Use ELPA for distributed eigensolvers" OFF)
 option(LIBRPA_ENABLE_TEST          "Flag to build LibRPA tests" ON)
 option(LIBRPA_ENABLE_DRIVER        "Flag to build LibRPA driver executable" ON)
 option(LIBRPA_ENABLE_FORTRAN_BIND  "Flag to build LibRPA Fotran binding" OFF)
@@ -43,15 +42,18 @@ option(LIBRPA_ENABLE_FORTRAN_TEST  "Flag to build tests for Fortran bindings" ON
 set(LIBRPA_FORTRAN_DP "c_double" CACHE STRING "Kind of double precision that the Fortran binding uses to interface the user code")
 set(LIBRPA_MPI_THREAD_LEVEL "${LIBRPA_MPI_THREAD_LEVEL}" CACHE STRING "MPI thread level requested by LibRPA executables; empty selects automatically")
 set_property(CACHE LIBRPA_MPI_THREAD_LEVEL PROPERTY STRINGS "" MPI_THREAD_SINGLE MPI_THREAD_FUNNELED MPI_THREAD_SERIALIZED MPI_THREAD_MULTIPLE)
-set(EXTERNAL_ELPA_DIR "" CACHE PATH "External ELPA installation prefix")
-set(LIBRPA_BUNDLED_ELPA_VERSION "2026.02.001" CACHE STRING "Bundled ELPA version")
-set_property(CACHE LIBRPA_BUNDLED_ELPA_VERSION PROPERTY STRINGS "2026.02.001")
-set(LIBRPA_BUNDLED_ELPA_KERNEL "" CACHE STRING "Bundled ELPA x86 SIMD kernel family")
-set_property(CACHE LIBRPA_BUNDLED_ELPA_KERNEL PROPERTY STRINGS "" "SSE" "SSE_ASSEMBLY" "AVX" "AVX2" "AVX512")
-set(LIBRPA_BUNDLED_ELPA_CONFIGURE_ARGS "" CACHE STRING "Extra configure arguments for bundled ELPA")
-set(LIBRPA_BUNDLED_ELPA_LIBS "" CACHE STRING "Libraries passed to bundled ELPA configure through LIBS")
+set(GREENX_SOURCE_DIR "${GREENX_SOURCE_DIR}" CACHE PATH "External greenX source tree")
+set(GREENX_PATH "${GREENX_PATH}" CACHE PATH "Prebuilt greenX installation prefix")
+set(ELPA_SOURCE_DIR "${ELPA_SOURCE_DIR}" CACHE PATH "External ELPA source tree to build")
+set(ELPA_PATH "${ELPA_PATH}" CACHE PATH "External ELPA installation prefix")
 
 # Deprecation stops
+if(LIBRPA_USE_CMAKE_INC)
+  message(FATAL_ERROR
+    "LIBRPA_USE_CMAKE_INC is no longer supported. "
+    "Use -C <initial-cache.cmake> or -D<variable>=<value> instead, "
+    "and remove the old option with -U LIBRPA_USE_CMAKE_INC.")
+endif()
 if (DEFINED USE_GREENX_MINIMAX)
   message(FATAL_ERROR "USE_GREENX_MINIMAX is deprecated: GreenX is now always used. Please remove USE_GREENX_MINIMAX")
 endif()
@@ -63,38 +65,28 @@ if (DEFINED USE_GREENX_API)
     message(FATAL_ERROR "USE_GREENX_API is deprecated: GreenX is now always used. Please remove USE_GREENX_API")
   endif()
 endif()
-# Hash number of the bundled greenX. Keep it consistent with thirdparty/greenX
-set(_BUNDLED_GREENX_COMMIT_HASH  "c90d131")
-set(_BUNDLED_LIBRI_COMMIT_HASH   "a0661cb")
-set(_BUNDLED_LIBCOMM_COMMIT_HASH "12457e7")
-set(_BUNDLED_LIBDDLA_COMMIT_HASH "0d576d4")
-
-# Add cmake load files
+# Shared source manifest and dependency resolution helpers.
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(LibRPAThirdparty)
+include("${LIBRPA_SOURCE_DIR}/thirdparty/manifest.cmake")
+librpa_thirdparty_archive_dir(_librpa_archive_dir)
 
+set(LIBRPA_THIRDPARTY_SUMMARY "")
 set(math_libs "")
 set(parallel_libs "")
 set(_librpa_elpa_configure_libs "")
-set(_loaded_cmake_inc OFF)
-set(_LIBRPA_USE_BUNDLED_LIBCOMM OFF)
+set(_LIBRPA_LIBCOMM_IS_PINNED OFF)
 
-# TODO: maybe better way to customize environments?
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cmake.inc" AND LIBRPA_USE_CMAKE_INC)
-  include("${CMAKE_CURRENT_SOURCE_DIR}/cmake.inc")
-  list(APPEND math_libs ${LAPACK_LIBRARIES})
-  list(APPEND _librpa_elpa_configure_libs ${LAPACK_LIBRARIES} ${SCALAPACK_LIBRARIES})
-  set(_loaded_cmake_inc ON)
-  message(STATUS "Using customize environemnt variables from ${CMAKE_CURRENT_SOURCE_DIR}/cmake.inc")
-endif()
+include(ELPABuildOptions)
+include(ValidateELPAOptions)
 
 # C++ standard requirement
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# enable_language later than cmake.inc to take the variables therein into accout
 # require Fortran for GreenX library and Fortran binding
-if(LIBRPA_USE_BUNDLED_ELPA)
-  # require C for bundled ELPA
+if(_elpa_mode STREQUAL "source")
+  # require C for managed ELPA
   enable_language(CXX C Fortran)
 else()
   enable_language(CXX Fortran)
@@ -143,45 +135,48 @@ else()
   endif()
 endif()
 
-if(NOT _loaded_cmake_inc)
-  if(DEFINED ENV{MKLROOT} AND NOT DEFINED MKLROOT)
-    set(MKLROOT "$ENV{MKLROOT}")
-  endif()
-  if(MKLROOT)
-    find_package(IntelMKL REQUIRED)
-    # include_directories(${MKL_INCLUDE_DIRS} ${MKL_INCLUDE_DIRS}/fftw)
-    include_directories(${MKL_INCLUDE_DIRS})
-    list(APPEND math_libs IntelMKL::MKL)
-    list(APPEND _librpa_elpa_configure_libs ${MKL_LIBRARIES})
-  else()
-    find_package(LAPACK REQUIRED)
-    find_package(ScaLAPACK REQUIRED)
-    list(APPEND math_libs
-            ${LAPACK_LIBRARIES}
-            ${ScaLAPACK_LIBRARIES}
-            )
-    list(APPEND _librpa_elpa_configure_libs
-            ${LAPACK_LIBRARIES}
-            ${ScaLAPACK_LIBRARIES}
-            )
-  endif()
-
-  find_package(MPI REQUIRED)
-  if (MPI_CXX_FOUND)
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_FLAGS}")
-  endif()
-
-  # message(INFO "${CMAKE_C_COMPILER_LOADED} ${CMAKE_CXX_COMPILER_LOADED} ${CMAKE_Fortran_COMPILER_LOADED}")
-  find_package(OpenMP REQUIRED)
-  if (OpenMP_CXX_FOUND)
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  endif()
-  list(APPEND parallel_libs
-          OpenMP::OpenMP_CXX
-          MPI::MPI_CXX
-          )
-  include_directories(${MPI_CXX_INCLUDE_PATH})
+if(DEFINED ENV{MKLROOT} AND NOT DEFINED MKLROOT)
+  set(MKLROOT "$ENV{MKLROOT}")
 endif()
+if(MKLROOT)
+  find_package(IntelMKL REQUIRED)
+  # include_directories(${MKL_INCLUDE_DIRS} ${MKL_INCLUDE_DIRS}/fftw)
+  include_directories(${MKL_INCLUDE_DIRS})
+  list(APPEND math_libs IntelMKL::MKL)
+  list(APPEND _librpa_elpa_configure_libs ${MKL_LIBRARIES})
+else()
+  find_package(LAPACK REQUIRED)
+  find_package(ScaLAPACK REQUIRED)
+  list(APPEND math_libs
+          ${LAPACK_LIBRARIES}
+          ${ScaLAPACK_LIBRARIES}
+          )
+  list(APPEND _librpa_elpa_configure_libs
+          ${LAPACK_LIBRARIES}
+          ${ScaLAPACK_LIBRARIES}
+          )
+endif()
+
+find_package(MPI REQUIRED)
+if (MPI_CXX_FOUND)
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_FLAGS}")
+endif()
+
+# message(INFO "${CMAKE_C_COMPILER_LOADED} ${CMAKE_CXX_COMPILER_LOADED} ${CMAKE_Fortran_COMPILER_LOADED}")
+find_package(OpenMP REQUIRED)
+if (OpenMP_CXX_FOUND)
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+list(APPEND parallel_libs
+        OpenMP::OpenMP_CXX
+        MPI::MPI_CXX
+        )
+# mkl_intel_thread needs an OpenMP runtime. LibRPA gets it from
+# OpenMP::OpenMP_CXX, but the ELPA configure script sees only LIBS.
+if(MKLROOT)
+  list(APPEND _librpa_elpa_configure_libs ${OpenMP_CXX_LIBRARIES})
+endif()
+include_directories(${MPI_CXX_INCLUDE_PATH})
 
 # TODO: always switch on MPI, until test program for non-MPI case is implemented.
 #       This will require a more comprehensive stub MPI library in LibRPA,
@@ -217,10 +212,6 @@ set(CMAKE_REQUIRED_LIBRARIES "${_librpa_required_libraries_save}")
 unset(_librpa_required_libraries_save)
 unset(_librpa_filesystem_check_source)
 
-if(LIBRPA_USE_EXTERNAL_ELPA AND LIBRPA_USE_BUNDLED_ELPA)
-  message(FATAL_ERROR "LIBRPA_USE_EXTERNAL_ELPA and LIBRPA_USE_BUNDLED_ELPA are mutually exclusive")
-endif()
-
 if(LIBRPA_USE_CUDA AND LIBRPA_USE_HIP)
   message(FATAL_ERROR "LIBRPA_USE_CUDA and LIBRPA_USE_HIP are mutually exclusive")
 endif()
@@ -234,22 +225,28 @@ if(LIBRPA_USE_LIBRI_GPU)
 endif()
 
 set(LIBRPA_ELPA_TARGET "")
-if(LIBRPA_USE_EXTERNAL_ELPA)
-  if(NOT EXTERNAL_ELPA_DIR AND DEFINED ENV{EXTERNAL_ELPA_DIR})
-    set(EXTERNAL_ELPA_DIR "$ENV{EXTERNAL_ELPA_DIR}" CACHE PATH "External ELPA installation prefix" FORCE)
-  endif()
+if(_elpa_mode STREQUAL "target" OR _elpa_mode STREQUAL "installed")
   if(TARGET ELPA::ELPA)
+    set(_elpa_status target)
     message(STATUS "Use external ELPA target        : ELPA::ELPA")
   else()
     find_package(ELPA REQUIRED)
+    set(_elpa_status installed)
+    set(_elpa_prefix "${ELPA_PATH}")
+    if(NOT _elpa_prefix)
+      get_filename_component(_elpa_libdir "${ELPA_LIBRARY}" DIRECTORY)
+      get_filename_component(_elpa_prefix "${_elpa_libdir}" DIRECTORY)
+    endif()
+    librpa_thirdparty_warn_installed(ELPA "${_elpa_prefix}"
+      "use LIBRPA_USE_ELPA=ON with no installation prefix" ELPA_SOURCE_DIR)
     message(STATUS "Use external ELPA library       : ${ELPA_LIBRARY}")
     message(STATUS "Use external ELPA include dirs  : ${ELPA_INCLUDE_DIRS}")
   endif()
   add_compile_definitions("LIBRPA_USE_ELPA")
   set(LIBRPA_ELPA_TARGET ELPA::ELPA)
   list(APPEND math_libs ${LIBRPA_ELPA_TARGET})
-elseif(LIBRPA_USE_BUNDLED_ELPA)
-  if(NOT LIBRPA_BUNDLED_ELPA_LIBS)
+elseif(_elpa_mode STREQUAL "source")
+  if(NOT LIBRPA_ELPA_LIBS)
     set(_librpa_elpa_configure_lib_flags "")
     foreach(_librpa_elpa_configure_lib IN LISTS _librpa_elpa_configure_libs)
       if(_librpa_elpa_configure_lib MATCHES "\\.framework$")
@@ -264,78 +261,99 @@ elseif(LIBRPA_USE_BUNDLED_ELPA)
         list(APPEND _librpa_elpa_configure_lib_flags "${_librpa_elpa_configure_lib}")
       endif()
     endforeach()
-    string(REPLACE ";" " " LIBRPA_BUNDLED_ELPA_LIBS "${_librpa_elpa_configure_lib_flags}")
+    string(REPLACE ";" " " LIBRPA_ELPA_LIBS "${_librpa_elpa_configure_lib_flags}")
   endif()
-  message(STATUS "Use bundled ELPA version        : ${LIBRPA_BUNDLED_ELPA_VERSION}")
   add_compile_definitions("LIBRPA_USE_ELPA")
+  if(_elpa_user_source)
+    if(NOT EXISTS "${_elpa_user_source}/configure" OR
+        NOT EXISTS "${_elpa_user_source}/src/elpa_impl.F90")
+      message(FATAL_ERROR "ELPA: invalid ELPA_SOURCE_DIR=${_elpa_user_source}; expected configure and src/elpa_impl.F90. No download fallback is allowed for an explicit path.")
+    endif()
+    librpa_thirdparty_use_path(ELPA "${_elpa_user_source}" _elpa_source_dir _elpa_status)
+  else()
+    librpa_thirdparty_prepare(ELPA _elpa_source_dir _elpa_status)
+  endif()
   add_subdirectory(thirdparty/ELPA)
   set(LIBRPA_ELPA_TARGET elpa)
 endif()
 
-# Switch on LibRI functionalities, which requires Cereal, LibComm and LibRI
-# When USE_LIBRI is switched on but the include direcotires of the required dependenccies are not specified
-# by command line or environment variables, the internal packages are used.
-# If any of the include directory is specified but not found, a fatal error will be raised.
+if(LIBRPA_ELPA_TARGET)
+  string(APPEND LIBRPA_THIRDPARTY_SUMMARY "ELPA=${_elpa_status}")
+  if(_elpa_status STREQUAL "installed")
+    string(APPEND LIBRPA_THIRDPARTY_SUMMARY "(${_elpa_prefix})")
+  endif()
+  string(APPEND LIBRPA_THIRDPARTY_SUMMARY " ")
+  message(STATUS "ELPA: ${_elpa_status}, source=${_elpa_source_dir}, target=${LIBRPA_ELPA_TARGET}")
+endif()
+
+# Resolve parent targets, explicit paths, or managed headers, in that order.
 if(LIBRPA_USE_LIBRI)
-  message(STATUS "Build with LibRI and dependencies")
-
-  # Check Cereal
-  if(NOT CEREAL_INCLUDE_DIR)
-    set(CEREAL_INCLUDE_DIR $ENV{CEREAL_INCLUDE_DIR})
-  endif()
-  if("${CEREAL_INCLUDE_DIR}" STREQUAL "")
-    message(STATUS "Use internal Cereal  : thirdparty/cereal-1.3.0")
-    set(Cereal_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/cereal-1.3.0/include)
-  else()
-    find_package(Cereal)
-    if(NOT Cereal_FOUND)
-      message(FATAL_ERROR "User Cereal include directory set to ${Cereal_INCLUDE_DIR}, but not found")
-    else()
-      message(STATUS "Use user Cereal include directory  : ${Cereal_INCLUDE_DIR}")
+  # Reject explicit invalid paths before preparing any header dependency.
+  foreach(_name cereal LibComm LibRI)
+    if(NOT TARGET ${_name}::${_name})
+      string(TOUPPER "${_name}" _upper)
+      set(_variable "${_upper}_INCLUDE_DIR")
+      librpa_thirdparty_path(${_variable} _path)
+      if(_name STREQUAL "cereal")
+        set(_marker cereal/cereal.hpp)
+      elseif(_name STREQUAL "LibComm")
+        set(_marker Comm/Comm_Tools.h)
+      else()
+        set(_marker RI/ri/LRI.h)
+      endif()
+      if(_path AND NOT EXISTS "${_path}/${_marker}")
+        message(FATAL_ERROR "${_name}: invalid ${_variable}=${_path}; missing ${_marker}. No download fallback is allowed for an explicit path.")
+      endif()
     endif()
+  endforeach()
+  librpa_thirdparty_resolve_headers(cereal cereal::cereal CEREAL_INCLUDE_DIR
+    cereal/cereal.hpp Cereal_INCLUDE_DIR _cereal_status)
+  librpa_thirdparty_resolve_headers(LibComm LibComm::LibComm LIBCOMM_INCLUDE_DIR
+    Comm/Comm_Tools.h LibComm_INCLUDE_DIR _libcomm_status)
+  librpa_thirdparty_resolve_headers(LibRI LibRI::LibRI LIBRI_INCLUDE_DIR
+    RI/ri/LRI.h LibRI_INCLUDE_DIR _libri_status)
+  if(_libcomm_status MATCHES "^(managed|pinned|overlay)$")
+    set(_LIBRPA_LIBCOMM_IS_PINNED ON)
   endif()
-
-  # Check LibComm
-  if(NOT LIBCOMM_INCLUDE_DIR)
-    set(LIBCOMM_INCLUDE_DIR $ENV{LIBCOMM_INCLUDE_DIR})
-  endif()
-  if("${LIBCOMM_INCLUDE_DIR}" STREQUAL "")
-    message(STATUS "Use internal LibComm : thirdparty/LibComm (commit hash ${_BUNDLED_LIBCOMM_COMMIT_HASH})")
-    set(LibComm_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/LibComm/include)
-    set(_LIBRPA_USE_BUNDLED_LIBCOMM ON)
-  else()
-    find_package(LibComm)
-    if(NOT LibComm_FOUND)
-      message(FATAL_ERROR "User LibComm include directory set to ${LIBCOMM_INCLUDE_DIR}, but not found")
-    else()
-      message(STATUS "Use user LibComm include directory : ${LibComm_INCLUDE_DIR}")
+  foreach(_name LibRI LibComm cereal)
+    string(TOLOWER "${_name}" _lower)
+    get_property(_version GLOBAL PROPERTY LIBRPA_THIRDPARTY_${_name}_VERSION)
+    string(SUBSTRING "${_version}" 0 7 _version)
+    string(APPEND LIBRPA_THIRDPARTY_SUMMARY "${_name}=${_${_lower}_status}")
+    if(_${_lower}_status MATCHES "^(managed|pinned|overlay)$")
+      string(APPEND LIBRPA_THIRDPARTY_SUMMARY "(${_version})")
     endif()
-  endif()
+    string(APPEND LIBRPA_THIRDPARTY_SUMMARY " ")
+  endforeach()
 
-  # Check LibRI
-  if(NOT LIBRI_INCLUDE_DIR)
-    set(LIBRI_INCLUDE_DIR $ENV{LIBRI_INCLUDE_DIR})
-  endif()
-  if("${LIBRI_INCLUDE_DIR}" STREQUAL "")
-    message(STATUS "Use internal LibRI   : thirdparty/LibRI   (commit hash ${_BUNDLED_LIBRI_COMMIT_HASH})")
-    set(LibRI_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/LibRI/include)
-  else()
-    find_package(LibRI)
-    if(NOT LibRI_FOUND)
-      message(FATAL_ERROR "User LibRI include directory set to ${LIBRI_INCLUDE_DIR}, but not found")
-    else()
-      message(STATUS "Use user LibRI include directory   : ${LibRI_INCLUDE_DIR}")
+  function(check_libri_headers)
+    set(CMAKE_REQUIRED_INCLUDES ${LibRI_INCLUDE_DIR} ${LibComm_INCLUDE_DIR} ${Cereal_INCLUDE_DIR})
+    set(CMAKE_REQUIRED_LIBRARIES MPI::MPI_CXX OpenMP::OpenMP_CXX)
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+    unset(LIBRPA_LIBRI_HEADERS_COMPILE CACHE)
+    check_cxx_source_compiles([=[
+#include <RI/ri/LRI.h>
+void instantiate() { RI::LRI<int, int, 3, double> lri; }
+]=] LIBRPA_LIBRI_HEADERS_COMPILE)
+    if(NOT LIBRPA_LIBRI_HEADERS_COMPILE)
+      message(FATAL_ERROR "LibRI dependency compile probe failed:\nLibRI=${_libri_status}: ${LibRI_INCLUDE_DIR}\nLibComm=${_libcomm_status}: ${LibComm_INCLUDE_DIR}\ncereal=${_cereal_status}: ${Cereal_INCLUDE_DIR}")
     endif()
-  endif()
+  endfunction()
+  check_libri_headers()
 
   add_compile_definitions("LIBRPA_USE_LIBRI")
   if(LIBRPA_USE_LIBRI_GPU)
     add_compile_definitions(__GPU_RI __DDLA_RI)
     message(STATUS "LibRI GPU backend              : DDLA")
   endif()
-  if(EXISTS "${LibRI_INCLUDE_DIR}/RI/physics/Hartree.h")
+  set(LIBRPA_LIBRI_HAS_HARTREE OFF)
+  foreach(_include IN LISTS LibRI_INCLUDE_DIR)
+    if(EXISTS "${_include}/RI/physics/Hartree.h")
+      set(LIBRPA_LIBRI_HAS_HARTREE ON)
+    endif()
+  endforeach()
+  if(LIBRPA_LIBRI_HAS_HARTREE)
     add_compile_definitions(LIBRPA_LIBRI_HAS_HARTREE)
-    set(LIBRPA_LIBRI_HAS_HARTREE ON)
     message(STATUS "Official LibRI Hartree interface available")
   endif()
 
@@ -367,9 +385,9 @@ void set_mode(RI::LRI<int, int, 3, double>& real,
 endif()
 
 if(NOT LIBRPA_MPI_THREAD_LEVEL)
-  if((LIBRPA_USE_EXTERNAL_ELPA OR LIBRPA_USE_BUNDLED_ELPA) AND NOT (LIBRPA_USE_CUDA OR LIBRPA_USE_HIP))
+  if(LIBRPA_USE_ELPA AND NOT (LIBRPA_USE_CUDA OR LIBRPA_USE_HIP))
     set(LIBRPA_MPI_THREAD_LEVEL MPI_THREAD_MULTIPLE)
-  elseif(_LIBRPA_USE_BUNDLED_LIBCOMM)
+  elseif(_LIBRPA_LIBCOMM_IS_PINNED)
     set(LIBRPA_MPI_THREAD_LEVEL MPI_THREAD_FUNNELED)
   else()
     set(LIBRPA_MPI_THREAD_LEVEL MPI_THREAD_MULTIPLE)
@@ -416,20 +434,30 @@ if(LIBRPA_USE_CUDA)
 endif()
 
 # Check LibDDLA. LIBRPA_USE_CUDA/HIP select the public DDLA headers used by
-# LibRPA, while a bundled LibDDLA enables its GPU language in a child build.
+# LibRPA, while a managed LibDDLA enables its GPU language in a child build.
 set(LIBRPA_DDLA_TARGET "")
 set(LIBRPA_BUNDLED_DDLA_PROJECT_TARGET "")
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
-  if(NOT LIBDDLA_PATH)
-    set(LIBDDLA_PATH $ENV{LIBDDLA_PATH})
+  librpa_thirdparty_path(LIBDDLA_PATH _libddla_prefix)
+  librpa_thirdparty_path(LIBDDLA_SOURCE_DIR _libddla_user_source)
+  if(_libddla_prefix AND _libddla_user_source)
+    message(FATAL_ERROR "LibDDLA: LIBDDLA_PATH and LIBDDLA_SOURCE_DIR are mutually exclusive")
   endif()
   set(DDLA_USE_CCL ON)
-  if(NOT "${LIBDDLA_PATH}" STREQUAL "")
+  if(TARGET LibDDLA::ddla)
+    set(LIBRPA_DDLA_TARGET LibDDLA::ddla)
+    set(_libddla_status target)
+  elseif(_libddla_prefix)
+    set(LIBDDLA_PATH "${_libddla_prefix}")
+    set(_libddla_status installed)
+    librpa_thirdparty_warn_installed(LibDDLA "${_libddla_prefix}"
+      "leave LIBDDLA_PATH empty" LIBDDLA_SOURCE_DIR)
     set(DDLA_USE_GPU_CPU_TUNNEL "EXTERNAL DEFINED OFF(CUDA default), ON(HIP default)")
     message(STATUS "Use external LibDDLA from: ${LIBDDLA_PATH}")
     if(NOT EXISTS "${LIBDDLA_PATH}/include/ddla/ddla.h")
       message(FATAL_ERROR "LibDDLA headers not found in ${LIBDDLA_PATH}/include")
     endif()
+    unset(LIBDDLA_LIB CACHE)
     find_library(LIBDDLA_LIB ddla PATHS ${LIBDDLA_PATH}/lib ${LIBDDLA_PATH}/lib64 NO_DEFAULT_PATH)
     if(NOT LIBDDLA_LIB)
       message(FATAL_ERROR "libddla not found in ${LIBDDLA_PATH}/lib or ${LIBDDLA_PATH}/lib64")
@@ -446,11 +474,27 @@ if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
     else()
       set(DDLA_USE_GPU_CPU_TUNNEL OFF)
     endif()
-    include(BuildBundledLibDDLA)
+    if(_libddla_user_source)
+      set(_libddla_source_dir "${_libddla_user_source}")
+      if(NOT EXISTS "${_libddla_source_dir}/include/ddla/ddla.h" OR
+          NOT EXISTS "${_libddla_source_dir}/CMakeLists.txt")
+        message(FATAL_ERROR "Invalid LIBDDLA_SOURCE_DIR=${LIBDDLA_SOURCE_DIR}")
+      endif()
+      librpa_thirdparty_use_path(LibDDLA "${_libddla_user_source}" _libddla_source_dir _libddla_status)
+    else()
+      librpa_thirdparty_prepare(LibDDLA _libddla_source_dir _libddla_status)
+    endif()
+    include(BuildLibDDLA)
     set(LIBDDLA_PATH "${LIBRPA_BUNDLED_DDLA_INSTALL_DIR}")
     install(DIRECTORY "${LIBRPA_BUNDLED_DDLA_INSTALL_DIR}/lib/"
       DESTINATION ${CMAKE_INSTALL_LIBDIR} OPTIONAL)
   endif()
+  string(APPEND LIBRPA_THIRDPARTY_SUMMARY "LibDDLA=${_libddla_status}")
+  if(_libddla_status STREQUAL "installed")
+    string(APPEND LIBRPA_THIRDPARTY_SUMMARY "(${_libddla_prefix})")
+  endif()
+  string(APPEND LIBRPA_THIRDPARTY_SUMMARY " ")
+  message(STATUS "LibDDLA source: ${_libddla_status} ${_libddla_source_dir} ${LIBDDLA_PATH}")
   add_compile_definitions("DDLA_USE_CCL")
 endif()
 
@@ -473,14 +517,8 @@ if(LIBRPA_VERBOSE_OUTPUT)
   add_compile_definitions("LIBRPA_VERBOSE")
 endif()
 
-# Switch on GreenX
-if(NOT LIBRPA_USE_EXTERNAL_GREENX)
-  set(LIBRPA_GREENX_COMMIT_HASH "${_BUNDLED_GREENX_COMMIT_HASH}")
-  message(STATUS "Generate MiniMax grids by using the bundled GreenX library (collected from commit ${LIBRPA_GREENX_COMMIT_HASH})")
-  add_subdirectory(thirdparty/greenX)
-else()
-  set(LIBRPA_GREENX_COMMIT_HASH "(EXTERNAL)")
-endif()
+include(ResolveGreenX)
+message(STATUS "Third-party sources: ${LIBRPA_THIRDPARTY_SUMMARY}")
 
 function(librpa_keep_cxx_includes_explicit)
   foreach(_include_dir IN LISTS ARGN)

@@ -21,15 +21,6 @@ macro(config_test TARGET NUMPROC)
   if(BUILD_SHARED_LIBS)
     target_link_libraries(${TARGET} PRIVATE ${math_libs} ${parallel_libs})
   endif()
-  # TODO: separate libri test targets
-  if(LIBRPA_USE_LIBRI)
-    target_include_directories(${TARGET}
-      PRIVATE
-        ${Cereal_INCLUDE_DIR}
-        ${LibComm_INCLUDE_DIR}
-        ${LibRI_INCLUDE_DIR}
-      )
-  endif()
   if(${NUMPROC} GREATER 1)
     # message("parallel test")
     add_test(
@@ -86,6 +77,10 @@ foreach(target
     )
   config_test(${target} 1)
 endforeach()
+
+add_test(NAME test_qpe_solver_mpi
+  COMMAND mpirun -np 4 $<TARGET_FILE:test_qpe_solver>)
+set_tests_properties(test_qpe_solver_mpi PROPERTIES TIMEOUT 60)
 
 # These suites use standard assert() and must remain active in Release builds.
 target_compile_options(test_sternheimer_rpa PRIVATE -UNDEBUG)

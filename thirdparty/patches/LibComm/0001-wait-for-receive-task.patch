@@ -1,0 +1,15 @@
+Source: https://github.com/abacusmodeling/LibComm/archive/12457e7ebd2092dfb6b5d6d0e1fd956c1eb12c53.tar.gz
+Wait explicitly for the receive task to avoid the unused-result warning of std::async.
+License: same as upstream. Upstream submission: not recorded.
+
+--- a/include/Comm/Comm_Trans/Comm_Trans.hpp
++++ b/include/Comm/Comm_Trans/Comm_Trans.hpp
+@@ -118,7 +118,7 @@
+ 					std::ref(buffers_recv[rank_recv]),
+ 					std::ref(lock_set_value),
+ 					std::ref(datas_recv),
+-					std::ref(states_recv[rank_recv]));
++					std::ref(states_recv[rank_recv])).wait();
+ 		}
+ 
+ 		if (rank_isend_tmp1<this->comm_size+1 && memory.enough_send())

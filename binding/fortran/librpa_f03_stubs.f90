@@ -71,6 +71,14 @@ module librpa_f03
    !> @brief Automatic selection value. LibRPA will choose appropriate setting.
    integer, parameter :: LIBRPA_AUTO = -51
 
+   !> @name Analytic continuation methods
+   !> @brief Pade is the default.
+   !> @{
+   integer, parameter, public :: LIBRPA_ANACON_PADE = 0
+   integer, parameter, public :: LIBRPA_ANACON_AAA = 1
+   integer, parameter, public :: LIBRPA_ANACON_RIDGE = 2
+   !> @}
+
    !> @name Parallel routing strategies
    !> @brief Specifies how computation is distributed across MPI processes.
    !> @{
@@ -205,9 +213,17 @@ module librpa_f03
       logical :: use_shrink_abfs
       !> Experimental: build response matrices in the compressed auxiliary basis.
       logical :: use_shrink_chi
-      !> Number of parameters for analytic continuation.
+      !> Analytic continuation method: LIBRPA_ANACON_*; default Pade.
+      integer :: anacon_method
+      !> Relative AAA source residual tolerance, default 1e-13.
+      real(dp) :: anacon_aaa_tolerance
+      !> Ridge coefficient penalty, default 1e-12.
+      real(dp) :: anacon_ridge_lambda
+      !> Relative ridge penalty for denominator coefficients, default 10.
+      real(dp) :: anacon_ridge_den_weight
+      !> Pade selected-node count, AAA support cap, or ridge coefficient count.
       integer :: n_params_anacon
-      !> Parameters for the source-grid Pade used to resample GW analytic continuation.
+      !> Parameters for the source-grid fit used to resample GW analytic continuation.
       integer :: n_params_anacon_resample
       !> Optional GW analytic-continuation frequency grid type; unset uses original grid.
       integer :: anacon_tfgrids_type
@@ -1151,8 +1167,10 @@ contains
       real(dp), contiguous, dimension(:), intent(in) :: omegas
       real(dp), dimension(i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(in) :: vxc_band
       real(dp), dimension(i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(in) :: vexx_band
-      real(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(inout) :: spectral_function_band
-      complex(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), intent(inout), optional :: sigc_band
+      real(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), &
+            intent(inout) :: spectral_function_band
+      complex(dp), dimension(size(omegas), i_state_high - i_state_low + 1, n_kpts_band_this, n_spins), &
+            intent(inout), optional :: sigc_band
       call error_on_call("librpa_get_g0w0_spectral_function_band_k")
    end subroutine librpa_get_g0w0_spectral_function_band_k
 

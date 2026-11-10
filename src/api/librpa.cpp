@@ -33,6 +33,17 @@ CrpaContinuedResult continue_crpa(const LibrpaCrpaResult* result,
         ::librpa_delete_crpa_continued_result);
 }
 
+CrpaContinuedResult continue_crpa(const LibrpaCrpaResult* result,
+                                  const std::vector<std::complex<double>>& queries,
+                                  const Options& options, double tolerance_ha)
+{
+    return CrpaContinuedResult(
+        ::librpa_continue_crpa_with_options(result, queries.size(),
+                                            reinterpret_cast<const double*>(queries.data()),
+                                            &options, tolerance_ha),
+        ::librpa_delete_crpa_continued_result);
+}
+
 OrbitalResult Handler::analyze_orbitals(int nk, int nao, const std::vector<double>& overlap,
                                         double tolerance) const
 {

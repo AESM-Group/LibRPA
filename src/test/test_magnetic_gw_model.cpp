@@ -365,6 +365,65 @@ struct Observables
     ResponseOperators response;
 };
 
+// Hold the computed G/W fixed and supply an analytic diagonal Sigma to the
+// actual public band APIs. This isolates continuation failures from GW building.
+void check_public_anacon_failures(librpa::Handler &handler, librpa_int::Dataset &ds,
+                                  librpa::Options options)
+{
+    auto saved = std::move(ds.p_g0w0->sigc_diag_is_ik_f_KS);
+    auto &diagonal = ds.p_g0w0->sigc_diag_is_ik_f_KS;
+    const double fermi = ds.mf_band.get_efermi();
+    const double saved_energy = ds.mf_band.get_eigenvals()[0](0, 0);
+    const double pole = 0.5;
+    ds.mf_band.get_eigenvals()[0](0, 0) = fermi + pole;
+    for (const double freq : ds.tfg.get_freq_nodes())
+        diagonal[0][0][freq] = {1.0 / Complex{-pole, freq}, Complex{0.2, 0}};
+    options.anacon_method = LIBRPA_ANACON_AAA;
+    options.n_params_anacon = 3;
+    options.anacon_nfreq = -1;
+    options.anacon_tfgrids_type = LIBRPA_TFGRID_UNSET;
+    options.option_qpe_solver = 2;
+    options.override_qpe_solver_nan = LIBRPA_SWITCH_ON;
+    options.sf_sigc_omega_shift = 0;
+    options.sf_gf_omega_shift = 0.1;
+    // Every rank requests data, including ranks not owning the cached matrix.
+    const std::vector<int> points{0};
+    const std::vector<double> zero(2, 0);
+    for (const bool hedin : {false, true})
+    {
+        options.use_hedin_shift = hedin ? LIBRPA_SWITCH_ON : LIBRPA_SWITCH_OFF;
+        options.istate_ref_hedin_shift = 0;
+        const auto qp = handler.get_g0w0_qpe_band_k(options, 1, points, 0, 2, zero, zero);
+        assert(std::isnan(qp.eqp[0]) && std::isnan(qp.sigc[0].real()));
+        if (hedin) assert(std::isnan(qp.eqp[1]));
+        else assert(std::abs(qp.eqp[1] - ds.mf_band.get_eigenvals()[0](0, 1) - 0.2) < 1e-12);
+    }
+    options.use_hedin_shift = LIBRPA_SWITCH_OFF;
+    const std::vector<double> omegas{fermi + pole - 0.2, fermi + pole, fermi + pole + 0.2};
+    const auto sf = handler.get_g0w0_spectral_function_with_sigc_band_k(
+        options, 1, points, 0, 2, omegas, zero, zero);
+    for (int state = 0; state != 2; ++state)
+        for (int f = 0; f != 3; ++f)
+        {
+            const int index = 3 * state + f;
+            if (state == 0 && f == 1)
+            {
+                assert(std::isnan(sf.sigc[index].real()) && std::isnan(sf.sigc[index].imag()));
+                assert(std::isnan(sf.spectral_function[index]));
+            }
+            else
+            {
+                const Complex expected = state == 0 ? 1.0 / (omegas[f] - fermi - pole) : 0.2;
+                assert(std::abs(sf.sigc[index] - expected) < 1e-11);
+                const Complex gf_inv = Complex{omegas[f], 0.1}
+                    - ds.mf_band.get_eigenvals()[0](0, state) - expected;
+                assert(std::abs(sf.spectral_function[index] + (1.0 / (PI * gf_inv)).imag()) < 1e-11);
+            }
+        }
+    ds.mf_band.get_eigenvals()[0](0, 0) = saved_energy;
+    diagonal = std::move(saved);
+}
+
 Observables calculate(const Model &model, const bool symmetry, const bool irreducible_input = false,
                       const bool band_projection = false, const int switch_pattern = -1,
                       const int mesh_order = 3, const int mesh_z = 1, const int spin_source = 2)
@@ -778,6 +837,12 @@ Observables calculate(const Model &model, const bool symmetry, const bool irredu
                   MPI_CXX_DOUBLE_COMPLEX, MPI_SUM, MPI_COMM_WORLD);
     MPI_Allreduce(MPI_IN_PLACE, owners.data(), owners.size(), MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     for (const int count : owners) assert(count == 1);
+    static bool checked_continuation = false;
+    if (!checked_continuation && band_projection && !symmetry)
+    {
+        check_public_anacon_failures(handler, *ds, options);
+        checked_continuation = true;
+    }
     return output;
 }
 

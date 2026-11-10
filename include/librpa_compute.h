@@ -556,7 +556,7 @@ void librpa_get_meanfield_dimensions(const LibrpaHandler *h, int band_path, int 
         const double* subset_spread_ha; /* [M^4] */
         double max_source_residual_ha, max_holdout_residual_ha;
     } LibrpaCrpaContinuedTensor;
-    /** Native Padé of U-v using original z=i*nu; restores v, no chemical-potential shift.
+    /** Default Pade continuation of U-v at original z=i*nu; restores v, no fermionic shift.
      * Queries are [real,imag] in Hartree: z=0 for static extrapolation, or Im(z)>0.
      * n_parameters=-1 uses all nodes. tolerance_ha controls numerical diagnostics.
      * Noncollective; returns independently owned values, not an added response node.
@@ -566,6 +566,18 @@ void librpa_get_meanfield_dimensions(const LibrpaHandler *h, int band_path, int 
     LibrpaCrpaContinuedResult* librpa_continue_crpa(const LibrpaCrpaResult* result, int n_queries,
                                                     const double* queries_ha_ri, int n_parameters,
                                                     double tolerance_ha);
+    /** Continue Delta U with the selected analytic-continuation options.
+     * Same units, ownership, query and status conventions as librpa_continue_crpa.
+     * options must be initialized and non-null. Uses anacon_method,
+     * n_params_anacon, anacon_aaa_tolerance and the ridge penalty controls.
+     * librpa_continue_crpa retains its signature and uses default Pade settings.
+     */
+    LibrpaCrpaContinuedResult* librpa_continue_crpa_with_options(const LibrpaCrpaResult* result,
+                                                                 int n_queries,
+                                                                 const double* queries_ha_ri,
+                                                                 const LibrpaOptions* options,
+                                                                 double tolerance_ha);
+
     void librpa_delete_crpa_continued_result(LibrpaCrpaContinuedResult* result);
     int librpa_crpa_continued_size(const LibrpaCrpaContinuedResult* result);
     void librpa_crpa_continued_tensor(const LibrpaCrpaContinuedResult* result, int tensor,

@@ -1,6 +1,0 @@
-*.[od]
-*.mod
-*__genmod.f90
-*.swp
-*.log
-.DS_Store

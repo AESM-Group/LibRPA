@@ -22,15 +22,9 @@ cmake -B build -DCMAKE_BUILD_TYPE=Debug -DLIBRPA_USE_LIBRI=ON -DLIBRPA_ENABLE_TE
 cmake --build build -j 8
 ```
 
-`.github/workflows/ci.yml` has the compiler settings and the other build
-configurations. It does not run when a change has only documentation and the
-scripts that `.github/workflows/checks.yml` uses. The `paths-ignore` lists in
-`ci.yml` give these files.
-
 ## Test
 
-Run these checks in the repository root. They need no build, and
-`.github/workflows/checks.yml` runs them for each change:
+Run these checks in the repository root. They need no build:
 
 ```bash
 python utilities/check_librpa_options.py
@@ -64,7 +58,7 @@ run, or add `-f`.
 ## Rules
 
 - Read `docs/develop/develop_tips.md` for the architecture rules, the runtime
-  option rules, the risk tiers, and the evidence standards.
+  option rules, CI, the risk tiers, and the evidence standards.
 - Use `REVIEW.md` for each code review, which includes local agent reviews such
   as `/code-review` in Claude Code.
 - Do not change references, tolerances, or comparators to make a test pass. Give

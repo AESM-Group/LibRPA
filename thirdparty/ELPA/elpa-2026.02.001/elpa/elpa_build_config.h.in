@@ -1,2 +1,0 @@
-// The stored build config
-
