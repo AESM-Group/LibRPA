@@ -53,6 +53,49 @@ set_property(TARGET ELPA::ELPA PROPERTY INTERFACE_LINK_LIBRARIES math)
 librpa_check_elpa_openmp(ELPA::ELPA)
 ''')
 
+    def fake_ldd(self, *dependencies):
+        # ldd starts each dependency line with a tab.
+        lines = "".join(f"\\t{dependency}\\n" for dependency in dependencies)
+        ldd = self.tmp / "ldd"
+        ldd.write_text(f"#!/bin/sh\nprintf '{lines}'\n")
+        ldd.chmod(0o755)
+
+    def configure_shared_elpa(self, openmp_library="/gnu/libgomp.so", success=True):
+        library = self.tmp / "libelpa.so"
+        library.touch()
+        return self.configure(f'''
+set(CMAKE_SYSTEM_NAME Linux)
+set(OpenMP_CXX_LIBRARIES "{openmp_library}")
+add_library(ELPA::ELPA SHARED IMPORTED)
+set_property(TARGET ELPA::ELPA PROPERTY IMPORTED_LOCATION "{library}")
+librpa_check_elpa_openmp(ELPA::ELPA)
+''', success=success)
+
+    def test_unresolved_runtime_conflict(self):
+        self.fake_ldd("libiomp5.so => not found", "libc.so.6 => /lib/libc.so.6 (0x0)")
+        output = self.configure_shared_elpa(success=False)
+        self.assertIn("Prebuilt ELPA: incompatible OpenMP runtimes", output)
+
+    def test_intel_and_llvm_runtimes_conflict(self):
+        self.fake_ldd("libiomp5.so => /intel/libiomp5.so (0x0)")
+        output = self.configure_shared_elpa("/llvm/libomp.so", success=False)
+        self.assertIn("Prebuilt ELPA: incompatible OpenMP runtimes", output)
+
+    def test_intel_thread_layer_accepts_one_intel_or_llvm_runtime(self):
+        for runtime in ("iomp5", "omp"):
+            with self.subTest(runtime=runtime):
+                self.fake_ldd(
+                    "libmkl_intel_thread.so.2 => /mkl/libmkl_intel_thread.so.2 (0x0)",
+                    f"lib{runtime}.so => /rt/lib{runtime}.so (0x0)")
+                output = self.configure_shared_elpa(f"/rt/lib{runtime}.so")
+                self.assertNotIn("check is incomplete", output)
+
+    def test_mkl_rt_reports_incomplete_check(self):
+        # mkl_rt selects its threading layer when the program runs.
+        self.fake_ldd("libmkl_rt.so.2 => /mkl/libmkl_rt.so.2 (0x0)")
+        output = self.configure_shared_elpa()
+        self.assertIn("ELPA OpenMP dependency check is incomplete", output)
+
     def test_installed_shared_library_dependency_conflict(self):
         # Exercise FindELPA and the Linux inspection path with deterministic
         # ldd output, including a runtime from a transitive BLAS dependency.
@@ -61,9 +104,7 @@ librpa_check_elpa_openmp(ELPA::ELPA)
         (self.tmp / "lib").mkdir()
         library = self.tmp / "lib/libelpa.so"
         library.touch()
-        ldd = self.tmp / "ldd"
-        ldd.write_text("#!/bin/sh\necho 'libiomp5.so => /intel/libiomp5.so (0x0)'\n")
-        ldd.chmod(0o755)
+        self.fake_ldd("libiomp5.so => /intel/libiomp5.so (0x0)")
         output = self.configure(f'''
 set(CMAKE_SYSTEM_NAME Linux)
 set(ELPA_PATH "{self.tmp}")

@@ -2,20 +2,33 @@
 include_guard(GLOBAL)
 
 function(librpa_check_openmp_libraries context)
+  # Match library names, not toolchain directory names. ldd starts each
+  # line with a tab.
+  set(_begin "(^|[/ \t;\n]|-l)(lib)?")
+  set(_end "([.; \t\n]|$)")
   set(_gnu FALSE)
-  set(_intel FALSE)
+  set(_iomp5 FALSE)
+  set(_omp FALSE)
+  set(_intel_thread FALSE)
   foreach(_library IN LISTS ARGN)
-    # Match library names, not toolchain directory names.
-    if(_library MATCHES "(^|[/ ;\n]|-l)(lib)?(gomp|mkl_gnu_thread)([.; \n]|$)")
+    if(_library MATCHES "${_begin}(gomp|mkl_gnu_thread)${_end}")
       set(_gnu TRUE)
     endif()
-    if(_library MATCHES "(^|[/ ;\n]|-l)(lib)?(iomp5|omp|mkl_intel_thread)([.; \n]|$)")
-      set(_intel TRUE)
+    if(_library MATCHES "${_begin}iomp5${_end}")
+      set(_iomp5 TRUE)
+    endif()
+    if(_library MATCHES "${_begin}omp${_end}")
+      set(_omp TRUE)
+    endif()
+    if(_library MATCHES "${_begin}mkl_intel_thread${_end}")
+      set(_intel_thread TRUE)
     endif()
   endforeach()
-  if(_gnu AND _intel)
+  # mkl_intel_thread runs on libiomp5 or libomp, but a process must load
+  # only one of them.
+  if((_gnu AND (_iomp5 OR _omp OR _intel_thread)) OR (_iomp5 AND _omp))
     message(FATAL_ERROR
-      "${context}: incompatible OpenMP runtimes (libgomp and libiomp5/libomp). "
+      "${context}: incompatible OpenMP runtimes (more than one of libgomp, libiomp5 and libomp). "
       "Build ELPA and its math libraries with the same OpenMP runtime as LibRPA. "
       "Dependencies: ${ARGN}")
   endif()
@@ -95,10 +108,14 @@ function(librpa_check_elpa_openmp target)
     endif()
   endwhile()
   librpa_check_openmp_libraries("Prebuilt ELPA" ${_libraries})
+  # mkl_rt selects its threading layer when the program runs.
+  if("${_libraries}" MATCHES "(^|[/ \t;\n]|-l)(lib)?mkl_rt([.; \t\n]|$)")
+    set(_incomplete TRUE)
+  endif()
   if(_incomplete)
     message(WARNING
       "ELPA OpenMP dependency check is incomplete (static library, generator "
-      "expression, unavailable dependency, or unsupported inspection platform). "
+      "expression, unavailable dependency, mkl_rt, or unsupported inspection platform). "
       "Verify that ELPA and its math libraries use the same OpenMP runtime as "
       "LibRPA, or build ELPA from source with LIBRPA_USE_ELPA=ON and no ELPA_PATH.")
   endif()

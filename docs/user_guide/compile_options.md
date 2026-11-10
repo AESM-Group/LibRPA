@@ -237,8 +237,8 @@ This option controls ELPA's own OpenMP support when LibRPA builds downloaded ELP
 Installed libraries and parent ELPA targets keep their own threading settings.
 
 When enabled, configuration checks the OpenMP libraries selected for C, C++
-and Fortran together with MKL and `LIBRPA_ELPA_LIBS`. A mixture of GNU and
-Intel/LLVM OpenMP runtimes stops configuration. For example, GCC C++ with
+and Fortran together with MKL and `LIBRPA_ELPA_LIBS`. More than one of the
+GNU, Intel and LLVM OpenMP runtimes stops configuration. For example, GCC C++ with
 Intel Fortran requires compatible runtime settings before ELPA can be built.
 
 The default is `OFF`. In that case, ELPA is built as an MPI-only static library,
@@ -594,10 +594,12 @@ The finder looks for ELPA headers and a library. It also adds the Fortran module
 
 Configuration checks the link dependencies of an installed ELPA library or a
 parent `ELPA::ELPA` target. On native Linux builds, it also uses `ldd` to inspect
-shared-library dependencies. A detected mixture of `libgomp` and
-`libiomp5`/`libomp`, including incompatible MKL threading layers, stops
-configuration. Static archives, generator expressions, missing dependencies,
-and other inspection platforms produce an incomplete-check warning. For these
+shared-library dependencies. More than one of `libgomp`, `libiomp5` and
+`libomp`, or an MKL threading layer that does not match the runtime, stops
+configuration. `mkl_intel_thread` is accepted with either `libiomp5` or
+`libomp`. Static archives, generator expressions, missing dependencies,
+`mkl_rt`, which selects its threading layer at run time, and other inspection
+platforms produce an incomplete-check warning. For these
 cases, verify ELPA's build configuration or build it from source with LibRPA.
 The check covers OpenMP dependencies; ELPA must also match LibRPA's MPI ABI.
 
