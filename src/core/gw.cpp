@@ -373,7 +373,7 @@ class OutputOnlyFilter_GW_Symmetry : public RI::Filter_Atom<TA, std::pair<TA, TC
 
     bool filter_for32(const RI::Label::ab_ab& label,
                       const TA& A1,
-                      const TAC&,
+                      const TAC& A2,
                       const TAC& A3) const override
     {
         switch (label)
@@ -381,6 +381,10 @@ class OutputOnlyFilter_GW_Symmetry : public RI::Filter_Atom<TA, std::pair<TA, TC
             case RI::Label::ab_ab::a0b0_a2b1:
             case RI::Label::ab_ab::a0b0_a2b2:
                 return !this->symmetry_.in_irreducible_sector(A1, A3);
+            // GPU contractions provide their output pair as A2 and A3.
+            case RI::Label::ab_ab::a0b0_a1b1:
+            case RI::Label::ab_ab::a0b0_a1b2:
+                return !this->symmetry_.in_irreducible_sector(A2, A3);
             default:
                 return false;
         }
