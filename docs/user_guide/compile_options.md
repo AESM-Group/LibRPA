@@ -236,6 +236,11 @@ cmake -B build -DLIBRPA_USE_ELPA=ON \
 This option controls ELPA's own OpenMP support when LibRPA builds downloaded ELPA sources or a tree supplied through `ELPA_SOURCE_DIR`.
 Installed libraries and parent ELPA targets keep their own threading settings.
 
+When enabled, configuration checks the OpenMP libraries selected for C, C++
+and Fortran together with MKL and `LIBRPA_ELPA_LIBS`. More than one of the
+GNU, Intel and LLVM OpenMP runtimes stops configuration. For example, GCC C++ with
+Intel Fortran requires compatible runtime settings before ELPA can be built.
+
 The default is `OFF`. In that case, ELPA is built as an MPI-only static library,
 even if LibRPA itself is compiled with OpenMP. Set this option to `ON` only when
 the runtime process and thread layout is chosen with ELPA threading in mind.
@@ -587,6 +592,17 @@ The finder looks for ELPA headers and a library. It also adds the Fortran module
 
 `ELPA_ROOT`, including its environment variable, is used when `ELPA_PATH` is absent. An explicit prefix restricts the search to that installation. Missing headers or libraries stop configuration. Supplying `ELPA_ROOT` also enables `LIBRPA_USE_ELPA`. Installation mode emits a compatibility warning on every configuration. Source builds use the compilers and settings selected for LibRPA.
 
+Configuration checks the link dependencies of an installed ELPA library or a
+parent `ELPA::ELPA` target. On native Linux builds, it also uses `ldd` to inspect
+shared-library dependencies. More than one of `libgomp`, `libiomp5` and
+`libomp`, or an MKL threading layer that does not match the runtime, stops
+configuration. `mkl_intel_thread` is accepted with either `libiomp5` or
+`libomp`. Static archives, generator expressions, missing dependencies,
+`mkl_rt`, which selects its threading layer at run time, and other inspection
+platforms produce an incomplete-check warning. For these
+cases, verify ELPA's build configuration or build it from source with LibRPA.
+The check covers OpenMP dependencies; ELPA must also match LibRPA's MPI ABI.
+
 ```sh
 cmake -B build -DELPA_PATH=/path/to/elpa
 ```
@@ -710,6 +726,13 @@ Build the selected configuration before installation. See {ref}`Installation <in
 ### `MKLROOT`
 
 When this option is nonempty, LibRPA looks for BLAS, LAPACK and ScaLAPACK through Intel MKL. A defined CMake value takes precedence over the environment variable, including an explicitly empty value.
+
+The finder selects `mkl_gnu_thread` for GCC C++ and `mkl_intel_thread` for
+Intel and LLVM C++. It selects `mkl_blacs_openmpi_lp64` for Open MPI and
+`mkl_blacs_intelmpi_lp64` for Intel MPI or MPICH. The MPI choice comes from a
+compile check of the selected MPI headers. An unknown MPI implementation stops
+configuration. These BLACS variants follow the
+[Intel library definitions](https://www.intel.com/content/www/us/en/docs/onemkl/developer-guide-linux/2026-0/static-libraries-in-the-lib-directory.html).
 
 Set `-DMKLROOT=` to select the separate LAPACK and ScaLAPACK discovery path when the shell has an MKL environment. Use math libraries compatible with the compiler and MPI toolchain.
 

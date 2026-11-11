@@ -135,6 +135,21 @@ else()
   endif()
 endif()
 
+find_package(MPI REQUIRED)
+if (MPI_CXX_FOUND)
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_FLAGS}")
+endif()
+
+# message(INFO "${CMAKE_C_COMPILER_LOADED} ${CMAKE_CXX_COMPILER_LOADED} ${CMAKE_Fortran_COMPILER_LOADED}")
+find_package(OpenMP REQUIRED)
+if (OpenMP_CXX_FOUND)
+  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+list(APPEND parallel_libs
+        OpenMP::OpenMP_CXX
+        MPI::MPI_CXX
+        )
+
 if(DEFINED ENV{MKLROOT} AND NOT DEFINED MKLROOT)
   set(MKLROOT "$ENV{MKLROOT}")
 endif()
@@ -157,21 +172,7 @@ else()
           )
 endif()
 
-find_package(MPI REQUIRED)
-if (MPI_CXX_FOUND)
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_FLAGS}")
-endif()
-
-# message(INFO "${CMAKE_C_COMPILER_LOADED} ${CMAKE_CXX_COMPILER_LOADED} ${CMAKE_Fortran_COMPILER_LOADED}")
-find_package(OpenMP REQUIRED)
-if (OpenMP_CXX_FOUND)
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-endif()
-list(APPEND parallel_libs
-        OpenMP::OpenMP_CXX
-        MPI::MPI_CXX
-        )
-# mkl_intel_thread needs an OpenMP runtime. LibRPA gets it from
+# The selected MKL threading layer needs an OpenMP runtime. LibRPA gets it from
 # OpenMP::OpenMP_CXX, but the ELPA configure script sees only LIBS.
 if(MKLROOT)
   list(APPEND _librpa_elpa_configure_libs ${OpenMP_CXX_LIBRARIES})
@@ -224,6 +225,7 @@ if(LIBRPA_USE_LIBRI_GPU)
   endif()
 endif()
 
+include(CheckELPAOpenMP)
 set(LIBRPA_ELPA_TARGET "")
 if(_elpa_mode STREQUAL "target" OR _elpa_mode STREQUAL "installed")
   if(TARGET ELPA::ELPA)
@@ -243,9 +245,11 @@ if(_elpa_mode STREQUAL "target" OR _elpa_mode STREQUAL "installed")
     message(STATUS "Use external ELPA include dirs  : ${ELPA_INCLUDE_DIRS}")
   endif()
   add_compile_definitions("LIBRPA_USE_ELPA")
+  librpa_check_elpa_openmp(ELPA::ELPA)
   set(LIBRPA_ELPA_TARGET ELPA::ELPA)
   list(APPEND math_libs ${LIBRPA_ELPA_TARGET})
 elseif(_elpa_mode STREQUAL "source")
+  librpa_check_elpa_source_openmp()
   if(NOT LIBRPA_ELPA_LIBS)
     set(_librpa_elpa_configure_lib_flags "")
     foreach(_librpa_elpa_configure_lib IN LISTS _librpa_elpa_configure_libs)
