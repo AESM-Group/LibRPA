@@ -1358,10 +1358,10 @@ void Exx::build_KS_blacs(const std::map<int, std::map<int, std::map<int, Complex
         if (rotation_blacs_h_nc.ddla_handle == nullptr)
             rotation_blacs_h_nc.init_ddla_handle();
         ddla::DDLA_CHECK(ddla::ddlaSetDevice(rotation_blacs_h.ddla_handle));
-        desc_wfc_device.set_ddla_desc(rotation_blacs_h.ddla_handle);
-        desc_nao_nao_opt.set_ddla_desc(rotation_blacs_h.ddla_handle);
-        desc_nband_nao_opt.set_ddla_desc(rotation_blacs_h.ddla_handle);
-        desc_nband_nband_opt.set_ddla_desc(rotation_blacs_h.ddla_handle);
+        desc_wfc_device.set_ddla_handle(rotation_blacs_h.ddla_handle);
+        desc_nao_nao_opt.set_ddla_handle(rotation_blacs_h.ddla_handle);
+        desc_nband_nao_opt.set_ddla_handle(rotation_blacs_h.ddla_handle);
+        desc_nband_nband_opt.set_ddla_handle(rotation_blacs_h.ddla_handle);
 
         size_wfc = static_cast<size_t>(desc_wfc_device.m_loc()) * desc_wfc_device.n_loc();
         size_hexx_nao = static_cast<size_t>(desc_nao_nao_opt.m_loc()) * desc_nao_nao_opt.n_loc();

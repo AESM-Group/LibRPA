@@ -864,7 +864,7 @@ CorrEnergy compute_RPA_correlation_blacs_2d_gamma_only(Chi0 &chi0, atpair_k_cplx
 #if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
     if(use_gpu_replace_scalapack)
     {
-        desc_nabf_nabf_opt.set_ddla_desc(blacs_h.ddla_handle);
+        desc_nabf_nabf_opt.set_ddla_handle(blacs_h.ddla_handle);
         ddla::DDLA_CHECK(ddla::ddlaSetDevice(blacs_h.ddla_handle));
         ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&chi0_block_ptr, chi0_block.size() * sizeof(double)));
         ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&coul_block_ptr, coul_block.size() * sizeof(double)));
@@ -2839,7 +2839,7 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
 #if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
     if (use_gpu_replace_scalapack)
     {
-        desc_nabf_nabf_opt.set_ddla_desc(blacs_h.ddla_handle); // set the descriptor for the device
+        desc_nabf_nabf_opt.set_ddla_handle(blacs_h.ddla_handle); // borrow the GPU handle
         ddla::DDLA_CHECK(ddla::ddlaSetDevice(blacs_h.ddla_handle));
         ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&chi0_block_ptr, chi0_block.size() * sizeof(std::complex<double>)));
     }
@@ -3187,7 +3187,7 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
             desc_1x1.init(1, 1, nb_opt, nb_opt, 0, 0);
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
             if (use_gpu_replace_scalapack)
-                desc_1x1.set_ddla_desc(blacs_h.ddla_handle);
+                desc_1x1.set_ddla_handle(blacs_h.ddla_handle);
 #endif
         }
         ArrayDesc desc_head_direction(blacs_h);

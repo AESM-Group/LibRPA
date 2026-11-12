@@ -666,8 +666,8 @@ static void pgemm_wfc_scaled_wfc_h(const int n_aos, const int n_cols,
     auto &blacs_h_nc = const_cast<BlacsCtxtHandler &>(blacs_h);
     if (blacs_h_nc.ddla_handle == nullptr)
         blacs_h_nc.init_ddla_handle();
-    workspace.desc_wfc_compute.set_ddla_desc(blacs_h_nc.ddla_handle);
-    workspace.desc_out_opt.set_ddla_desc(blacs_h_nc.ddla_handle);
+    workspace.desc_wfc_compute.set_ddla_handle(blacs_h_nc.ddla_handle);
+    workspace.desc_out_opt.set_ddla_handle(blacs_h_nc.ddla_handle);
 
     auto handle = blacs_h_nc.ddla_handle;
     // LibRI GPU contractions can change the calling thread's current device.
@@ -689,9 +689,9 @@ static void pgemm_wfc_scaled_wfc_h(const int n_aos, const int n_cols,
         ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, d_B, scaled_wfc_ket, size_ab * sizeof(cplxdb)));
     }
     ddla::pgemm(handle, 'N', 'C', n_aos, n_aos, n_cols, C_ONE,
-                d_A, workspace.desc_wfc_compute.ddla_desc(),
-                d_B, workspace.desc_wfc_compute.ddla_desc(),
-                C_ZERO, d_C, workspace.desc_out_opt.ddla_desc());
+                d_A, workspace.desc_wfc_compute.desc,
+                d_B, workspace.desc_wfc_compute.desc,
+                C_ZERO, d_C, workspace.desc_out_opt.desc);
     if (size_c > 0)
         ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, out_opt, d_C, size_c * sizeof(cplxdb)));
     ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));

@@ -3578,7 +3578,7 @@ void invert_headwing_body_with_identity_solve(
             throw LIBRPA_RUNTIME_ERROR(
                 "Head/wing body inverse requested DDLA before its BLACS handle was initialized");
         }
-        desc_body.set_ddla_desc(blacs_h.ddla_handle);
+        desc_body.set_ddla_handle(blacs_h.ddla_handle);
         ddla::DDLA_CHECK(ddla::ddlaSetDevice(blacs_h.ddla_handle));
 
         const std::size_t local_size = body.size();

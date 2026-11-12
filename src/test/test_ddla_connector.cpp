@@ -23,8 +23,8 @@ int main(int argc, char** argv)
         grid.init_ddla_handle();
         ArrayDesc desc(grid);
         desc.init(7, 7, 2, 2, 0, 0);
-        desc.set_ddla_desc(grid.ddla_handle);
-        assert(desc.ddla_desc() == desc.desc);
+        desc.set_ddla_handle(grid.ddla_handle);
+        assert(desc.ddla_handle() == grid.ddla_handle);
         const auto handle = grid.ddla_handle;
         const int count = desc.lld() * desc.n_loc();
         std::vector<T> original(count), identity(count), diagonal(count), result(count);

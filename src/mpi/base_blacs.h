@@ -222,9 +222,9 @@ public:
     void barrier(CTXT_SCOPE scope = CTXT_SCOPE::A) const;
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    const int* ddla_desc() const noexcept { return desc; }
+
     ddla::DdlaHandle_t ddla_handle() const noexcept { return ddla_handle_; }
-    void set_ddla_desc(const ddla::DdlaHandle_t& ddla_handle){
+    void set_ddla_handle(const ddla::DdlaHandle_t& ddla_handle){
         // DDLA accepts the existing ScaLAPACK descriptor without translation.
         ddla_handle_ = ddla_handle;
     }

@@ -36,10 +36,10 @@ inline void pgemm(
             transa, transb,
             m, n, k,
             alpha,
-            A, array_descA.ddla_desc(),
-            B, array_descB.ddla_desc(),
+            A, array_descA.desc,
+            B, array_descB.desc,
             beta,
-            C, array_descC.ddla_desc()
+            C, array_descC.desc
         );
     }
     else
@@ -83,7 +83,7 @@ inline void pdam(const T1& num, T2* A, const ArrayDesc& array_desc)
     }
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(DeviceConnector::check_device_ptr((void*)A)){
-        ddla::pdam(array_desc.ddla_handle(), num, A, array_desc.ddla_desc());
+        ddla::pdam(array_desc.ddla_handle(), num, A, array_desc.desc);
     }else
     #endif
     {
@@ -141,7 +141,7 @@ inline void pgetrf_bpiv(
         throw std::runtime_error("In LaConnector::pgetrf_bpiv, only support ia=ja=1 for device implementation!");
     }
     if(DeviceConnector::check_device_ptr((void*)d_A)){
-        ddla::pgetrf_bpiv(array_descA.ddla_handle(), m, n, d_A, array_descA.ddla_desc(), ipiv, info);
+        ddla::pgetrf_bpiv(array_descA.ddla_handle(), m, n, d_A, array_descA.desc, ipiv, info);
     }else
     #endif
     {
@@ -165,8 +165,8 @@ inline void pgesv(
         ddla::pgesv(
             array_descA.ddla_handle(), 'L', 'N',
             n, nrhs,
-            d_A, array_descA.ddla_desc(),
-            d_B, array_descB.ddla_desc()
+            d_A, array_descA.desc,
+            d_B, array_descB.desc
         );
     }else
     #endif
@@ -206,8 +206,8 @@ inline void pposv(
             array_descA.ddla_handle(),
             side, uplo, trans,
             n, nrhs,
-            d_A, 1, 1, array_descA.ddla_desc(),
-            d_B, 1, 1, array_descB.ddla_desc(),
+            d_A, 1, 1, array_descA.desc,
+            d_B, 1, 1, array_descB.desc,
             info,
             is_head, location
         );
