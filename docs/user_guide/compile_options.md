@@ -39,6 +39,7 @@ It also includes selected standard CMake options for reference, but does not cov
 | [`LIBRPA_USE_LIBRI`](#librpa-use-libri)                     | bool              | `ON`       |
 | [`LIBRPA_USE_LIBRI_GPU`](#librpa-use-libri-gpu)             | bool              | `OFF`      |
 | [`LIBRPA_USE_CUDA`](#librpa-use-cuda)                       | bool              | `OFF`      |
+| [`LIBRPA_USE_DDLA`](#librpa-use-ddla)                       | bool              | build-dependent |
 | [`LIBRPA_USE_HIP`](#librpa-use-hip)                         | bool              | `OFF`      |
 | [`LIBRPA_USE_EXTERNAL_GREENX`](#librpa-use-external-greenx) | bool (deprecated, ignored) | unset |
 | [`LIBRPA_ENABLE_FORTRAN_BIND`](#librpa-enable-fortran-bind) | bool              | `OFF`      |
@@ -111,6 +112,25 @@ cmake -B build \
       -DLIBRPA_USE_CUDA=ON \
       -DLIBRPA_USE_LIBRI_GPU=ON
 ```
+
+(librpa-use-ddla)=
+### `LIBRPA_USE_DDLA`
+
+Enable LibDDLA independently of GPU support. The default is `OFF` for CPU-only
+builds. CUDA or HIP automatically sets `LIBRPA_USE_DDLA=ON`, overriding an
+explicit or cached `OFF` value.
+
+For CPU-only DDLA, leave both GPU options off:
+
+```sh
+cmake -B build -DLIBRPA_USE_DDLA=ON \
+  -DLIBRPA_USE_CUDA=OFF -DLIBRPA_USE_HIP=OFF
+```
+
+Choose an existing installation with `LIBDDLA_PATH`, a source tree with
+`LIBDDLA_SOURCE_DIR`, or leave both empty for the managed dependency. CPU-only
+managed builds disable CUDA, HIP, GPU collectives and GPU/CPU tunneling.
+They require host BLAS/LAPACK and MPI, but no GPU toolkit.
 
 (librpa-use-cuda)=
 ### `LIBRPA_USE_CUDA`
@@ -529,7 +549,7 @@ For path formats and cached environment values, see the {ref}`dependency path se
 (libddla-path)=
 ### `LIBDDLA_PATH`
 
-You can set this option to the installation prefix of LibDDLA for a CUDA or HIP build.
+You can set this option to the installation prefix of LibDDLA when `LIBRPA_USE_DDLA=ON`, including CPU-only builds.
 A nonempty CMake value takes precedence over the environment variable of the same name.
 
 The resolution order is:
@@ -668,7 +688,7 @@ See {ref}`Offline installation <install-offline>` for preparation and transfer c
 (libddla-source-dir)=
 ### `LIBDDLA_SOURCE_DIR`
 
-You can set this option to a LibDDLA source directory for a CUDA or HIP build.
+You can set this option to a LibDDLA source directory when `LIBRPA_USE_DDLA=ON`, including CPU-only builds.
 A nonempty CMake value takes precedence over the environment variable of the same name, and an existing `ddla::ddla` or `LibDDLA::ddla` target takes precedence over the path.
 Choose either a source directory through this option or an installation through `LIBDDLA_PATH`.
 
@@ -677,7 +697,7 @@ LibRPA compares the hash of the whole source tree with the manifest and reports 
 This comparison also includes extra files, such as Git metadata.
 
 LibRPA builds the supplied sources directly, without patches or a separate source copy.
-It uses CMake's ExternalProject mechanism to configure the GPU languages in a separate build, with `_deps/libddla-build` and `_deps/libddla-install` directories for each top-level build.
+It uses CMake's ExternalProject mechanism for a separate CPU, CUDA or HIP build, with `_deps/libddla-build` and `_deps/libddla-install` directories for each top-level build.
 After changing the LibDDLA sources or its toolchain, use a fresh build directory so that the separate build picks up the changes.
 
 The separate LibDDLA build receives `CMAKE_CXX_COMPILER`, `CMAKE_CXX_FLAGS`, `CMAKE_BUILD_TYPE`, `MPI_CXX_COMPILER` and `CMAKE_PREFIX_PATH`. Backend-specific variables are forwarded when set:
@@ -697,7 +717,7 @@ For split CUDA installations, `DDLA_CUDA_MATH_LIBRARY_DIR` and explicit
 `CUBLAS_LIBRARY`, `CUBLASLT_LIBRARY`, `CURAND_LIBRARY`, `CUSOLVER_LIBRARY`
 and `CUDART_LIBRARY` overrides are forwarded when provided.
 
-Other parent cache entries are not automatically forwarded. `ROCM_PATH` also accepts an environment fallback. LibRPA enables LibDDLA's collective communication backend, disables its tests, and selects GPU/CPU tunneling for HIP only.
+Other parent cache entries are not automatically forwarded. `ROCM_PATH` also accepts an environment fallback. LibRPA enables GPU collectives only for CUDA/HIP, disables LibDDLA's tests, and selects GPU/CPU tunneling for HIP only.
 
 LibDDLA transport options such as `DDLA_USE_GPU_CPU_TUNNEL` and
 `DDLA_USE_CCL` configure the LibDDLA build; LibRPA does not need them as

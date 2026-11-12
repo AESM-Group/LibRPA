@@ -51,8 +51,6 @@ extern const char * cereal_include_dir;
 
 extern const char * thirdparty_sources;
 
-extern const char * ddla_use_ccl;
-
 extern const char * ddla_use_gpu_cpu_tunnel;
 
 extern const char * libddla_path;

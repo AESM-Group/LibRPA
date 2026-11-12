@@ -21,10 +21,17 @@ int main(int argc, char** argv)
         grid.init();
         grid.set_square_grid();
         grid.init_ddla_handle();
+        const auto gpu_handle = grid.ddla_handle;
+        grid.init_ddla_handle(ddla::DdlaBackend::CPU);
+        const auto cpu_handle = grid.ddla_cpu_handle;
+        grid.init_ddla_handle(ddla::DdlaBackend::CPU);
+        grid.init_ddla_handle();
+        assert(cpu_handle != nullptr && cpu_handle == grid.ddla_cpu_handle);
+        assert(gpu_handle != nullptr && gpu_handle == grid.ddla_handle);
         ArrayDesc desc(grid);
         desc.init(7, 7, 2, 2, 0, 0);
         desc.set_ddla_handle(grid.ddla_handle);
-        assert(desc.ddla_handle() == grid.ddla_handle);
+        assert(desc.ddla_handle() == gpu_handle);
         const auto handle = grid.ddla_handle;
         const int count = desc.lld() * desc.n_loc();
         std::vector<T> original(count), identity(count), diagonal(count), result(count);

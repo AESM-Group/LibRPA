@@ -64,6 +64,9 @@ target_include_directories(rpa_lib PRIVATE
 # switches. Propagate the same definitions to consumers to keep their view of
 # the LibRPA data model ABI-compatible with the library.
 target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_MPI)
+if(LIBRPA_USE_DDLA)
+  target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_DDLA)
+endif()
 if(LIBRPA_USE_LIBRI)
   target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_LIBRI)
 endif()

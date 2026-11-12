@@ -33,6 +33,10 @@ option(LIBRPA_ENABLE_FORTRAN_BIND  "Flag to build LibRPA Fotran binding" OFF)
 option(LIBRPA_VERBOSE_OUTPUT       "Flag to print verbose information in stdout and process output of LibRPA" ON)
 option(LIBRPA_USE_CUDA             "Enable the CUDA backend" OFF)
 option(LIBRPA_USE_HIP              "Enable the HIP backend" OFF)
+option(LIBRPA_USE_DDLA "Use LibDDLA for distributed linear algebra" OFF)
+if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+  set(LIBRPA_USE_DDLA ON CACHE BOOL "Use LibDDLA for distributed linear algebra" FORCE)
+endif()
 
 # Comonent test switches, only used when LIBRPA_ENABLE_TEST is ON
 option(LIBRPA_ENABLE_CPP_TEST      "Flag to build tests for C++ components" ON)
@@ -440,17 +444,16 @@ if(LIBRPA_USE_CUDA)
   endif()
 endif()
 
-# Check LibDDLA. LIBRPA_USE_CUDA/HIP select the public DDLA headers used by
-# LibRPA, while a managed LibDDLA enables its GPU language in a child build.
+# DDLA is available independently of GPU support. A managed build enables
+# optional CUDA/HIP languages only in its child CMake project.
 set(LIBRPA_DDLA_TARGET "")
 set(LIBRPA_BUNDLED_DDLA_PROJECT_TARGET "")
-if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+if(LIBRPA_USE_DDLA)
   librpa_thirdparty_path(LIBDDLA_PATH _libddla_prefix)
   librpa_thirdparty_path(LIBDDLA_SOURCE_DIR _libddla_user_source)
   if(_libddla_prefix AND _libddla_user_source)
     message(FATAL_ERROR "LibDDLA: LIBDDLA_PATH and LIBDDLA_SOURCE_DIR are mutually exclusive")
   endif()
-  set(DDLA_USE_CCL ON)
   if(TARGET ddla::ddla)
     set(LIBRPA_DDLA_TARGET ddla::ddla)
     set(_libddla_status target)
@@ -462,7 +465,6 @@ if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
     set(_libddla_status installed)
     librpa_thirdparty_warn_installed(LibDDLA "${_libddla_prefix}"
       "leave LIBDDLA_PATH empty" LIBDDLA_SOURCE_DIR)
-    set(DDLA_USE_GPU_CPU_TUNNEL "EXTERNAL DEFINED OFF(CUDA default), ON(HIP default)")
     message(STATUS "Use external LibDDLA from: ${LIBDDLA_PATH}")
     unset(LibDDLA_DIR CACHE)
     find_package(LibDDLA 0.0.6 REQUIRED CONFIG PATHS
@@ -502,6 +504,7 @@ if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   string(APPEND LIBRPA_THIRDPARTY_SUMMARY " ")
   message(STATUS "LibDDLA source: ${_libddla_status} ${_libddla_source_dir} ${LIBDDLA_PATH}")
 endif()
+message(STATUS "Use LibDDLA                    : ${LIBRPA_USE_DDLA}")
 
 if(LIBRPA_USE_HIP)
   add_compile_definitions("LIBRPA_USE_HIP")

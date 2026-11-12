@@ -34,7 +34,6 @@ const std::string& cmake_info_storage()
         << "| cereal include directory : " << envs::cereal_include_dir << "\n"
         << "| Third-party sources      : " << envs::thirdparty_sources << "\n"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-        << "| DDLA_USE_CCL             : " << envs::ddla_use_ccl << "\n"
         << "| DDLA_USE_GPU_CPU_TUNNEL  : " << envs::ddla_use_gpu_cpu_tunnel << "\n"
         << "| LibDDLA path             : " << envs::libddla_path << "\n"
         << "| ELPA directory           : " << envs::elpa_dir << "\n"

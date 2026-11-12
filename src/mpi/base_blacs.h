@@ -6,8 +6,11 @@
 #include "base_mpi.h"
 #include "../math/scalapack_connector.h"
 
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#ifdef LIBRPA_USE_DDLA
 #include <ddla/ddla.h>
+#endif
+
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #if defined(LIBRPA_USE_CUDA)
 #include <cuda_runtime_api.h>
 #else
@@ -37,6 +40,9 @@ private:
     bool initialized_;
     bool pgrid_set_;
     bool comm_set_;
+#ifdef LIBRPA_USE_DDLA
+    void destroy_ddla_handles();
+#endif
 public:
     int ictxt;
     CTXT_LAYOUT layout;
@@ -46,9 +52,14 @@ public:
     int npcols;
     int myprow;
     int mypcol;
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#ifdef LIBRPA_USE_DDLA
     ddla::DdlaHandle_t ddla_handle;
-    void init_ddla_handle();
+    ddla::DdlaHandle_t ddla_cpu_handle;
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    void init_ddla_handle(ddla::DdlaBackend backend = ddla::DdlaBackend::GPU);
+#else
+    void init_ddla_handle(ddla::DdlaBackend backend = ddla::DdlaBackend::CPU);
+#endif
 #endif
     BlacsCtxtHandler();
     BlacsCtxtHandler(MPI_Comm comm_in);
@@ -149,7 +160,7 @@ private:
     //! flag for initialization
     bool initialized_ = false;
 
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#ifdef LIBRPA_USE_DDLA
     // Non-owning: the BLACS handler owns the matching DDLA process grid.
     ddla::DdlaHandle_t ddla_handle_;
 #endif
@@ -221,7 +232,7 @@ public:
     bool is_initialized() const noexcept { return this->initialized_; };
     void barrier(CTXT_SCOPE scope = CTXT_SCOPE::A) const;
 
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#ifdef LIBRPA_USE_DDLA
 
     ddla::DdlaHandle_t ddla_handle() const noexcept { return ddla_handle_; }
     void set_ddla_handle(const ddla::DdlaHandle_t& ddla_handle){

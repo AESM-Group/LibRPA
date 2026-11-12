@@ -1,8 +1,8 @@
 include_guard(GLOBAL)
 include(ExternalProject)
 
-if(NOT (LIBRPA_USE_CUDA OR LIBRPA_USE_HIP))
-  message(FATAL_ERROR "Managed LibDDLA requires a CUDA or HIP backend")
+if(NOT LIBRPA_USE_DDLA)
+  message(FATAL_ERROR "Managed LibDDLA requires LIBRPA_USE_DDLA=ON")
 endif()
 if(LIBRPA_USE_CUDA AND LIBRPA_USE_HIP)
   message(FATAL_ERROR "Managed LibDDLA cannot enable CUDA and HIP together")
@@ -31,7 +31,6 @@ set(_libddla_cmake_args
   "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
   "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}"
   "-DBUILD_TESTS:BOOL=OFF"
-  "-DDDLA_USE_CCL:BOOL=ON"
 )
 
 if(CMAKE_BUILD_TYPE)
@@ -54,6 +53,7 @@ if(LIBRPA_USE_CUDA)
     "-DDDLA_USE_CUDA:BOOL=ON"
     "-DDDLA_USE_HIP:BOOL=OFF"
     "-DDDLA_USE_GPU_CPU_TUNNEL:BOOL=OFF"
+    "-DDDLA_USE_CCL:BOOL=ON"
   )
   set(_libddla_backend CUDA)
   set(_libddla_forward_variables
@@ -63,11 +63,12 @@ if(LIBRPA_USE_CUDA)
     CMAKE_CUDA_SEPARABLE_COMPILATION
     CUDAToolkit_ROOT
   )
-else()
+elseif(LIBRPA_USE_HIP)
   list(APPEND _libddla_cmake_args
     "-DDDLA_USE_CUDA:BOOL=OFF"
     "-DDDLA_USE_HIP:BOOL=ON"
     "-DDDLA_USE_GPU_CPU_TUNNEL:BOOL=ON"
+    "-DDDLA_USE_CCL:BOOL=ON"
   )
   set(_libddla_backend HIP)
   set(_libddla_forward_variables
@@ -78,6 +79,15 @@ else()
     CMAKE_HIP_COMPILER_ROCM_ROOT
     ROCM_PATH
   )
+else()
+  list(APPEND _libddla_cmake_args
+    "-DDDLA_USE_CUDA:BOOL=OFF"
+    "-DDDLA_USE_HIP:BOOL=OFF"
+    "-DDDLA_USE_CCL:BOOL=OFF"
+    "-DDDLA_USE_GPU_CPU_TUNNEL:BOOL=OFF"
+  )
+  set(_libddla_backend CPU)
+  set(_libddla_forward_variables "")
 endif()
 
 list(APPEND _libddla_forward_variables
