@@ -44,7 +44,7 @@ using namespace ddla;
 #include <RI/parallel/Parallel_LRI_Equally_Weighted.h>
 #endif
 #include <RI/physics/Exx.h>
-#include <RI/physics/symmetry/Symmetry_Filter.h>
+#include "../utils/libri_output_filter.h"
 #include <RI/ri/Cell_Nearest.h>
 #else
 #include "../utils/libri_stub.h"
@@ -158,78 +158,6 @@ static bool exx_coulomb_uses_symmetry_irreducible_sector_layout(
     }
     return true;
 }
-
-#ifdef LIBRPA_USE_LIBRI
-template <typename TA, typename TC, typename Tdata>
-class OutputOnlyFilter_Atom_Symmetry : public RI::Filter_Atom<TA, std::pair<TA, TC>>
-{
-  public:
-    using TAC = std::pair<TA, TC>;
-
-    OutputOnlyFilter_Atom_Symmetry(
-        const TC& period,
-        const std::map<std::pair<TA, TA>, std::set<TC>>& irreducible_sector)
-        : symmetry(period, irreducible_sector)
-    {
-    }
-
-    bool filter_for32(const RI::Label::ab_ab& label,
-                      const TA& A1,
-                      const TAC&,
-                      const TAC& A3) const override
-    {
-        switch (label)
-        {
-            case RI::Label::ab_ab::a1b0_a2b1:
-            case RI::Label::ab_ab::a1b1_a2b0:
-            case RI::Label::ab_ab::a0b0_a2b1:
-            case RI::Label::ab_ab::a0b1_a2b0:
-            case RI::Label::ab_ab::a1b1_a2b2:
-            case RI::Label::ab_ab::a0b1_a2b2:
-            case RI::Label::ab_ab::a1b0_a2b2:
-            case RI::Label::ab_ab::a0b0_a2b2:
-                return !this->symmetry.in_irreducible_sector(A1, A3);
-            default:
-                return false;
-        }
-    }
-
-    bool filter_for32(const RI::Label::ab_ab& label,
-                      const TAC& A1,
-                      const TA&,
-                      const TAC& A3) const override
-    {
-        switch (label)
-        {
-            case RI::Label::ab_ab::a0b0_a1b2:
-            case RI::Label::ab_ab::a0b1_a1b2:
-            case RI::Label::ab_ab::a0b2_a1b0:
-            case RI::Label::ab_ab::a0b2_a1b1:
-                return !this->symmetry.in_irreducible_sector(A3, A1);
-            default:
-                return false;
-        }
-    }
-
-    bool filter_for32(const RI::Label::ab_ab& label,
-                      const TAC& A1,
-                      const TAC&,
-                      const TAC& A3) const override
-    {
-        switch (label)
-        {
-            case RI::Label::ab_ab::a0b0_a1b1:
-            case RI::Label::ab_ab::a0b1_a1b0:
-                return !this->symmetry.in_irreducible_sector(A1, A3);
-            default:
-                return false;
-        }
-    }
-
-  private:
-    RI::Symmetry_Filter<TA, TC, Tdata> symmetry;
-};
-#endif
 
 static void write_exx_nao_k_matrix(const Matz &mat, const ArrayDesc &desc,
                                    const std::string &output_dir, const std::string &source,
@@ -761,13 +689,13 @@ void Exx::build(const LibrpaParallelRouting routing,
         if (use_complex_exx_r)
         {
             exx_libri_cplx.lri.filter_atom =
-                std::make_shared<OutputOnlyFilter_Atom_Symmetry<int, std::array<int, 3>, cplxdb>>(
+                std::make_shared<LibriOutputOnlySymmetryFilter<int, std::array<int, 3>, cplxdb>>(
                     exx_libri_cplx.lri.period, libri_irreducible_sector);
         }
         else
         {
             exx_libri.lri.filter_atom =
-                std::make_shared<OutputOnlyFilter_Atom_Symmetry<int, std::array<int, 3>, double>>(
+                std::make_shared<LibriOutputOnlySymmetryFilter<int, std::array<int, 3>, double>>(
                     exx_libri.lri.period, libri_irreducible_sector);
         }
     }

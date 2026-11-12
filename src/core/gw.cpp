@@ -56,7 +56,7 @@ using namespace ddla;
 #include <RI/parallel/Parallel_LRI_Equally_Weighted.h>
 #endif
 #include <RI/physics/GW.h>
-#include <RI/physics/symmetry/Symmetry_Filter.h>
+#include "../utils/libri_output_filter.h"
 using RI::Tensor;
 using RI::Communicate_Tensors_Map_Judge::comm_map2;
 using RI::Communicate_Tensors_Map_Judge::comm_map2_first;
@@ -330,66 +330,6 @@ convert_symmetry_irreducible_sector_to_libri_gw(
 }
 
 #ifdef LIBRPA_USE_LIBRI
-template <typename TA, typename TC, typename Tdata>
-class OutputOnlyFilter_GW_Symmetry : public RI::Filter_Atom<TA, std::pair<TA, TC>>
-{
-  public:
-    using TAC = std::pair<TA, TC>;
-
-    OutputOnlyFilter_GW_Symmetry(
-        const TC& period,
-        const std::map<std::pair<TA, TA>, std::set<TC>>& irreducible_sector)
-        : symmetry_(period, irreducible_sector)
-    {
-    }
-
-    bool filter_for32(const RI::Label::ab_ab& label,
-                      const TAC& A1,
-                      const TAC&,
-                      const TAC& A3) const override
-    {
-        switch (label)
-        {
-            case RI::Label::ab_ab::a0b0_a1b1:
-                return !this->symmetry_.in_irreducible_sector(A1, A3);
-            default:
-                return false;
-        }
-    }
-
-    bool filter_for32(const RI::Label::ab_ab& label,
-                      const TAC& A1,
-                      const TA&,
-                      const TAC& A3) const override
-    {
-        switch (label)
-        {
-            case RI::Label::ab_ab::a0b0_a1b2:
-                return !this->symmetry_.in_irreducible_sector(A3, A1);
-            default:
-                return false;
-        }
-    }
-
-    bool filter_for32(const RI::Label::ab_ab& label,
-                      const TA& A1,
-                      const TAC&,
-                      const TAC& A3) const override
-    {
-        switch (label)
-        {
-            case RI::Label::ab_ab::a0b0_a2b1:
-            case RI::Label::ab_ab::a0b0_a2b2:
-                return !this->symmetry_.in_irreducible_sector(A1, A3);
-            default:
-                return false;
-        }
-    }
-
-  private:
-    RI::Symmetry_Filter<TA, TC, Tdata> symmetry_;
-};
-
 template <typename Tdata>
 static RI::Tensor<Tdata> convert_complex_matrix_to_libri_tensor_gw(
     const ComplexMatrix& matrix)
@@ -1730,7 +1670,7 @@ void G0W0::build_spacetime(
                 comm_h,
                 "Reducing GW real-space self-energy outputs with symmetry irreducible sectors\n");
             gw_libri_cplx.lri.filter_atom =
-                std::make_shared<OutputOnlyFilter_GW_Symmetry<int, std::array<int, 3>, cplxdb>>(
+                std::make_shared<LibriOutputOnlySymmetryFilter<int, std::array<int, 3>, cplxdb>>(
                     gw_libri_cplx.lri.period, libri_sigc_irreducible_sector);
         }
         else
@@ -1739,7 +1679,7 @@ void G0W0::build_spacetime(
                 comm_h,
                 "Reducing GW real-space self-energy outputs with symmetry irreducible sectors\n");
             gw_libri.lri.filter_atom =
-                std::make_shared<OutputOnlyFilter_GW_Symmetry<int, std::array<int, 3>, double>>(
+                std::make_shared<LibriOutputOnlySymmetryFilter<int, std::array<int, 3>, double>>(
                     gw_libri.lri.period, libri_sigc_irreducible_sector);
         }
     }
