@@ -37,9 +37,9 @@ Container_Boundary(lib, "LibRPA library") {
   Component(kernels, "MBPT kernels", "", "Response, self-energy, QSGW and cRPA")
   ' src/mpi/{base_*,*parallel_context,utils_blacs}*
   Component(parallel, "Parallel model")
-  ' src/math/{matrix*,complexmatrix*,utils_matrix*,*_connector}, src/interface/{blas_lapack,blacs_scalapack}.h
+  ' src/math/{matrix*,complexmatrix*,utils_matrix*}, src/interface/{blas_lapack,scalapack,ddla,elpa}/*
   Component(linalg, "Linear algebra")
-  ' src/core/{timefreq,minimax_gx}*, src/interface/gx_minimax_wrp.f90
+  ' src/core/{timefreq,minimax_gx}*, src/interface/greenx/gx_minimax_wrp.f90
   Component(grids, "Time-frequency grids")
   ' src/core/{symmetry_*,sternheimer_symmetry}*, src/math/{symmetry,wigner_rotation,rsh}*
   Component(symmetry, "Symmetry operations")

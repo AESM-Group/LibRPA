@@ -10,7 +10,7 @@
 #include "pbc.h"
 #include "../utils/constants.h"
 #include "../utils/error.h"
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 
 namespace librpa_int {
 

@@ -5,7 +5,7 @@
 // that the users might want to take a look
 
 #include "librpa_enums.h"
-#include "../interface/mpi.h"
+#include "../interface/mpi/mpi.h"
 
 #ifdef __cplusplus
 extern "C" {

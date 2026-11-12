@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "../io/global_io.h"
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "../utils/constants.h"
 #include "librpa_enums.h"
 #include "dielecmodel.h"

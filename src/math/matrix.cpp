@@ -11,7 +11,7 @@
 #include <limits>
 
 #include "matrix.h"
-#include "lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "../io/global_io.h"
 
 namespace librpa_int {

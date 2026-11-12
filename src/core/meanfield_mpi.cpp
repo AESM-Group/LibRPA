@@ -10,9 +10,9 @@
 #include <unordered_map>
 
 #include "../io/stl_io_helper.h"
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "../math/matrix_m.h"
-#include "../math/scalapack_connector.h"
+#include "../interface/scalapack/scalapack_connector.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "../utils/constants.h"
 #include "../utils/profiler.h"
@@ -22,7 +22,7 @@
 #include "symmetry_context.h"
 #include "utils_atomic_basis_blacs.h"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include "../gpu/device_connector.h"
+#include "../interface/ddla/device_connector.h"
 #include <ddla/ddla.h>
 #endif
 

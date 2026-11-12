@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <string>
 
-#include "../interface/blacs_scalapack.h"
+#include "../interface/scalapack/blacs_scalapack.h"
 #include "../io/global_io.h"
 #include "../utils/base_utility.h"
 #include "../utils/error.h"

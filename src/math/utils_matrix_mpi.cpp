@@ -6,7 +6,7 @@
 
 #include "../utils/base_utility.h"
 #include "complexmatrix.h"
-#include "scalapack_connector.h"
+#include "../interface/scalapack/scalapack_connector.h"
 
 namespace librpa_int
 {

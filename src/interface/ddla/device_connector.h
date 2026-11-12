@@ -1,7 +1,7 @@
 #ifndef DEVICE_CONNECTOR_H
 #define DEVICE_CONNECTOR_H
 
-#include "../mpi/base_blacs.h"
+#include "../../mpi/base_blacs.h"
 
 namespace librpa_int{
 namespace DeviceConnector{

@@ -162,7 +162,7 @@ list(APPEND lib_sources
         io/npz_writer.cpp
         io/output_matrix.cpp
 
-        interface/gx_minimax_wrp.f90
+        interface/greenx/gx_minimax_wrp.f90
 
         math/complexmatrix.cpp
         math/fitting.cpp
@@ -205,13 +205,13 @@ endif()
 
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   list(APPEND lib_sources 
-    gpu/device_connector.cpp
+    interface/ddla/device_connector.cpp
   )
 endif()
 
 if(LIBRPA_USE_ELPA)
   list(APPEND lib_sources
-    elpa/elpa_connector.cpp)
+    interface/elpa/elpa_connector.cpp)
 endif()
 
 # source must be PRIVATE to avoid recompilation when linking driver to this library

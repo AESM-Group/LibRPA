@@ -25,7 +25,7 @@
 #include "../core/meanfield_mpi.h"
 #include "../core/qpoint_view.h"
 #include "../core/qsgw/headwing_velocity.h"
-#include "../gpu/la_connector.h"
+#include "../interface/la_connector.h"
 #include "../io/global_io.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "../mpi/base_blacs.h"

@@ -12,7 +12,7 @@
 
 #include "../io/global_io.h"
 
-#include "lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 
 namespace librpa_int {
 

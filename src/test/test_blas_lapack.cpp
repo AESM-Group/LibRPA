@@ -1,4 +1,4 @@
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "../math/matrix_m.h"
 #include "testutils.h"
 #include "../math/complexmatrix.h"

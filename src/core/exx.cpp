@@ -16,7 +16,7 @@
 #include "../io/global_io.h"
 #include "../io/output_matrix.h"
 #include "../io/stl_io_helper.h"
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "../math/utils_matrix_mpi.h"
 #include "../math/vector3_order.h"
@@ -31,7 +31,7 @@
 #include "meanfield_mpi.h"
 #include "geometry.h"
 #include "librpa_enums.h"
-#include "../gpu/la_connector.h"
+#include "../interface/la_connector.h"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #include <ddla/ddla.h>
 #endif

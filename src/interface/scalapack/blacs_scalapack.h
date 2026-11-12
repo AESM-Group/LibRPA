@@ -1,7 +1,7 @@
 #pragma once
 
 #include <complex>
-#include "./mpi.h"
+#include "../mpi/mpi.h"
 
 #ifdef __cplusplus
 extern "C"

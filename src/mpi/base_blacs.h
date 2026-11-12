@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "base_mpi.h"
-#include "../math/scalapack_connector.h"
+#include "../interface/scalapack/scalapack_connector.h"
 
 #ifdef LIBRPA_USE_DDLA
 #include <ddla/ddla.h>

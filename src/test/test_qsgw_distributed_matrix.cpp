@@ -10,7 +10,7 @@
 
 #include "../core/qsgw/distributed_matrix.h"
 #include "../io/global_io.h"
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "../math/utils_matrix_mpi.h"
 #include "../mpi/global_mpi.h"

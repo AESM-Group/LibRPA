@@ -19,8 +19,8 @@
 #include "../src/api/dataset.h"
 // LibBSE calls FT_Vq through this header; keep until LibBSE includes coulmat.h itself.
 #include "../src/core/coulmat.h"
-#include "../src/math/lapack_connector.h"
-#include "../src/math/scalapack_connector.h"
+#include "../src/interface/blas_lapack/lapack_connector.h"
+#include "../src/interface/scalapack/scalapack_connector.h"
 
 // Standard headers
 #include <memory>

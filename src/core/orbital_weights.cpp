@@ -5,7 +5,7 @@
 #include <limits>
 #include <numeric>
 
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "../math/rsh.h"
 #include "../utils/error.h"
 

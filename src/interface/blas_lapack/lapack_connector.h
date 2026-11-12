@@ -7,10 +7,10 @@
 #include <iostream>
 #include <cassert>
 #include <cstring>
-#include "../utils/base_utility.h"
-#include "matrix.h"
-#include "complexmatrix.h"
-#include "../interface/blas_lapack.h"
+#include "../../utils/base_utility.h"
+#include "../../math/matrix.h"
+#include "../../math/complexmatrix.h"
+#include "blas_lapack.h"
 
 namespace librpa_int {
 

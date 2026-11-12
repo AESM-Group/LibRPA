@@ -3,8 +3,8 @@
 
 #pragma once
 #include <omp.h>
-#include "../math/matrix_m.h"
-#include "../mpi/base_blacs.h"
+#include "../../math/matrix_m.h"
+#include "../../mpi/base_blacs.h"
 
 
 namespace librpa_int

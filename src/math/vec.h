@@ -1,6 +1,6 @@
 #pragma once
 #include "../utils/base_utility.h"
-#include "lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include <cstring>
 #include <string>
 #include <complex>

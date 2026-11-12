@@ -23,7 +23,7 @@
 #include "../io/global_io.h"
 #include "../utils/base_utility.h"
 #include "../utils/error.h"
-#include "lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "vec.h"
 
 namespace librpa_int {

@@ -9,7 +9,7 @@
 #include <utility>
 #include <valarray>
 
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "../utils/constants.h"
 #include "../utils/error.h"
 

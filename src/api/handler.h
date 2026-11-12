@@ -1,6 +1,6 @@
 #pragma once
 #include "../../include/librpa_handler.h"
-#include "../interface/mpi.h"
+#include "../interface/mpi/mpi.h"
 
 #ifdef __cplusplus
 extern "C" {

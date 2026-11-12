@@ -4,7 +4,7 @@
 #include <cassert>
 // #include <iostream>
 
-#include "../math/scalapack_connector.h"
+#include "../interface/scalapack/scalapack_connector.h"
 #include "../mpi/base_mpi.h"
 #include "../utils/base_utility.h"
 #include "../utils/error.h"

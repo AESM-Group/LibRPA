@@ -8,13 +8,13 @@
 #include <ddla/ddla.h>
 #endif
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include "device_connector.h"
+#include "ddla/device_connector.h"
 #endif
 #include "../math/matrix_m.h"
-#include "../math/scalapack_connector.h"
+#include "scalapack/scalapack_connector.h"
 #include "../mpi/base_blacs.h"
 #ifdef LIBRPA_USE_ELPA
-#include "../elpa/elpa_connector.h"
+#include "elpa/elpa_connector.h"
 #endif
 
 namespace librpa_int

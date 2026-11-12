@@ -10,7 +10,7 @@
 
 #include "../mpi/global_mpi.h"
 #include "../math/matrix_m.h"
-#include "../math/scalapack_connector.h"
+#include "../interface/scalapack/scalapack_connector.h"
 
 #include "../io/stl_io_helper.h"
 #include "mpi_test_config.h"

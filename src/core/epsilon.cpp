@@ -16,9 +16,9 @@
 #include "../io/fs.h"
 #include "../io/global_io.h"
 #include "../io/stl_io_helper.h"
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 #include "../math/matrix_m.h"
-#include "../math/scalapack_connector.h"
+#include "../interface/scalapack/scalapack_connector.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "../math/utils_matrix_mpi.h"
 #include "../math/vector3_order.h"
@@ -34,7 +34,7 @@
 #include "pbc.h"
 #include "utils_atomic_basis_blacs.h"
 
-#include "../gpu/la_connector.h"
+#include "../interface/la_connector.h"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #include <ddla/ddla.h>
 #endif

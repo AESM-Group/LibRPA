@@ -8,7 +8,7 @@
 #include "librpa_handler.h"
 
 // Internal headers
-#include "../interface/mpi.h"
+#include "../interface/mpi/mpi.h"
 #include "dataset.h"
 
 namespace librpa_int

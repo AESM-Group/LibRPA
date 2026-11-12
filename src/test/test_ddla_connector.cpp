@@ -6,7 +6,7 @@
 
 #include <ddla/ddla_vector.h>
 
-#include "../gpu/la_connector.h"
+#include "../interface/la_connector.h"
 
 using namespace librpa_int;
 using T = std::complex<double>;

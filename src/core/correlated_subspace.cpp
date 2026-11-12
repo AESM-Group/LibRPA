@@ -20,7 +20,7 @@
 #include <set>
 #include <sstream>
 
-#include "../math/lapack_connector.h"
+#include "../interface/blas_lapack/lapack_connector.h"
 
 namespace librpa_int
 {

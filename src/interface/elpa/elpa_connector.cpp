@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
-#include "../gpu/la_connector.h"
+#include "../la_connector.h"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #include <ddla/ddla.h>
 #endif
@@ -12,12 +12,12 @@
 #ifdef LIBRPA_USE_LIBRI
 #include <RI/global/Tensor.h>
 #else
-#include "../utils/libri_stub.h"
+#include "../../utils/libri_stub.h"
 #endif
-#include "../math/scalapack_connector.h"
-#include "../math/utils_matrix_m_mpi.h"
-#include "../utils/profiler.h"
-#include "../core/utils_atomic_basis_blacs.h"
+#include "../scalapack/scalapack_connector.h"
+#include "../../math/utils_matrix_m_mpi.h"
+#include "../../utils/profiler.h"
+#include "../../core/utils_atomic_basis_blacs.h"
 #include <vector>
 
 namespace librpa_int
