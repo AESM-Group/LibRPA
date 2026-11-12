@@ -8,7 +8,11 @@
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #include <ddla/ddla.h>
-#include <ddla/ddla_stream.h>
+#if defined(LIBRPA_USE_CUDA)
+#include <cuda_runtime_api.h>
+#else
+#include <hip/hip_runtime_api.h>
+#endif
 #endif
 
 #ifdef LIBRPA_USE_ELPA
@@ -146,7 +150,8 @@ private:
     bool initialized_ = false;
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    ddla::DdlaDesc ddla_desc_;
+    // Non-owning: the BLACS handler owns the matching DDLA process grid.
+    ddla::DdlaHandle_t ddla_handle_;
 #endif
 
 #ifdef LIBRPA_USE_ELPA
@@ -217,10 +222,11 @@ public:
     void barrier(CTXT_SCOPE scope = CTXT_SCOPE::A) const;
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    const ddla::DdlaDesc& ddla_desc() const noexcept { return ddla_desc_; }
+    const int* ddla_desc() const noexcept { return desc; }
+    ddla::DdlaHandle_t ddla_handle() const noexcept { return ddla_handle_; }
     void set_ddla_desc(const ddla::DdlaHandle_t& ddla_handle){
-        ddla_desc_.set_ddla_handle(ddla_handle);
-        ddla_desc_.init(this->m_, this->n_, this->mb_, this->nb_, this->irsrc_, this->icsrc_);
+        // DDLA accepts the existing ScaLAPACK descriptor without translation.
+        ddla_handle_ = ddla_handle;
     }
 #endif
 #ifdef LIBRPA_USE_ELPA
@@ -244,7 +250,15 @@ public:
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
         if(use_gpu_replace_scalapack)
         {
-            elpa_set(elpa_handle_, "use_gpu_id", ddla_desc_.ddla_handle()->local_device, &error);
+            ddla::DDLA_CHECK(ddla::ddlaSetDevice(ddla_handle_));
+            int device = 0;
+#ifdef LIBRPA_USE_CUDA
+            if (cudaGetDevice(&device) != cudaSuccess)
+#else
+            if (hipGetDevice(&device) != hipSuccess)
+#endif
+                throw std::runtime_error("Cannot query the current GPU for ELPA");
+            elpa_set(elpa_handle_, "use_gpu_id", device, &error);
 #ifdef LIBRPA_USE_HIP
             elpa_set(elpa_handle_, "amd-gpu", 1, &error);
 #endif

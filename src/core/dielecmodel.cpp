@@ -3579,23 +3579,20 @@ void invert_headwing_body_with_identity_solve(
                 "Head/wing body inverse requested DDLA before its BLACS handle was initialized");
         }
         desc_body.set_ddla_desc(blacs_h.ddla_handle);
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(blacs_h.ddla_handle));
 
         const std::size_t local_size = body.size();
         const std::size_t allocation_size = std::max<std::size_t>(local_size, 1);
         std::complex<double> *d_body_factor = nullptr;
         std::complex<double> *d_body_inverse = nullptr;
-        ddla::DEVICE_CHECK(ddla::deviceMallocAsync(
-            reinterpret_cast<void **>(&d_body_factor),
-            allocation_size * sizeof(std::complex<double>), blacs_h.ddla_handle->stream));
-        ddla::DEVICE_CHECK(ddla::deviceMallocAsync(
-            reinterpret_cast<void **>(&d_body_inverse),
-            allocation_size * sizeof(std::complex<double>), blacs_h.ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, reinterpret_cast<void **>(&d_body_factor), allocation_size * sizeof(std::complex<double>)));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, reinterpret_cast<void **>(&d_body_inverse), allocation_size * sizeof(std::complex<double>)));
 
         const auto release_device_buffers = [&]() {
-            ddla::DEVICE_CHECK(
-                ddla::deviceFreeAsync(d_body_factor, blacs_h.ddla_handle->stream));
-            ddla::DEVICE_CHECK(
-                ddla::deviceFreeAsync(d_body_inverse, blacs_h.ddla_handle->stream));
+            ddla::DDLA_CHECK(
+                ddla::ddlaFree(blacs_h.ddla_handle, d_body_factor));
+            ddla::DDLA_CHECK(
+                ddla::ddlaFree(blacs_h.ddla_handle, d_body_inverse));
         };
 
         try
@@ -3603,15 +3600,10 @@ void invert_headwing_body_with_identity_solve(
             profiler.start("headwing_body_inverse_transfer");
             if (local_size > 0)
             {
-                ddla::DEVICE_CHECK(deviceMemcpyAsync(
-                    d_body_factor, body_factor.ptr(),
-                    local_size * sizeof(std::complex<double>), ddla::deviceMemcpyHostToDevice,
-                    blacs_h.ddla_handle->stream));
-                ddla::DEVICE_CHECK(deviceMemcpyAsync(
-                    d_body_inverse, body.ptr(), local_size * sizeof(std::complex<double>),
-                    ddla::deviceMemcpyHostToDevice, blacs_h.ddla_handle->stream));
+                ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, d_body_factor, body_factor.ptr(), local_size * sizeof(std::complex<double>)));
+                ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, d_body_inverse, body.ptr(), local_size * sizeof(std::complex<double>)));
             }
-            ddla::DEVICE_CHECK(ddla::deviceStreamSynchronize(blacs_h.ddla_handle->stream));
+            ddla::DDLA_CHECK(ddla::ddlaSynchronize(blacs_h.ddla_handle));
             profiler.stop("headwing_body_inverse_transfer");
 
             profiler.start("headwing_body_inverse_trf_trs");
@@ -3639,17 +3631,15 @@ void invert_headwing_body_with_identity_solve(
             profiler.start("headwing_body_inverse_transfer");
             if (local_size > 0)
             {
-                ddla::DEVICE_CHECK(deviceMemcpyAsync(
-                    body.ptr(), d_body_inverse, local_size * sizeof(std::complex<double>),
-                    ddla::deviceMemcpyDeviceToHost, blacs_h.ddla_handle->stream));
+                ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, body.ptr(), d_body_inverse, local_size * sizeof(std::complex<double>)));
             }
-            ddla::DEVICE_CHECK(ddla::deviceStreamSynchronize(blacs_h.ddla_handle->stream));
+            ddla::DDLA_CHECK(ddla::ddlaSynchronize(blacs_h.ddla_handle));
             profiler.stop("headwing_body_inverse_transfer");
         }
         catch (...)
         {
             release_device_buffers();
-            ddla::DEVICE_CHECK(ddla::deviceStreamSynchronize(blacs_h.ddla_handle->stream));
+            ddla::DDLA_CHECK(ddla::ddlaSynchronize(blacs_h.ddla_handle));
             throw;
         }
 

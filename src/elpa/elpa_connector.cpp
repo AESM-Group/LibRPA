@@ -6,7 +6,7 @@
 #include <unordered_set>
 #include "../gpu/la_connector.h"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include <ddla/ddla_connector.h>
+#include <ddla/ddla.h>
 #endif
 #include "elpa_connector.h"
 #ifdef LIBRPA_USE_LIBRI
@@ -67,13 +67,13 @@ matrix_m<std::complex<T>> power_hemat_elpa(
     T* W_uni;
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    auto ddla_handle = ad_A.ddla_desc().ddla_handle();
+    auto ddla_handle = ad_A.ddla_handle();
     T* d_W;
     if(use_gpu_replace_scalapack){
-        ddla::DEVICE_CHECK(ddla::deviceMallocAsync((void**)&d_W, n * sizeof(T), ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(d_A, A_local.ptr(), A_local.size() * sizeof(std::complex<T>), ddla::deviceMemcpyHostToDevice, ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(d_Z, Z_local.ptr(), Z_local.size() * sizeof(std::complex<T>), ddla::deviceMemcpyHostToDevice, ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(d_W, W, n * sizeof(T), ddla::deviceMemcpyHostToDevice, ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(ddla_handle, (void**)&d_W, n * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, d_A, A_local.ptr(), A_local.size() * sizeof(std::complex<T>)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, d_Z, Z_local.ptr(), Z_local.size() * sizeof(std::complex<T>)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, d_W, W, n * sizeof(T)));
         
         A = d_A;
         Z = d_Z;
@@ -92,9 +92,9 @@ matrix_m<std::complex<T>> power_hemat_elpa(
     }
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(use_gpu_replace_scalapack){
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(W, W_uni, n * sizeof(T), ddla::deviceMemcpyDeviceToHost, ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(Z_local.ptr(), Z, Z_local.size()*sizeof(std::complex<T>), ddla::deviceMemcpyDeviceToHost, ddla_handle->stream));
-        ddla::DEVICE_CHECK(ddla::deviceStreamSynchronize(ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, W, W_uni, n * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, Z_local.ptr(), Z, Z_local.size()*sizeof(std::complex<T>)));
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(ddla_handle));
     }
 #endif
 
@@ -147,8 +147,8 @@ matrix_m<std::complex<T>> power_hemat_elpa(
     std::complex<T> *C;
 #if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
     if(use_gpu_replace_scalapack){
-        ddla::DEVICE_CHECK(ddla::deviceMallocAsync((void**)&d_C, A_local.size() * sizeof(std::complex<T>), ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(d_A, d_Z, Z_local.size() * sizeof(std::complex<T>), ddla::deviceMemcpyDeviceToDevice, ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(ddla_handle, (void**)&d_C, A_local.size() * sizeof(std::complex<T>)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, d_A, d_Z, Z_local.size() * sizeof(std::complex<T>)));
         C = d_C;
     }else
 #endif
@@ -166,11 +166,11 @@ matrix_m<std::complex<T>> power_hemat_elpa(
     LaConnector::pgemm('N', 'C', n, n, n, {(T)1.0, (T)0.0}, Z, 1, 1, ad_Z, A, 1, 1, ad_Z, {(T)0.0, (T)0.0}, C, 1, 1, ad_A);
 #if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
     if(use_gpu_replace_scalapack){
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(scaled.ptr(), A, scaled.size() * sizeof(std::complex<T>), ddla::deviceMemcpyDeviceToHost, ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(A_local.ptr(), C, A_local.size() * sizeof(std::complex<T>), ddla::deviceMemcpyDeviceToHost, ddla_handle->stream));
-        ddla::DEVICE_CHECK(ddla::deviceFreeAsync(d_C, ddla_handle->stream));
-        ddla::DEVICE_CHECK(ddla::deviceFreeAsync(d_W, ddla_handle->stream));
-        ddla::DEVICE_CHECK(ddla::deviceStreamSynchronize(ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, scaled.ptr(), A, scaled.size() * sizeof(std::complex<T>)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, A_local.ptr(), C, A_local.size() * sizeof(std::complex<T>)));
+        ddla::DDLA_CHECK(ddla::ddlaFree(ddla_handle, d_C));
+        ddla::DDLA_CHECK(ddla::ddlaFree(ddla_handle, d_W));
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(ddla_handle));
     }
 #endif
     // send back the scaled eigenvector matrix with descriptor using optimized block size to that
@@ -211,13 +211,13 @@ matrix_m<std::complex<T>> power_hemat_elpa_real(
     profiler.start("power_hemat_blacs_2");
     T *A, *Z, *W_uni;
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    auto ddla_handle = ad_A.ddla_desc().ddla_handle();
+    auto ddla_handle = ad_A.ddla_handle();
     T *d_W;
     if(use_gpu_replace_scalapack)
     {
         profiler.start("power_hemat_blacs_2_device_prepare");
-        ddla::DEVICE_CHECK(ddla::deviceMallocAsync((void**)&d_W, n * sizeof(T), ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(d_A, A_local_real.ptr(), A_local_real.size() * sizeof(T), ddla::deviceMemcpyHostToDevice, ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(ddla_handle, (void**)&d_W, n * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, d_A, A_local_real.ptr(), A_local_real.size() * sizeof(T)));
         profiler.stop("power_hemat_blacs_2_device_prepare");
         A = d_A;
         Z = d_Z;
@@ -239,9 +239,9 @@ matrix_m<std::complex<T>> power_hemat_elpa_real(
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(use_gpu_replace_scalapack){
         profiler.start("power_hemat_blacs_2_device_download");
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(W, W_uni, n * sizeof(T), ddla::deviceMemcpyDeviceToHost, ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(Z_local_real.ptr(), Z, Z_local_real.size()*sizeof(T), ddla::deviceMemcpyDeviceToHost, ddla_handle->stream));
-        ddla::DEVICE_CHECK(ddla::deviceStreamSynchronize(ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, W, W_uni, n * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, Z_local_real.ptr(), Z, Z_local_real.size()*sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(ddla_handle));
         profiler.stop("power_hemat_blacs_2_device_download");
     }
 #endif
@@ -299,8 +299,8 @@ matrix_m<std::complex<T>> power_hemat_elpa_real(
 #if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
     if(use_gpu_replace_scalapack)
     {
-        ddla::DEVICE_CHECK(ddla::deviceMallocAsync((void**)&d_C, A_local_real.size() * sizeof(T), ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(d_A, d_Z, Z_local_real.size() * sizeof(T), ddla::deviceMemcpyDeviceToDevice, ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(ddla_handle, (void**)&d_C, A_local_real.size() * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, d_A, d_Z, Z_local_real.size() * sizeof(T)));
         C = d_C;
     }else
 #endif
@@ -321,11 +321,11 @@ matrix_m<std::complex<T>> power_hemat_elpa_real(
     LaConnector::pgemm('N', 'C', n, n, n, (T)1.0, Z, 1, 1, ad_Z, A, 1, 1, ad_Z, (T)0.0, C, 1, 1, ad_A);
 #if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
     if(use_gpu_replace_scalapack){
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(scaled_real.ptr(), A, scaled_real.size() * sizeof(T), ddla::deviceMemcpyDeviceToHost, ddla_handle->stream));
-        ddla::DEVICE_CHECK(deviceMemcpyAsync(A_local_real.ptr(), C, A_local_real.size() * sizeof(T), ddla::deviceMemcpyDeviceToHost, ddla_handle->stream));
-        ddla::DEVICE_CHECK(ddla::deviceFreeAsync(d_W, ddla_handle->stream));
-        ddla::DEVICE_CHECK(ddla::deviceFreeAsync(d_C, ddla_handle->stream));
-        ddla::DEVICE_CHECK(ddla::deviceStreamSynchronize(ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, scaled_real.ptr(), A, scaled_real.size() * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, A_local_real.ptr(), C, A_local_real.size() * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaFree(ddla_handle, d_W));
+        ddla::DDLA_CHECK(ddla::ddlaFree(ddla_handle, d_C));
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(ddla_handle));
     }
 #endif
     for (size_t i = 0; i < A_local.size(); i++)

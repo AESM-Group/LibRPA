@@ -37,6 +37,10 @@ macro(config_test TARGET NUMPROC)
 endmacro()
 
 # add serial tests
+if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+  config_test(test_ddla_connector 4)
+endif()
+
 foreach(target
     test_analycont
     test_atom

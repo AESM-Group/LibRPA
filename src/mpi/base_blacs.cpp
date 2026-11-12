@@ -90,8 +90,8 @@ void BlacsCtxtHandler::init()
 void BlacsCtxtHandler::init_ddla_handle(){
     assert(this->initialized_);
     assert(this->pgrid_set_);
-    ddla::ddla_init(this->ddla_handle);
-    ddla::ddla_set(this->ddla_handle, this->mpi_comm_h.comm, this->nprows, this->npcols, this->layout_ch);
+    ddla::DDLA_CHECK(ddla::ddlaInit(this->ddla_handle, ddla::DdlaBackend::GPU));
+    ddla::DDLA_CHECK(ddla::ddlaSet(this->ddla_handle, this->mpi_comm_h.comm, this->nprows, this->npcols, this->layout_ch));
 }
 #endif
 
@@ -106,7 +106,8 @@ void BlacsCtxtHandler::reset_comm()
     this->pgrid_set_ = false;
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(ddla_handle != nullptr){
-        ddla::ddla_destroy(ddla_handle);
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(ddla_handle));
+        ddla::DDLA_CHECK(ddla::ddlaDestroy(ddla_handle));
         ddla_handle = nullptr;
     }
 #endif
@@ -124,7 +125,8 @@ void BlacsCtxtHandler::reset_comm(MPI_Comm comm_in, bool init_on_reset)
     if (init_on_reset) this->init();
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(ddla_handle!=nullptr){
-        ddla::ddla_destroy(ddla_handle);
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(ddla_handle));
+        ddla::DDLA_CHECK(ddla::ddlaDestroy(ddla_handle));
         ddla_handle = nullptr;
     }
 #endif
@@ -187,7 +189,8 @@ void BlacsCtxtHandler::exit()
     }
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(ddla_handle!=nullptr){
-        ddla::ddla_destroy(ddla_handle);
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(ddla_handle));
+        ddla::DDLA_CHECK(ddla::ddlaDestroy(ddla_handle));
         ddla_handle = nullptr;
     }
 #endif
@@ -407,7 +410,7 @@ ArrayDesc::ArrayDesc()
       is_loc_consecutive_r_(false), is_loc_consecutive_c_(false),
       empty_local_mat_(false), initialized_(false)
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    , ddla_desc_()
+    , ddla_handle_(nullptr)
 #endif
 
 #ifdef LIBRPA_USE_ELPA
@@ -426,7 +429,7 @@ ArrayDesc::ArrayDesc(const BlacsCtxtHandler &blacs_h)
       is_loc_consecutive_r_(false), is_loc_consecutive_c_(false),
       empty_local_mat_(false), initialized_(false)
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    , ddla_desc_()
+    , ddla_handle_(nullptr)
 #endif
 
 #ifdef LIBRPA_USE_ELPA
@@ -446,7 +449,7 @@ ArrayDesc::ArrayDesc(const int &ictxt)
       is_loc_consecutive_r_(false), is_loc_consecutive_c_(false),
       empty_local_mat_(false), initialized_(false)
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    , ddla_desc_()
+    , ddla_handle_(nullptr)
 #endif
 
 #ifdef LIBRPA_USE_ELPA

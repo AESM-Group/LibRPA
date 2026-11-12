@@ -16,6 +16,10 @@
 #include "mpi_test_config.h"
 #include "testutils.h"
 
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#include <ddla/ddla.h>
+#endif
+
 using namespace std;
 using namespace librpa_int;
 using namespace librpa_int::global;
@@ -376,7 +380,7 @@ static void test_gf_cplx_imagtimes_Rs_kblacs_para_full_wfc(bool masked = false)
 
 static void test_dm_gf_kblacs_para_redistributed_full_wfc()
 {
-    if (size_global < 4) return;
+    if (size_global < 2) return;
 
     const int nk = 2;
     const int nb = 144;
@@ -439,6 +443,14 @@ static void test_dm_gf_kblacs_para_redistributed_full_wfc()
 
     const auto dm_Rs = get_dmat_cplx_Rs_kblacs_para(
         0, mf, kfrac_list, Rs, context, desc_wfc, desc_dm);
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    // Match a local LibRI contraction between uses of the same BLACS handle.
+    // MPI_COMM_SELF selects device 0, which differs from nonzero world ranks.
+    ddla::DdlaHandle_t local_context = nullptr;
+    ddla::DDLA_CHECK(ddla::ddlaInit(local_context, ddla::DdlaBackend::GPU));
+    ddla::DDLA_CHECK(ddla::ddlaSet(local_context, MPI_COMM_SELF, 1, 1, 'R'));
+    ddla::DDLA_CHECK(ddla::ddlaDestroy(local_context));
+#endif
     const auto gf_Rs = get_gf_cplx_imagtimes_Rs_kblacs_para(
         0, mf, kfrac_list, imagtimes, Rs, context, desc_wfc, desc_dm);
 

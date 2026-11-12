@@ -13,8 +13,11 @@ endif()
 
 set(_libddla_binary_dir "${CMAKE_BINARY_DIR}/_deps/libddla-build")
 set(_libddla_install_dir "${CMAKE_BINARY_DIR}/_deps/libddla-install")
-set(_libddla_include_dir "${_libddla_install_dir}/include")
-set(_libddla_lib_dir "${_libddla_install_dir}/lib")
+if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}" OR IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}")
+  message(FATAL_ERROR "Managed LibDDLA requires relative CMAKE_INSTALL_LIBDIR and CMAKE_INSTALL_INCLUDEDIR; use LIBDDLA_PATH for an external installation")
+endif()
+set(_libddla_include_dir "${_libddla_install_dir}/${CMAKE_INSTALL_INCLUDEDIR}")
+set(_libddla_lib_dir "${_libddla_install_dir}/${CMAKE_INSTALL_LIBDIR}")
 set(_libddla_library
   "${_libddla_lib_dir}/${CMAKE_SHARED_LIBRARY_PREFIX}ddla${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
@@ -23,8 +26,8 @@ file(MAKE_DIRECTORY "${_libddla_include_dir}" "${_libddla_lib_dir}")
 
 set(_libddla_cmake_args
   "-DCMAKE_INSTALL_PREFIX:PATH=${_libddla_install_dir}"
-  "-DCMAKE_INSTALL_LIBDIR:STRING=lib"
-  "-DCMAKE_INSTALL_INCLUDEDIR:STRING=include"
+  "-DCMAKE_INSTALL_LIBDIR:STRING=${CMAKE_INSTALL_LIBDIR}"
+  "-DCMAKE_INSTALL_INCLUDEDIR:STRING=${CMAKE_INSTALL_INCLUDEDIR}"
   "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
   "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}"
   "-DBUILD_TESTS:BOOL=OFF"
@@ -77,6 +80,12 @@ else()
   )
 endif()
 
+list(APPEND _libddla_forward_variables
+  DDLA_CPU_BLAS_LIBRARY DDLA_LAPACK_LIBRARY
+  BLA_VENDOR BLAS_LIBRARIES LAPACK_LIBRARIES
+  DDLA_CUDA_MATH_LIBRARY_DIR
+  CUBLAS_LIBRARY CUBLASLT_LIBRARY CURAND_LIBRARY CUSOLVER_LIBRARY CUDART_LIBRARY
+)
 foreach(_libddla_variable IN LISTS _libddla_forward_variables)
   if(DEFINED ${_libddla_variable}
       AND NOT "${${_libddla_variable}}" STREQUAL "")

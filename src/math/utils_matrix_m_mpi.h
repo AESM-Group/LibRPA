@@ -14,7 +14,7 @@
 #include <vector>
 #include "../src/gpu/la_connector.h"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include <ddla/ddla_connector.h>
+#include <ddla/ddla.h>
 #endif
 
 #include "../core/utils_atomic_basis_blacs.h"

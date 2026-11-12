@@ -534,7 +534,7 @@ A nonempty CMake value takes precedence over the environment variable of the sam
 
 The resolution order is:
 
-1. Existing `LibDDLA::ddla` target.
+1. Existing `ddla::ddla` target (or the legacy parent target `LibDDLA::ddla`).
 2. `LIBDDLA_SOURCE_DIR` source tree or `LIBDDLA_PATH` installation. Supplying both is an error.
 3. Managed source from the manifest.
 
@@ -543,7 +543,12 @@ Managed sources are the recommended starting point: leave both options empty to 
 A parent target or a source build is another way to match LibDDLA to your toolchain.
 For a prebuilt installation, CMake displays a reminder about compiler and flag compatibility on each configuration.
 
-The installation must contain `include/ddla/ddla.h` and a `ddla` library under `lib/` or `lib64/`. Missing headers or a missing library cause an error. Installed libraries are not checked against the manifest's source-tree hash. The installation must match the selected backend, compiler and MPI environment.
+The installation must provide the LibDDLA 0.0.6 or newer CMake package in
+`lib/cmake/LibDDLA` or `lib64/cmake/LibDDLA`. LibRPA links its exported
+`ddla::ddla` target, which supplies public headers and link dependencies.
+Missing or incompatible package metadata causes an error. Installed libraries
+are not checked against the manifest's source-tree hash. The installation
+must match the selected backend, compiler and MPI environment.
 
 ```sh
 cmake -B build -DLIBRPA_USE_CUDA=ON -DLIBDDLA_PATH=/path/to/libddla
@@ -664,7 +669,7 @@ See {ref}`Offline installation <install-offline>` for preparation and transfer c
 ### `LIBDDLA_SOURCE_DIR`
 
 You can set this option to a LibDDLA source directory for a CUDA or HIP build.
-A nonempty CMake value takes precedence over the environment variable of the same name, and an existing `LibDDLA::ddla` target takes precedence over the path.
+A nonempty CMake value takes precedence over the environment variable of the same name, and an existing `ddla::ddla` or `LibDDLA::ddla` target takes precedence over the path.
 Choose either a source directory through this option or an installation through `LIBDDLA_PATH`.
 
 The directory must contain `include/ddla/ddla.h` and `CMakeLists.txt`; configuration stops if the directory is invalid.
@@ -682,7 +687,23 @@ The separate LibDDLA build receives `CMAKE_CXX_COMPILER`, `CMAKE_CXX_FLAGS`, `CM
 | CUDA | `CMAKE_CUDA_COMPILER`, `CMAKE_CUDA_FLAGS`, `CMAKE_CUDA_ARCHITECTURES`, `CMAKE_CUDA_SEPARABLE_COMPILATION`, `CUDAToolkit_ROOT` |
 | HIP | `CMAKE_HIP_COMPILER`, `CMAKE_HIP_FLAGS`, `CMAKE_HIP_ARCHITECTURES`, `CMAKE_HIP_SEPARABLE_COMPILATION`, `CMAKE_HIP_COMPILER_ROCM_ROOT`, `ROCM_PATH` |
 
+Host math settings `DDLA_CPU_BLAS_LIBRARY`, `DDLA_LAPACK_LIBRARY`,
+`BLA_VENDOR`, `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` are also forwarded.
+Every current LibDDLA build includes CPU support and requires host BLAS/LAPACK.
+Managed LibDDLA uses the same relative `CMAKE_INSTALL_LIBDIR` and
+`CMAKE_INSTALL_INCLUDEDIR` as LibRPA, including a `lib64` layout, so the copied
+CMake package still locates its library and headers after installation.
+For split CUDA installations, `DDLA_CUDA_MATH_LIBRARY_DIR` and explicit
+`CUBLAS_LIBRARY`, `CUBLASLT_LIBRARY`, `CURAND_LIBRARY`, `CUSOLVER_LIBRARY`
+and `CUDART_LIBRARY` overrides are forwarded when provided.
+
 Other parent cache entries are not automatically forwarded. `ROCM_PATH` also accepts an environment fallback. LibRPA enables LibDDLA's collective communication backend, disables its tests, and selects GPU/CPU tunneling for HIP only.
+
+LibDDLA transport options such as `DDLA_USE_GPU_CPU_TUNNEL` and
+`DDLA_USE_CCL` configure the LibDDLA build; LibRPA does not need them as
+consumer compile definitions. The current LibRI GPU adapter still requires
+`DDLA_USE_CUDA` or `DDLA_USE_HIP` to select its backend. LibRPA supplies the
+matching definition only when `LIBRPA_USE_LIBRI_GPU=ON`.
 
 Without a target, installation or source path, LibRPA prepares managed LibDDLA sources.
 

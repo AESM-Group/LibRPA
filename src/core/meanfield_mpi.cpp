@@ -24,8 +24,6 @@
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #include "../gpu/device_connector.h"
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
 #endif
 
 namespace librpa_int
@@ -665,7 +663,6 @@ static void pgemm_wfc_scaled_wfc_h(const int n_aos, const int n_cols,
                           : workspace.out_opt.ptr();
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    using namespace ddla;
     auto &blacs_h_nc = const_cast<BlacsCtxtHandler &>(blacs_h);
     if (blacs_h_nc.ddla_handle == nullptr)
         blacs_h_nc.init_ddla_handle();
@@ -673,6 +670,9 @@ static void pgemm_wfc_scaled_wfc_h(const int n_aos, const int n_cols,
     workspace.desc_out_opt.set_ddla_desc(blacs_h_nc.ddla_handle);
 
     auto handle = blacs_h_nc.ddla_handle;
+    // LibRI GPU contractions can change the calling thread's current device.
+    // Re-select the device owning this BLACS handle before using its stream.
+    ddla::DDLA_CHECK(ddla::ddlaSetDevice(handle));
     const size_t size_ab = static_cast<size_t>(workspace.desc_wfc_compute.m_loc()) *
                            workspace.desc_wfc_compute.n_loc();
     const size_t size_c  = static_cast<size_t>(workspace.desc_out_opt.m_loc()) *
@@ -680,30 +680,24 @@ static void pgemm_wfc_scaled_wfc_h(const int n_aos, const int n_cols,
     const size_t alloc_size_ab = std::max<size_t>(size_ab, 1);
     const size_t alloc_size_c = std::max<size_t>(size_c, 1);
     cplxdb *d_A = nullptr, *d_B = nullptr, *d_C = nullptr;
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_A, alloc_size_ab * sizeof(cplxdb), handle->stream));
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_B, alloc_size_ab * sizeof(cplxdb), handle->stream));
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_C, alloc_size_c * sizeof(cplxdb), handle->stream));
+    ddla::DDLA_CHECK(ddla::ddlaMalloc(handle, (void**)&d_A, alloc_size_ab * sizeof(cplxdb)));
+    ddla::DDLA_CHECK(ddla::ddlaMalloc(handle, (void**)&d_B, alloc_size_ab * sizeof(cplxdb)));
+    ddla::DDLA_CHECK(ddla::ddlaMalloc(handle, (void**)&d_C, alloc_size_c * sizeof(cplxdb)));
     if (size_ab > 0)
     {
-        DEVICE_CHECK(deviceMemcpyAsync(d_A, wfc_bra,
-                                       size_ab * sizeof(cplxdb),
-                                       deviceMemcpyHostToDevice, handle->stream));
-        DEVICE_CHECK(deviceMemcpyAsync(d_B, scaled_wfc_ket,
-                                       size_ab * sizeof(cplxdb),
-                                       deviceMemcpyHostToDevice, handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, d_A, wfc_bra, size_ab * sizeof(cplxdb)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, d_B, scaled_wfc_ket, size_ab * sizeof(cplxdb)));
     }
-    ddla::pgemm('N', 'C', n_aos, n_aos, n_cols, C_ONE,
+    ddla::pgemm(handle, 'N', 'C', n_aos, n_aos, n_cols, C_ONE,
                 d_A, workspace.desc_wfc_compute.ddla_desc(),
                 d_B, workspace.desc_wfc_compute.ddla_desc(),
                 C_ZERO, d_C, workspace.desc_out_opt.ddla_desc());
     if (size_c > 0)
-        DEVICE_CHECK(deviceMemcpyAsync(out_opt, d_C,
-                                       size_c * sizeof(cplxdb),
-                                       deviceMemcpyDeviceToHost, handle->stream));
-    DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
-    DEVICE_CHECK(deviceFreeAsync(d_A, handle->stream));
-    DEVICE_CHECK(deviceFreeAsync(d_B, handle->stream));
-    DEVICE_CHECK(deviceFreeAsync(d_C, handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, out_opt, d_C, size_c * sizeof(cplxdb)));
+    ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
+    ddla::DDLA_CHECK(ddla::ddlaFree(handle, d_A));
+    ddla::DDLA_CHECK(ddla::ddlaFree(handle, d_B));
+    ddla::DDLA_CHECK(ddla::ddlaFree(handle, d_C));
 #else
     global::profiler.start("pgemm_entry_wait", LIBRPA_VERBOSE_DEBUG);
     blacs_h.barrier();

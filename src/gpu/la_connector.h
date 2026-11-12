@@ -4,10 +4,6 @@
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #include "device_connector.h"
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
-#include <ddla/scal.h>
-#include <ddla/axpy.h>
 #endif
 #include "../math/scalapack_connector.h"
 #include "../math/matrix_m.h"
@@ -36,6 +32,7 @@ inline void pgemm(
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(DeviceConnector::check_device_ptr((void*)A)){
         ddla::pgemm(
+            array_descA.ddla_handle(),
             transa, transb,
             m, n, k,
             alpha,
@@ -69,7 +66,7 @@ inline void scal(
 ){
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(DeviceConnector::check_device_ptr((void*)X)){
-        ddla::BLAS_CHECK(ddla::deblasScal(array_desc.ddla_desc().ddla_handle()->blasH, N, alpha, X, incX));
+        ddla::scal(array_desc.ddla_handle(), N, T2(alpha), X, incX);
     }else
     #endif
     {
@@ -86,7 +83,7 @@ inline void pdam(const T1& num, T2* A, const ArrayDesc& array_desc)
     }
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(DeviceConnector::check_device_ptr((void*)A)){
-        ddla::pdam(num, A, array_desc.ddla_desc());
+        ddla::pdam(array_desc.ddla_handle(), num, A, array_desc.ddla_desc());
     }else
     #endif
     {
@@ -112,8 +109,8 @@ inline void axpy(
 ){
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if(DeviceConnector::check_device_ptr((void*)X)){
-        ddla::deblasAxpy(
-            blacs_h.ddla_handle->blasH,
+        ddla::axpy(
+            blacs_h.ddla_handle,
             N,
             alpha,
             X, incX,
@@ -144,7 +141,7 @@ inline void pgetrf_bpiv(
         throw std::runtime_error("In LaConnector::pgetrf_bpiv, only support ia=ja=1 for device implementation!");
     }
     if(DeviceConnector::check_device_ptr((void*)d_A)){
-        ddla::pgetrf_bpiv(m, n, d_A, array_descA.ddla_desc(), ipiv, info);
+        ddla::pgetrf_bpiv(array_descA.ddla_handle(), m, n, d_A, array_descA.ddla_desc(), ipiv, info);
     }else
     #endif
     {
@@ -161,11 +158,12 @@ inline void pgesv(
 )
 {
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(ia!=1 || ja!=1 || ib!=1 || ib!=1){
-        throw std::runtime_error("In LaConnector::pgesv, only support ia=ja=ib=jb=1 for device implementation!");
-    }
     if(DeviceConnector::check_device_ptr((void*)d_A)){
+        if(ia!=1 || ja!=1 || ib!=1 || jb!=1){
+            throw std::runtime_error("In LaConnector::pgesv, only support ia=ja=ib=jb=1 for device implementation!");
+        }
         ddla::pgesv(
+            array_descA.ddla_handle(), 'L', 'N',
             n, nrhs,
             d_A, array_descA.ddla_desc(),
             d_B, array_descB.ddla_desc()
@@ -200,11 +198,12 @@ inline void pposv(
 {
     assert(side == 'L');
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(ia!=1 || ja!=1 || ib!=1 || ib!=1){
-        throw std::runtime_error("In LaConnector::pposv, only support ia=ja=ib=jb=1 for device implementation!");
-    }
     if(DeviceConnector::check_device_ptr((void*)d_A)){
+        if(ia!=1 || ja!=1 || ib!=1 || jb!=1){
+            throw std::runtime_error("In LaConnector::pposv, only support ia=ja=ib=jb=1 for device implementation!");
+        }
         ddla::pposv(
+            array_descA.ddla_handle(),
             side, uplo, trans,
             n, nrhs,
             d_A, 1, 1, array_descA.ddla_desc(),

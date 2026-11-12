@@ -84,6 +84,48 @@ The build produces the following files. Installation paths are relative to `CMAK
 Fortran binding is built when `-DLIBRPA_ENABLE_FORTRAN_BIND=ON`.
 When you change the compiler or MPI installation, make sure you use a new build directory to avoid potential incompatibility issue.
 
+### CUDA with the current LibDDLA interface
+
+The dependency manifest pairs LibDDLA `190dada` (0.0.6) with LibRI
+`0e8afc3` from the official `abacusmodeling/LibRI` master branch. This
+LibRI adapter uses LibDDLA's public opaque-handle API. Older LibRI GPU
+adapters and LibDDLA installations exposing private stream headers are
+incompatible with this build.
+
+After loading compatible GCC, MPI, CUDA and NCCL installations, configure
+on a compute node. OpenBLAS in this example supplies both host BLAS and
+LAPACK, which LibDDLA needs even for a CUDA build:
+
+```sh
+cmake -S . -B build-cuda \
+  -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
+  -DCMAKE_INSTALL_PREFIX="$HOME/opt/librpa-cuda" \
+  -DLIBRPA_USE_CUDA=ON -DLIBRPA_USE_LIBRI_GPU=ON \
+  -DCMAKE_CUDA_ARCHITECTURES='70;80' \
+  -DBLAS_LIBRARIES=/path/to/libopenblas.so \
+  -DLAPACK_LIBRARIES=/path/to/libopenblas.so \
+  -DDDLA_CPU_BLAS_LIBRARY=/path/to/libopenblas.so \
+  -DScaLAPACK_LIBRARY=/path/to/libscalapack.so \
+  -DENABLE_GREENX_CTEST=OFF
+cmake --build build-cuda --parallel 4
+ctest --test-dir build-cuda -R '^test_ddla_connector$' --output-on-failure
+cmake --install build-cuda
+```
+
+Choose the CUDA architectures for your deployment. The connector test uses
+four MPI ranks and needs four visible GPUs, one per local rank. Other GPU
+tests can also use up to four ranks. Build and run inside a scheduler
+allocation on HPC systems.
+
+For an offline build, transfer the archives selected by the updated manifest
+as described below; do not copy the former vendored dependency directories.
+To build a different compatible source checkout, set `LIBDDLA_SOURCE_DIR`
+and `LIBRI_INCLUDE_DIR`. To reuse an installation, set `LIBDDLA_PATH` to
+its prefix; it must provide `LibDDLAConfig.cmake` and the exported
+`ddla::ddla` target, including its dependency metadata.
+Managed GPU builds install LibDDLA's runtime, public headers and CMake
+package into the LibRPA prefix as well.
+
 ## Run tests
 
 To run the tests, configure with `-DLIBRPA_ENABLE_TEST=ON`, build, and run `ctest`:
@@ -197,7 +239,7 @@ For a path, choose either a source directory or an installation prefix. The tabl
 | --- | --- | --- | --- |
 | greenX | `LibGXMiniMax` or `greenX::LibGXMiniMax` | `GREENX_SOURCE_DIR` | `GREENX_PATH` |
 | ELPA | `ELPA::ELPA` | `ELPA_SOURCE_DIR` | `ELPA_PATH` |
-| LibDDLA | `LibDDLA::ddla` | `LIBDDLA_SOURCE_DIR` | `LIBDDLA_PATH` |
+| LibDDLA | `ddla::ddla` (`LibDDLA::ddla` also accepted) | `LIBDDLA_SOURCE_DIR` | `LIBDDLA_PATH` |
 
 ELPA is optional and disabled by default. Set `LIBRPA_USE_ELPA=ON` to download and build the managed release. A parent `ELPA::ELPA` target, `ELPA_SOURCE_DIR`, or `ELPA_PATH` automatically enables ELPA. `ELPA_ROOT` also selects an installation when `ELPA_PATH` is absent. A parent target takes precedence over the supplied path.
 

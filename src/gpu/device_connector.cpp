@@ -2,8 +2,6 @@
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
 
 #endif
 

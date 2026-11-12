@@ -34,8 +34,7 @@
 #include "../utils/profiler.h"
 #include "../gpu/la_connector.h"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include <ddla/ddla_connector.h>
-using namespace ddla;
+#include <ddla/ddla.h>
 #endif
 #include "../utils/utils_mem.h"
 #include "symmetry_context.h"
@@ -2516,6 +2515,7 @@ void G0W0::build_sigc_matrix_KS_blacs(const std::map<int, std::map<int, std::map
         auto &rotation_blacs_h_nc = const_cast<BlacsCtxtHandler &>(rotation_blacs_h);
         if (rotation_blacs_h_nc.ddla_handle == nullptr)
             rotation_blacs_h_nc.init_ddla_handle();
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(rotation_blacs_h.ddla_handle));
         desc_wfc_device.set_ddla_desc(rotation_blacs_h.ddla_handle);
         desc_nao_nao_opt.set_ddla_desc(rotation_blacs_h.ddla_handle);
         desc_nband_nao_opt.set_ddla_desc(rotation_blacs_h.ddla_handle);
@@ -2529,11 +2529,11 @@ void G0W0::build_sigc_matrix_KS_blacs(const std::map<int, std::map<int, std::map
                     desc_nband_nao_opt.n_loc();
         size_sigc_nband = static_cast<size_t>(desc_nband_nband_opt.m_loc()) *
                           desc_nband_nband_opt.n_loc();
-        DEVICE_CHECK(deviceMallocAsync((void**)&d_wfc_bra, std::max<size_t>(size_wfc, 1) * sizeof(std::complex<double>), rotation_blacs_h.ddla_handle->stream));
-        DEVICE_CHECK(deviceMallocAsync((void**)&d_wfc_ket, std::max<size_t>(size_wfc, 1) * sizeof(std::complex<double>), rotation_blacs_h.ddla_handle->stream));
-        DEVICE_CHECK(deviceMallocAsync((void**)&d_sigc_nao, std::max<size_t>(size_sigc_nao, 1) * sizeof(std::complex<double>), rotation_blacs_h.ddla_handle->stream));
-        DEVICE_CHECK(deviceMallocAsync((void**)&d_temp, std::max<size_t>(size_temp, 1) * sizeof(std::complex<double>), rotation_blacs_h.ddla_handle->stream));
-        DEVICE_CHECK(deviceMallocAsync((void**)&d_sigc_nband, std::max<size_t>(size_sigc_nband, 1) * sizeof(std::complex<double>), rotation_blacs_h.ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(rotation_blacs_h.ddla_handle, (void**)&d_wfc_bra, std::max<size_t>(size_wfc, 1) * sizeof(std::complex<double>)));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(rotation_blacs_h.ddla_handle, (void**)&d_wfc_ket, std::max<size_t>(size_wfc, 1) * sizeof(std::complex<double>)));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(rotation_blacs_h.ddla_handle, (void**)&d_sigc_nao, std::max<size_t>(size_sigc_nao, 1) * sizeof(std::complex<double>)));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(rotation_blacs_h.ddla_handle, (void**)&d_temp, std::max<size_t>(size_temp, 1) * sizeof(std::complex<double>)));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(rotation_blacs_h.ddla_handle, (void**)&d_sigc_nband, std::max<size_t>(size_sigc_nband, 1) * sizeof(std::complex<double>)));
     }
 #endif
 
@@ -2857,16 +2857,14 @@ void G0W0::build_sigc_matrix_KS_blacs(const std::map<int, std::map<int, std::map
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
                             if (use_gpu_replace_scalapack)
                             {
+                                ddla::DDLA_CHECK(ddla::ddlaSetDevice(rotation_blacs_h.ddla_handle));
                                 if (size_wfc > 0)
                                 {
-                                    DEVICE_CHECK(deviceMemcpyAsync(d_wfc_bra, wfc_bra_ptr, size_wfc * sizeof(std::complex<double>),
-                                                                   deviceMemcpyHostToDevice, rotation_blacs_h.ddla_handle->stream));
-                                    DEVICE_CHECK(deviceMemcpyAsync(d_wfc_ket, wfc_ket_ptr, size_wfc * sizeof(std::complex<double>),
-                                                                   deviceMemcpyHostToDevice, rotation_blacs_h.ddla_handle->stream));
+                                    ddla::DDLA_CHECK(ddla::ddlaMemcpy(rotation_blacs_h.ddla_handle, d_wfc_bra, wfc_bra_ptr, size_wfc * sizeof(std::complex<double>)));
+                                    ddla::DDLA_CHECK(ddla::ddlaMemcpy(rotation_blacs_h.ddla_handle, d_wfc_ket, wfc_ket_ptr, size_wfc * sizeof(std::complex<double>)));
                                 }
                                 if (size_sigc_nao > 0)
-                                    DEVICE_CHECK(deviceMemcpyAsync(d_sigc_nao, sigc_nao_nao_opt.ptr(), size_sigc_nao * sizeof(std::complex<double>),
-                                                                   deviceMemcpyHostToDevice, rotation_blacs_h.ddla_handle->stream));
+                                    ddla::DDLA_CHECK(ddla::ddlaMemcpy(rotation_blacs_h.ddla_handle, d_sigc_nao, sigc_nao_nao_opt.ptr(), size_sigc_nao * sizeof(std::complex<double>)));
                                 LaConnector::pgemm(
                                     'C', 'N', n_bands, n_aos, n_aos, std::complex<double>{1.0, 0.0},
                                     d_wfc_bra, 1, 1, desc_wfc_device,
@@ -2880,10 +2878,8 @@ void G0W0::build_sigc_matrix_KS_blacs(const std::map<int, std::map<int, std::map
                                     std::complex<double>{0.0, 0.0},
                                     d_sigc_nband, 1, 1, desc_nband_nband_opt);
                                 if (size_sigc_nband > 0)
-                                    DEVICE_CHECK(deviceMemcpyAsync(sigc_nband_nband_opt.ptr(), d_sigc_nband,
-                                                                   size_sigc_nband * sizeof(std::complex<double>),
-                                                                   deviceMemcpyDeviceToHost, rotation_blacs_h.ddla_handle->stream));
-                                DEVICE_CHECK(deviceStreamSynchronize(rotation_blacs_h.ddla_handle->stream));
+                                    ddla::DDLA_CHECK(ddla::ddlaMemcpy(rotation_blacs_h.ddla_handle, sigc_nband_nband_opt.ptr(), d_sigc_nband, size_sigc_nband * sizeof(std::complex<double>)));
+                                ddla::DDLA_CHECK(ddla::ddlaSynchronize(rotation_blacs_h.ddla_handle));
                             }
                             else
 #endif
@@ -3123,11 +3119,11 @@ void G0W0::build_sigc_matrix_KS_blacs(const std::map<int, std::map<int, std::map
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if (use_gpu_replace_scalapack && use_klocal_rotation)
     {
-        DEVICE_CHECK(deviceFreeAsync(d_wfc_bra, rotation_blacs_h.ddla_handle->stream));
-        DEVICE_CHECK(deviceFreeAsync(d_wfc_ket, rotation_blacs_h.ddla_handle->stream));
-        DEVICE_CHECK(deviceFreeAsync(d_sigc_nao, rotation_blacs_h.ddla_handle->stream));
-        DEVICE_CHECK(deviceFreeAsync(d_temp, rotation_blacs_h.ddla_handle->stream));
-        DEVICE_CHECK(deviceFreeAsync(d_sigc_nband, rotation_blacs_h.ddla_handle->stream));
+        ddla::DDLA_CHECK(ddla::ddlaFree(rotation_blacs_h.ddla_handle, d_wfc_bra));
+        ddla::DDLA_CHECK(ddla::ddlaFree(rotation_blacs_h.ddla_handle, d_wfc_ket));
+        ddla::DDLA_CHECK(ddla::ddlaFree(rotation_blacs_h.ddla_handle, d_sigc_nao));
+        ddla::DDLA_CHECK(ddla::ddlaFree(rotation_blacs_h.ddla_handle, d_temp));
+        ddla::DDLA_CHECK(ddla::ddlaFree(rotation_blacs_h.ddla_handle, d_sigc_nband));
     }
 #endif
 #endif
