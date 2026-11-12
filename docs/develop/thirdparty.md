@@ -14,12 +14,14 @@ Tree hashes identify source versions and detect local changes. A difference prod
 <lowercase file SHA256><two spaces><relative path><newline>
 ```
 
-Directory names, file modes and timestamps are not included. A `.git` file or directory at `root` is skipped. Directory symlinks are explicitly excluded because GLOB_RECURSE can list them even with `LIST_DIRECTORIES false`. Preserve upstream symbolic links when extracting or copying archives; expanding directory links changes the file list. The equivalent shell check for a tree without symbolic links is:
+Directory names, file modes and timestamps are not included. Preparation and verification of managed trees hash every file. For a source tree that the user supplies, a `.git` file or directory at `root` is skipped (the `IGNORE_GIT` argument). Directory symlinks are explicitly excluded because GLOB_RECURSE can list them even with `LIST_DIRECTORIES false`. Preserve upstream symbolic links when extracting or copying archives; expanding directory links changes the file list. The equivalent shell check for a tree without symbolic links is:
 
 ```sh
 (cd ROOT && find . -type f | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r f; do
   printf '%s  %s\n' "$(shasum -a 256 "$f" | cut -d' ' -f1)" "$f"; done) | shasum -a 256
 ```
+
+To mirror the check of a user-supplied source path, which ignores a root `.git`, write `find . -path ./.git -prune -o -type f -print` instead of `find . -type f`.
 
 Use the CMake helper as the authoritative definition for all trees, including those containing links. `TREE_SHA256` covers patched content. `PRISTINE_SHA256` covers unpatched content and defaults to `TREE_SHA256` when no patch is needed.
 
@@ -53,7 +55,7 @@ Run it with `cmake -P hash.cmake`. You can edit a managed tree during developmen
 
 Managed sources and patched copies always use `thirdparty/src/` in the LibRPA checkout. Archives default to `thirdparty/downloads/` in the same checkout. You can select a separate archive directory with {ref}`LIBRPA_THIRDPARTY_ARCHIVE_DIR <librpa-thirdparty-archive-dir>`. Its derived default stays uncached. Downloads use temporary files in that directory before renaming, so other configurations cannot read partial downloads. Shared archives are preserved when extraction or hash verification fails.
 
-Whole-tree path overlays use `file(COPY)` without `FOLLOW_SYMLINK_CHAIN`. This preserves directory symbolic links on macOS and Linux. The copied tree must match the original hash before patches are applied. The user tree remains unchanged. The hash ignores Git metadata at the root of the hashed tree (`.git` as a file or a directory), so a submodule or clone can match the manifest. A `.git` entry in a subdirectory is hashed. An overlay copy also copies the root `.git` entry.
+Whole-tree path overlays use `file(COPY)` without `FOLLOW_SYMLINK_CHAIN`. This preserves directory symbolic links on macOS and Linux. The copied tree must match the original hash before patches are applied. The user tree remains unchanged. The hash of a user-supplied source tree ignores Git metadata at its root (`.git` as a file or a directory), so a submodule or clone can match the manifest. A `.git` entry in a subdirectory is hashed. An overlay copy leaves out the root `.git` entry.
 
 Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `thirdparty/src/` directory in the LibRPA checkout. The supplied tree keeps its contents and permissions.
 

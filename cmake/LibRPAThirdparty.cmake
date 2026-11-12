@@ -63,14 +63,16 @@ function(librpa_thirdparty_archive_dir out)
   set(${out} "${_dir}" PARENT_SCOPE)
 endfunction()
 
+# Optional third argument IGNORE_GIT skips Git metadata at the root of the tree
+# (a .git file in a submodule or worktree, or a .git directory in a clone). Use
+# it only for a source tree that the user supplies. Managed and prepared trees
+# keep the strict check.
 function(librpa_thirdparty_tree_sha256 out root)
   file(GLOB_RECURSE _files RELATIVE "${root}" LIST_DIRECTORIES false "${root}/*")
   list(SORT _files)
   set(_lines "")
   foreach(_file IN LISTS _files)
-    # Git metadata at the root (a .git file in a submodule or worktree, or a
-    # .git directory in a clone) does not belong to the source version.
-    if(_file STREQUAL ".git" OR _file MATCHES "^\\.git/")
+    if(ARGV2 STREQUAL "IGNORE_GIT" AND (_file STREQUAL ".git" OR _file MATCHES "^\\.git/"))
       continue()
     endif()
     # GLOB_RECURSE can list directory symlinks even with
@@ -254,7 +256,7 @@ endfunction()
 
 function(librpa_thirdparty_use_path name user_path out status)
   _librpa_thirdparty_fields("${name}")
-  librpa_thirdparty_tree_sha256(_hash "${user_path}")
+  librpa_thirdparty_tree_sha256(_hash "${user_path}" IGNORE_GIT)
   set(_resolved "${user_path}")
   if(_hash STREQUAL _TREE_SHA256)
     set(_status pinned)
@@ -269,8 +271,18 @@ function(librpa_thirdparty_use_path name user_path out status)
         file(REMOVE_RECURSE "${_temporary}")
         message(FATAL_ERROR "${name}: cannot create an overlay in ${LIBRPA_SOURCE_DIR}/thirdparty/src. An overlay needs a writable thirdparty/src directory in the LibRPA checkout.\n${_error}")
       endif()
-      # COPY preserves symlinks unless FOLLOW_SYMLINK_CHAIN is requested.
-      file(COPY "${user_path}/" DESTINATION "${_tree}/${_HASH_SUBDIR}")
+      # Copy the top-level entries, but leave out the root Git metadata. A
+      # submodule .git file points to a relative gitdir that dangles in the
+      # copy, which breaks git apply, and a clone's .git directory is large.
+      file(GLOB _entries LIST_DIRECTORIES true "${user_path}/*" "${user_path}/.*")
+      foreach(_entry IN LISTS _entries)
+        get_filename_component(_entry_name "${_entry}" NAME)
+        if(_entry_name STREQUAL "." OR _entry_name STREQUAL ".." OR _entry_name STREQUAL ".git")
+          continue()
+        endif()
+        # COPY preserves symlinks unless FOLLOW_SYMLINK_CHAIN is requested.
+        file(COPY "${_entry}" DESTINATION "${_tree}/${_HASH_SUBDIR}")
+      endforeach()
       # COPY retains read-only permissions. Make only the copy owner-writable,
       # preserving executable scripts and leaving the supplied tree unchanged.
       execute_process(COMMAND chmod -R u+w "${_tree}"
