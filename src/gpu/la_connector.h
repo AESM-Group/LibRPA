@@ -1,12 +1,17 @@
 #ifndef LA_CONNECTOR_H
 #define LA_CONNECTOR_H
 
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include "device_connector.h"
+#include <string>
+#include <vector>
+
+#ifdef LIBRPA_USE_DDLA
 #include <ddla/ddla.h>
 #endif
-#include "../math/scalapack_connector.h"
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#include "device_connector.h"
+#endif
 #include "../math/matrix_m.h"
+#include "../math/scalapack_connector.h"
 #include "../mpi/base_blacs.h"
 #ifdef LIBRPA_USE_ELPA
 #include "../elpa/elpa_connector.h"
@@ -17,6 +22,74 @@ namespace librpa_int
 
 namespace LaConnector
 {
+
+// A/Z are caller-owned pointers in the selected solver's memory space.
+// W is host memory for DDLA/ScaLAPACK; ELPA uses its native A/W/Z placement.
+// Handles and GPU buffers must be prepared by the caller. ScaLAPACK workspace
+// is queried here. DDLA/ELPA currently operate on complete, source-zero arrays.
+template <typename T, typename Real = typename to_real<T>::type>
+inline void pheev(char jobz, char uplo, int n, T* A, int ia, int ja, const ArrayDesc& ad_A, Real* W,
+                  T* Z, int iz, int jz, const ArrayDesc& ad_Z, int& info,
+                  const std::string& method = "scalapack")
+{
+    info = 0;
+#ifdef LIBRPA_USE_DDLA
+    if (method == "ddla")
+    {
+        if (ia != 1 || ja != 1 || iz != 1 || jz != 1)
+            throw std::invalid_argument("DDLA pheev requires unit submatrix offsets");
+        const auto handle = ad_A.ddla_handle();
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU)
+            ddla::pheevd<ddla::DdlaBackend::GPU>(handle, jobz, uplo, n, A, ad_A.desc, W, Z,
+                                                 ad_Z.desc, info);
+        else
+#endif
+            ddla::pheevd<ddla::DdlaBackend::CPU>(handle, jobz, uplo, n, A, ad_A.desc, W, Z,
+                                                 ad_Z.desc, info);
+        return;
+    }
+#endif
+#ifdef LIBRPA_USE_ELPA
+    if (method == "elpa")
+    {
+        if (ia != 1 || ja != 1 || iz != 1 || jz != 1 || n != ad_A.m() || n != ad_A.n() ||
+            n != ad_Z.m() || n != ad_Z.n() ||
+            (uplo != 'U' && uplo != 'u'))
+            throw std::invalid_argument(
+                "ELPA pheev requires the complete upper-triangle matrix configured on its handle");
+        if (jobz == 'V' || jobz == 'v')
+            elpa_eigenvectors(ad_A.elpa_handle(), A, W, Z, &info);
+        else if (jobz == 'N' || jobz == 'n')
+            elpa_eigenvalues(ad_A.elpa_handle(), A, W, &info);
+        else
+            throw std::invalid_argument("ELPA pheev requires JOBZ=N or V");
+        return;
+    }
+#endif
+
+    T work_query{};
+    Real rwork_query{}, w_query{};
+    if constexpr (is_complex_t<T>::value)
+        ScalapackConnector::pheev_f(jobz, uplo, n, A, ia, ja, ad_A.desc, &w_query, Z, iz, jz,
+                                    ad_Z.desc, &work_query, -1, &rwork_query, -1, info);
+    else
+        ScalapackConnector::psyev_f(jobz, uplo, n, A, ia, ja, ad_A.desc, &w_query, Z, iz, jz,
+                                    ad_Z.desc, &work_query, -1, info);
+    if (info != 0) return;
+    const int lwork = std::max(1, static_cast<int>(get_real(work_query)));
+    std::vector<T> work(lwork);
+    if constexpr (is_complex_t<T>::value)
+    {
+        const int lrwork = std::max(1, static_cast<int>(rwork_query));
+        std::vector<Real> rwork(lrwork);
+        ScalapackConnector::pheev_f(jobz, uplo, n, A, ia, ja, ad_A.desc, W, Z, iz, jz, ad_Z.desc,
+                                    work.data(), lwork, rwork.data(), lrwork, info);
+    }
+    else
+        ScalapackConnector::psyev_f(jobz, uplo, n, A, ia, ja, ad_A.desc, W, Z, iz, jz, ad_Z.desc,
+                                    work.data(), lwork, info);
+}
 
 template <typename T>
 inline void pgemm(

@@ -13,9 +13,6 @@
 #include <unordered_set>
 #include <vector>
 #include "../src/gpu/la_connector.h"
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include <ddla/ddla.h>
-#endif
 
 #include "../core/utils_atomic_basis_blacs.h"
 #include "../utils/profiler.h"
@@ -767,36 +764,11 @@ matrix_m<std::complex<T>> power_hemat_blacs(matrix_m<std::complex<T>> &A_local,
     }
     else
     {
-        profiler.start("power_hemat_blacs_1", LIBRPA_VERBOSE_DEBUG);
-        int lwork = -1, lrwork = -1, info = 0;
-        std::complex<T> *work;
-        T *rwork;
-        {
-            work = new std::complex<T>[1];
-            rwork = new T[1];
-            // query the optimal lwork and lrwork
-            T *Wquery = new T[1];
-            // librpa_int::global::lib_printf("power_hemat_blacs descA %s\n",
-            // ad_A.info_desc().c_str());
-            ScalapackConnector::pheev_f(jobz, uplo, n, A_local_opt.ptr(), 1, 1, ad_A_opt.desc,
-                                        Wquery, Z_local_opt.ptr(), 1, 1, ad_A_opt.desc, work, lwork,
-                                        rwork, lrwork, info);
-            lwork = std::max(int(work[0].real()), 1);
-            lrwork = std::max(int(rwork[0]), 1);
-            delete[] work;
-            delete[] Wquery;
-            delete[] rwork;
-        }
-        profiler.stop("power_hemat_blacs_1");
-
         profiler.start("power_hemat_blacs_2", LIBRPA_VERBOSE_DEBUG);
-        work = new std::complex<T>[lwork];
-        rwork = new T[lrwork];
-        ScalapackConnector::pheev_f(jobz, uplo, n, A_local_opt.ptr(), 1, 1, ad_A_opt.desc, W,
-                                    Z_local_opt.ptr(), 1, 1, ad_Z_opt.desc, work, lwork, rwork,
-                                    lrwork, info);
-        delete[] work;
-        delete[] rwork;
+        int info = 0;
+        LaConnector::pheev(jobz, uplo, n, A_local_opt.ptr(), 1, 1, ad_A_opt, W,
+                           Z_local_opt.ptr(), 1, 1, ad_Z_opt, info);
+        if (info != 0) throw std::runtime_error("pheev failed: info=" + std::to_string(info));
         profiler.stop("power_hemat_blacs_2");
     }
     // Optimized A no longer used
@@ -1063,25 +1035,11 @@ matrix_m<std::complex<T>> power_hemat_blacs_real(matrix_m<std::complex<T>> &A_lo
     // Initialize Z as real matrix initially
     auto Z_local_opt = init_local_mat<T>(ad_Z_opt, MAJOR::COL);
 
-    profiler.start("power_hemat_blacs_1", LIBRPA_VERBOSE_DEBUG);
-    int lwork = -1, info = 0;
-
-    // Query optimal workspace using the provided psyev_f interface
-    T work_query{}, Wquery{};
-    ScalapackConnector::psyev_f(jobz, uplo, n, A_local_opt.ptr(), 1, 1, ad_A_opt.desc, &Wquery,
-                                Z_local_opt.ptr(), 1, 1, ad_Z_opt.desc, &work_query, lwork, info);
-    if (info != 0) throw std::runtime_error("psyev workspace query failed: info=" + std::to_string(info));
-    lwork = std::max(as_int(work_query), 1);
-    profiler.stop("power_hemat_blacs_1");
-
-    std::vector<T> work(lwork);
     profiler.start("power_hemat_blacs_2", LIBRPA_VERBOSE_DEBUG);
-    // Perform real symmetric diagonalization using the provided interface
-    ofs_myid << lwork << " " << n << std::endl;
-    ScalapackConnector::psyev_f(jobz, uplo, n, A_local_opt.ptr(), 1, 1, ad_A_opt.desc, W,
-                                Z_local_opt.ptr(), 1, 1, ad_Z_opt.desc, work.data(), lwork, info);
-    if (info != 0) throw std::runtime_error("psyev failed: info=" + std::to_string(info));
-    work.clear();
+    int info = 0;
+    LaConnector::pheev(jobz, uplo, n, A_local_opt.ptr(), 1, 1, ad_A_opt, W,
+                       Z_local_opt.ptr(), 1, 1, ad_Z_opt, info);
+    if (info != 0) throw std::runtime_error("pheev failed: info=" + std::to_string(info));
     for (int i = 0; i < n; i++)
     {
         W[i] *= -1.0;

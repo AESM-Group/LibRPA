@@ -215,6 +215,32 @@ target_compile_definitions(test_si_density_symmetry PRIVATE
 
 config_test(test_matrix_power_scalar 1)
 add_test(NAME test_matrix_power_scalar_mpi COMMAND mpirun -np 4 $<TARGET_FILE:test_matrix_power_scalar>)
+if(NOT LIBRPA_USE_DDLA)
+  add_test(NAME test_matrix_power_ddla_fallback
+    COMMAND mpirun -np 4 $<TARGET_FILE:test_matrix_power_scalar> ddla)
+endif()
+if(NOT LIBRPA_USE_ELPA)
+  add_test(NAME test_matrix_power_elpa_fallback
+    COMMAND mpirun -np 4 $<TARGET_FILE:test_matrix_power_scalar> elpa)
+endif()
+if(LIBRPA_USE_ELPA)
+  foreach(np 1 4)
+    add_test(NAME test_matrix_power_elpa_np${np}
+      COMMAND mpirun -np ${np} $<TARGET_FILE:test_matrix_power_scalar> elpa)
+  endforeach()
+endif()
+if(LIBRPA_USE_DDLA)
+  set(_matrix_power_ddla_backends cpu)
+  if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+    list(APPEND _matrix_power_ddla_backends gpu)
+  endif()
+  foreach(np 1 4)
+    foreach(backend IN LISTS _matrix_power_ddla_backends)
+      add_test(NAME test_matrix_power_ddla_${backend}_np${np}
+        COMMAND mpirun -np ${np} $<TARGET_FILE:test_matrix_power_scalar> ddla ${backend})
+    endforeach()
+  endforeach()
+endif()
 
 # QSGW controls exercise fixed-reference state updates and their MPI ownership.
 foreach(target

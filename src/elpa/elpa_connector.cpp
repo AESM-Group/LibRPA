@@ -70,6 +70,7 @@ matrix_m<std::complex<T>> power_hemat_elpa(
     auto ddla_handle = ad_A.ddla_handle();
     T* d_W;
     if(use_gpu_replace_scalapack){
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(ddla_handle));
         ddla::DDLA_CHECK(ddla::ddlaMalloc(ddla_handle, (void**)&d_W, n * sizeof(T)));
         ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, d_A, A_local.ptr(), A_local.size() * sizeof(std::complex<T>)));
         ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, d_Z, Z_local.ptr(), Z_local.size() * sizeof(std::complex<T>)));
@@ -86,7 +87,7 @@ matrix_m<std::complex<T>> power_hemat_elpa(
         W_uni = W;
     }
     int error;
-    elpa_eigenvectors(ad_A.elpa_handle(), A, W_uni, Z, &error);
+    LaConnector::pheev('V', 'U', n, A, 1, 1, ad_A, W_uni, Z, 1, 1, ad_Z, error, "elpa");
     if(error != ELPA_OK){
         throw std::runtime_error("elpa eigenvectors error\n");
     }
@@ -215,6 +216,7 @@ matrix_m<std::complex<T>> power_hemat_elpa_real(
     T *d_W;
     if(use_gpu_replace_scalapack)
     {
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(ddla_handle));
         profiler.start("power_hemat_blacs_2_device_prepare");
         ddla::DDLA_CHECK(ddla::ddlaMalloc(ddla_handle, (void**)&d_W, n * sizeof(T)));
         ddla::DDLA_CHECK(ddla::ddlaMemcpy(ddla_handle, d_A, A_local_real.ptr(), A_local_real.size() * sizeof(T)));
@@ -231,7 +233,7 @@ matrix_m<std::complex<T>> power_hemat_elpa_real(
     }
     int error;
     profiler.start("power_hemat_blacs_2_elpa_eigenvectors");
-    elpa_eigenvectors(ad_A.elpa_handle(), A, W_uni, Z, &error);
+    LaConnector::pheev('V', 'U', n, A, 1, 1, ad_A, W_uni, Z, 1, 1, ad_Z, error, "elpa");
     profiler.stop("power_hemat_blacs_2_elpa_eigenvectors");
     if(error != ELPA_OK){
         throw std::runtime_error("elpa eigenvectors error\n");
