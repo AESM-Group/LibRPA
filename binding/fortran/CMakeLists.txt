@@ -24,7 +24,8 @@ set_target_properties(rpa_f03_lib PROPERTIES
   Fortran_MODULE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-target_link_libraries(rpa_f03_lib PRIVATE rpa_lib)
+find_package(MPI REQUIRED COMPONENTS Fortran)
+target_link_libraries(rpa_f03_lib PRIVATE rpa_lib MPI::MPI_Fortran)
 
 target_include_directories(rpa_f03_lib
   PUBLIC
