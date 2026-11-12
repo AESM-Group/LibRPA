@@ -35,10 +35,18 @@ def fixture_environment():
     return environment
 
 
-def tree_hash(root):
+def remove_path(path):
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    elif path.exists() or path.is_symlink():
+        path.unlink()
+
+
+def tree_hash(root, include_git=False):
     lines = "".join(
         f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.relative_to(root).as_posix()}\n"
-        for path in sorted(root.rglob("*")) if path.is_file()
+        for path in sorted(root.rglob("*"))
+        if path.is_file() and (include_git or path.relative_to(root).parts[0] != ".git")
     )
     return hashlib.sha256(lines.encode()).hexdigest()
 
@@ -168,6 +176,90 @@ if(NOT hash STREQUAL "{self.pristine}")
   message(FATAL_ERROR "Directory symlink changed the file tree hash: ${{hash}}")
 endif()
 ''')
+
+    def test_root_git_metadata_ignored_in_hash(self):
+        # A submodule has a .git file and a clone has a .git directory.
+        # With IGNORE_GIT, neither at the root of the hashed tree changes the
+        # hash. Without it, the hash stays strict.
+        for kind in ("file", "dir"):
+            with self.subTest(kind=kind):
+                git = self.upstream / ".git"
+                self.addCleanup(remove_path, git)
+                if kind == "file":
+                    git.write_text("gitdir: ../.git/modules/upstream\n")
+                else:
+                    (git / "objects").mkdir(parents=True)
+                    (git / "HEAD").write_text("ref: refs/heads/main\n")
+                out = self.root / f"hash-{kind}.txt"
+                self.run_cmake(f'''librpa_thirdparty_tree_sha256(ignored "{self.upstream}" IGNORE_GIT)
+librpa_thirdparty_tree_sha256(reference "{self.upstream}/include")
+librpa_thirdparty_tree_sha256(strict "{self.upstream}")
+file(WRITE "{out}" "${{ignored}}\n${{reference}}\n${{strict}}")
+''')
+                ignored, reference, strict = out.read_text().splitlines()
+                self.assertEqual(reference, self.pristine)
+                self.assertEqual(strict, tree_hash(self.upstream, include_git=True))
+                remove_path(git)
+                self.assertEqual(ignored, tree_hash(self.upstream))
+                self.assertNotEqual(strict, ignored)
+
+    def test_nested_git_metadata_changes_hash(self):
+        nested = self.upstream / "include/vendor/.git"
+        nested.write_text("gitdir: elsewhere\n")
+        self.run_cmake(f'''librpa_thirdparty_tree_sha256(hash "{self.upstream}/include" IGNORE_GIT)
+if(hash STREQUAL "{self.pristine}")
+  message(FATAL_ERROR "A nested .git file must change the hash")
+endif()
+''')
+
+    def test_whole_tree_overlay_with_root_git_metadata(self):
+        # A submodule has a .git file whose relative gitdir dangles in a copy.
+        # The overlay must neither copy it nor fail when it applies patches.
+        for kind in ("file", "dir"):
+            with self.subTest(kind=kind):
+                git = self.upstream / ".git"
+                self.addCleanup(remove_path, git)
+                remove_path(git)
+                if kind == "file":
+                    git.write_text("gitdir: ../.git/modules/missing\n")
+                else:
+                    (git / "objects").mkdir(parents=True)
+                    (git / "HEAD").write_text("ref: refs/heads/main\n")
+                pristine = tree_hash(self.upstream)
+                self.header.write_text("// patched\n")
+                patched = tree_hash(self.upstream)
+                self.header.write_text("// upstream\n")
+                shutil.rmtree(self.storage / "src", ignore_errors=True)
+                body = f'''set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_HASH_SUBDIR "")
+set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_PRISTINE_SHA256 "{pristine}")
+set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_TREE_SHA256 "{patched}")
+librpa_thirdparty_use_path(Fixture "{self.upstream}" result status)
+if(NOT status STREQUAL "overlay" OR EXISTS "${{result}}/.git")
+  message(FATAL_ERROR "Expected an overlay without .git, got ${{status}}")
+endif()
+file(READ "${{result}}/include/vendor/header.hpp" content)
+if(NOT content STREQUAL "// patched\n")
+  message(FATAL_ERROR "Patch not applied")
+endif()
+'''
+                self.run_cmake(body)
+                self.assertEqual(tree_hash(self.upstream), pristine)
+                self.assertTrue(git.exists())
+
+    def test_use_path_pinned_with_root_git_file(self):
+        (self.upstream / ".git").write_text("gitdir: ../.git/modules/missing\n")
+        self.addCleanup((self.upstream / ".git").unlink)
+        self.header.write_text("// patched\n")
+        patched = tree_hash(self.upstream)
+        self.header.write_text("// upstream\n")
+        body = f'''set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_HASH_SUBDIR "")
+set_property(GLOBAL PROPERTY LIBRPA_THIRDPARTY_Fixture_TREE_SHA256 "{tree_hash(self.upstream)}")
+librpa_thirdparty_use_path(Fixture "{self.upstream}" result status)
+if(NOT status STREQUAL "pinned" OR NOT result STREQUAL "{self.upstream}")
+  message(FATAL_ERROR "Expected pinned in-place source, got ${{status}}")
+endif()
+'''
+        self.run_cmake(body)
 
     def test_prepare_repeat_and_local_edits(self):
         body = "librpa_thirdparty_prepare(Fixture source)\n"
