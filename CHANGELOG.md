@@ -46,6 +46,7 @@
 
 ### Fixed
 
+- Ignored Git metadata (`.git` file or directory) at the root of a source tree when computing third-party tree hashes. A submodule or clone at the pinned commit now has status `pinned` and not `unpinned`.
 - Detected parent greenX targets automatically, avoiding duplicate targets.
 - Corrected the LibDDLA revision in the license list to `0d576d4`.
 - Passed the OpenMP runtime to the ELPA source build with MKL, so that ELPA's `configure` can link `mkl_intel_thread`.

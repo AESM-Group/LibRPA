@@ -68,6 +68,11 @@ function(librpa_thirdparty_tree_sha256 out root)
   list(SORT _files)
   set(_lines "")
   foreach(_file IN LISTS _files)
+    # Git metadata at the root (a .git file in a submodule or worktree, or a
+    # .git directory in a clone) does not belong to the source version.
+    if(_file STREQUAL ".git" OR _file MATCHES "^\\.git/")
+      continue()
+    endif()
     # GLOB_RECURSE can list directory symlinks even with
     # LIST_DIRECTORIES false. Hashing directories is not portable.
     if(IS_DIRECTORY "${root}/${_file}")

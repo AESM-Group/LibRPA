@@ -169,6 +169,35 @@ if(NOT hash STREQUAL "{self.pristine}")
 endif()
 ''')
 
+    def test_root_git_metadata_ignored_in_hash(self):
+        # A submodule has a .git file and a clone has a .git directory.
+        # Neither at the root of the hashed tree may change the hash.
+        for kind in ("file", "dir"):
+            with self.subTest(kind=kind):
+                git = self.upstream / ".git"
+                if kind == "file":
+                    git.write_text("gitdir: ../.git/modules/upstream\n")
+                else:
+                    (git / "objects").mkdir(parents=True)
+                    (git / "HEAD").write_text("ref: refs/heads/main\n")
+                self.run_cmake(f'''librpa_thirdparty_tree_sha256(hash "{self.upstream}")
+librpa_thirdparty_tree_sha256(reference "{self.upstream}/include")
+file(WRITE "{self.root}/hash.txt" "${{hash}}\n${{reference}}")
+''')
+                shutil.rmtree(git) if kind == "dir" else git.unlink()
+                lines = (self.root / "hash.txt").read_text().splitlines()
+                self.assertEqual(lines[0], tree_hash(self.upstream))
+                self.assertEqual(lines[1], self.pristine)
+
+    def test_nested_git_metadata_changes_hash(self):
+        nested = self.upstream / "include/vendor/.git"
+        nested.write_text("gitdir: elsewhere\n")
+        self.run_cmake(f'''librpa_thirdparty_tree_sha256(hash "{self.upstream}/include")
+if(hash STREQUAL "{self.pristine}")
+  message(FATAL_ERROR "A nested .git file must change the hash")
+endif()
+''')
+
     def test_prepare_repeat_and_local_edits(self):
         body = "librpa_thirdparty_prepare(Fixture source)\n"
         self.run_cmake(body)
