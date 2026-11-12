@@ -10,6 +10,43 @@ using namespace librpa_int;
 
 namespace
 {
+void check_real_syev()
+{
+    Dataset ds{MPI_COMM_WORLD};
+    ArrayDesc ad(ds.blacs_h.ictxt);
+    constexpr int n = 7;
+    ad.init(n, n, 2, 2, 0, 0);
+    auto a = init_local_mat<double>(ad, MAJOR::COL);
+    auto z = init_local_mat<double>(ad, MAJOR::COL);
+    for (int j = 0; j < ad.n_loc(); ++j)
+        for (int i = 0; i < ad.m_loc(); ++i)
+            if (ad.indx_l2g_r(i) == ad.indx_l2g_c(j))
+                a(i, j) = 2.0 + ad.indx_l2g_r(i);
+
+    double query = 0, w[n]{};
+    int info = 12345;
+    ScalapackConnector::psyev_f('V', 'U', n, a.ptr(), 1, 1, ad.desc, w, z.ptr(), 1, 1,
+                                ad.desc, &query, -1, info);
+    if (info != 0 || !std::isfinite(query) || !(query > 0))
+        throw std::runtime_error("real SYEV query did not return INFO/workspace");
+
+    // Exercise both query and solve in the production real matrix-power path.
+    auto powered = a.to_complex();
+    auto vectors = init_local_mat<std::complex<double>>(ad, MAJOR::COL);
+    size_t filtered = 0;
+    power_hemat_blacs_real(powered, ad, vectors, ad, filtered, w, 0.5, 0.0);
+    if (filtered != 0) throw std::runtime_error("positive real eigenvalues were filtered");
+    for (int j = 0; j < ad.n_loc(); ++j)
+        for (int i = 0; i < ad.m_loc(); ++i)
+        {
+            const int row = ad.indx_l2g_r(i), col = ad.indx_l2g_c(j);
+            const double expected = row == col ? std::sqrt(2.0 + row) : 0.0;
+            const double error = std::abs(powered(i, j) - expected);
+            if (!std::isfinite(error) || error > 2e-12)
+                throw std::runtime_error("real distributed matrix power mismatch");
+        }
+}
+
 void close(std::complex<double> actual, std::complex<double> expected)
 {
     if (!std::isfinite(actual.real()) || !std::isfinite(actual.imag()) ||
@@ -51,6 +88,7 @@ int main(int argc, char **argv)
     int status = 0;
     try
     {
+        check_real_syev();
         check(2, 0.5, 0, std::sqrt(2.0));
         check(-0.4, 0.5, 0, 0);
         check(4, -1, 0, 0.25);

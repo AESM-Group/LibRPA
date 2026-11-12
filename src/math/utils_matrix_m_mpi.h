@@ -1064,27 +1064,24 @@ matrix_m<std::complex<T>> power_hemat_blacs_real(matrix_m<std::complex<T>> &A_lo
     auto Z_local_opt = init_local_mat<T>(ad_Z_opt, MAJOR::COL);
 
     profiler.start("power_hemat_blacs_1", LIBRPA_VERBOSE_DEBUG);
-    int lwork = -1, lrwork = -1, info = 0;
+    int lwork = -1, info = 0;
 
     // Query optimal workspace using the provided psyev_f interface
-    T work_query, rwork_query, Wquery;
+    T work_query{}, Wquery{};
     ScalapackConnector::psyev_f(jobz, uplo, n, A_local_opt.ptr(), 1, 1, ad_A_opt.desc, &Wquery,
-                                Z_local_opt.ptr(), 1, 1, ad_A_opt.desc, &work_query, lwork, &rwork_query,
-                                lrwork, info);
+                                Z_local_opt.ptr(), 1, 1, ad_Z_opt.desc, &work_query, lwork, info);
+    if (info != 0) throw std::runtime_error("psyev workspace query failed: info=" + std::to_string(info));
     lwork = std::max(as_int(work_query), 1);
-    lrwork = std::max(as_int(rwork_query), 1);
     profiler.stop("power_hemat_blacs_1");
 
     std::vector<T> work(lwork);
-    std::vector<T> rwork(lrwork);
     profiler.start("power_hemat_blacs_2", LIBRPA_VERBOSE_DEBUG);
     // Perform real symmetric diagonalization using the provided interface
-    ofs_myid << lwork << " " << lrwork << " " << n << std::endl;
+    ofs_myid << lwork << " " << n << std::endl;
     ScalapackConnector::psyev_f(jobz, uplo, n, A_local_opt.ptr(), 1, 1, ad_A_opt.desc, W,
-                                Z_local_opt.ptr(), 1, 1, ad_Z_opt.desc, work.data(), lwork, rwork.data(), lrwork,
-                                info);
+                                Z_local_opt.ptr(), 1, 1, ad_Z_opt.desc, work.data(), lwork, info);
+    if (info != 0) throw std::runtime_error("psyev failed: info=" + std::to_string(info));
     work.clear();
-    rwork.clear();
     for (int i = 0; i < n; i++)
     {
         W[i] *= -1.0;

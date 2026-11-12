@@ -259,11 +259,11 @@ extern "C"
     void pssyev_(const char *jobz, const char *uplo,
                  const int *n, float *A, const int *ia, const int *ja, const int *desca,
                  float *W, float *Z, const int *iz, const int *jz, const int *descz,
-                 float *work, const int *lwork, float *rwork, const int *lrwork, int *info);
+                 float *work, const int *lwork, int *info);
     void pdsyev_(const char *jobz, const char *uplo,
                  const int *n, double *A, const int *ia, const int *ja, const int *desca,
                  double *W, double *Z, const int *iz, const int *jz, const int *descz,
-                 double *work, const int *lwork, double *rwork, const int *lrwork, int *info);
+                 double *work, const int *lwork, int *info);
     void pcheev_(const char *jobz, const char *uplo,
                  const int *n, std::complex<float> *A, const int *ia, const int *ja, const int *desca,
                  float *W, std::complex<float> *Z, const int *iz, const int *jz, const int *descz,

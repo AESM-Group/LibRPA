@@ -401,18 +401,16 @@ public:
     static inline void psyev_f(const char &jobz, const char &uplo, const int &n, float *A,
                                const int &ia, const int &ja, const int *desca, float *W, float *Z,
                                const int &iz, const int &jz, const int *descz, float *work,
-                               const int &lwork, float *rwork, const int &lrwork, int &info)
+                               const int &lwork, int &info)
     {
-        pssyev_(&jobz, &uplo, &n, A, &ia, &ja, desca, W, Z, &iz, &jz, descz, work, &lwork, rwork,
-                &lrwork, &info);
+        pssyev_(&jobz, &uplo, &n, A, &ia, &ja, desca, W, Z, &iz, &jz, descz, work, &lwork, &info);
     }
     static inline void psyev_f(const char &jobz, const char &uplo, const int &n, double *A,
                                const int &ia, const int &ja, const int *desca, double *W, double *Z,
                                const int &iz, const int &jz, const int *descz, double *work,
-                               const int &lwork, double *rwork, const int &lrwork, int &info)
+                               const int &lwork, int &info)
     {
-        pdsyev_(&jobz, &uplo, &n, A, &ia, &ja, desca, W, Z, &iz, &jz, descz, work, &lwork, rwork,
-                &lrwork, &info);
+        pdsyev_(&jobz, &uplo, &n, A, &ia, &ja, desca, W, Z, &iz, &jz, descz, work, &lwork, &info);
     }
     static inline void pheev_f(const char &jobz, const char &uplo, const int &n,
                                std::complex<float> *A, const int &ia, const int &ja,
