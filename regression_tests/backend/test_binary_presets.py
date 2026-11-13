@@ -139,19 +139,15 @@ class TestCollective(unittest.TestCase):
         return bp.extract_collective(files, "ExxR")
 
     def test_blocks_of_all_ranks_are_merged(self):
-        blocks = self._run(3)
-        self.assertEqual(sorted(k[3] for k in blocks), [0, 1, 2])
+        # The result holds exactly the blocks: no header value (rank count, rank, run
+        # identifier) is part of it.
+        expected = {(0, 0, 0, i, 0): ((float(i), float(i) + 1.0),) for i in range(3)}
+        self.assertEqual(self._run(3), expected)
 
     def test_merge_does_not_depend_on_the_split(self):
         both = bp.extract_collective(
             {"a": make_file(nprocs=1, blocks=[block(0, 0.0), block(1, 1.0)])}, "ExxR")
         self.assertEqual(self._run(2), both)
-
-    def test_header_values_are_not_part_of_the_result(self):
-        for blocks in (self._run(2), self._run(1)):
-            for key, rows in blocks.items():
-                self.assertEqual(len(key), 5)
-                self.assertTrue(all(isinstance(x, float) for row in rows for x in row))
 
     def test_missing_shard(self):
         with self.assertRaisesRegex(ValueError, "missing"):
