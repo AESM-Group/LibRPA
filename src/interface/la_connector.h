@@ -15,7 +15,7 @@
 #include "scalapack/scalapack_connector.h"
 #include "../mpi/base_blacs.h"
 #ifdef LIBRPA_USE_ELPA
-#include "elpa/elpa_connector.h"
+#include <elpa/elpa.h>
 #endif
 
 namespace librpa_int
@@ -456,51 +456,29 @@ inline void pposv(
     }
 }
 
+// Uses the caller's block-cyclic distribution, with no reblocking. Handles and
+// device selection belong to the caller. GPU A/Z descriptors share one DDLA
+// handle. GPU buffers are distinct and sized
+// for LLD*local_columns: d_A uses ad_A; d_Z and d_scaled use ad_Z.
+// For n>1 GPU scratch holds the power in d_A, eigenvectors in d_Z and their
+// weighted copy in d_scaled. The scalar shortcut updates host outputs only.
+// Host output matrix storage is preserved. W always ends on host.
 template <typename T>
-inline matrix_m<std::complex<T>> power_hemat_la(
-    matrix_m<std::complex<T>> &A_local, const ArrayDesc &ad_A, 
-    matrix_m<std::complex<T>> &Z_local, const ArrayDesc &ad_Z,
-    size_t &n_filtered, T *W, T power, const T &threshold = -1.e5,
-    bool use_gpu_replace_scalapack = false, bool use_elpa_sqrt_coulomb = false, std::complex<T>* d_A = nullptr, 
-    std::complex<T>* d_Z = nullptr, std::complex<T>* d_power = nullptr)
-{
-    #if defined(LIBRPA_USE_ELPA)
-    if(use_elpa_sqrt_coulomb){
-        return ElpaConnector::power_hemat_elpa(
-            A_local, ad_A, Z_local, ad_Z,
-            n_filtered, W, power, threshold,
-            use_gpu_replace_scalapack, d_A, d_Z, d_power);
-    }else
-    #endif
-    {
-        return power_hemat_blacs(
-            A_local, ad_A, Z_local, ad_Z,
-            n_filtered, W, power, threshold);
-    }
-}
+matrix_m<std::complex<T>> power_hemat_la(
+    matrix_m<std::complex<T>>& A, const ArrayDesc& ad_A,
+    matrix_m<std::complex<T>>& Z, const ArrayDesc& ad_Z, size_t& filtered, T* W,
+    T power, const T& threshold = -1.e5, bool gpu = false,
+    const std::string& method = "scalapack", std::complex<T>* d_A = nullptr,
+    std::complex<T>* d_Z = nullptr, std::complex<T>* d_scaled = nullptr);
 
+// Diagonalizes -real(A) and negates eigenvalues, preserving descending order.
 template <typename T>
-inline matrix_m<std::complex<T>> power_hemat_la_real(
-    matrix_m<std::complex<T>> &A_local, const ArrayDesc &ad_A, 
-    matrix_m<std::complex<T>> &Z_local, const ArrayDesc &ad_Z,
-    size_t &n_filtered, T *W, T power, const T &threshold = -1.e5,
-    bool use_gpu_replace_scalapack = false, bool use_elpa_sqrt_coulomb = false,
-    T* d_A = nullptr, T* d_Z = nullptr, T* d_power = nullptr)
-{
-    #if defined(LIBRPA_USE_ELPA)
-    if(use_elpa_sqrt_coulomb){
-        return ElpaConnector::power_hemat_elpa_real(
-            A_local, ad_A, Z_local, ad_Z,
-            n_filtered, W, power, threshold,
-            use_gpu_replace_scalapack, d_A, d_Z, d_power);
-    }else
-    #endif
-    {
-        return power_hemat_blacs_real(
-            A_local, ad_A, Z_local, ad_Z,
-            n_filtered, W, power, threshold);
-    }
-}
+matrix_m<std::complex<T>> power_hemat_la_real(
+    matrix_m<std::complex<T>>& A, const ArrayDesc& ad_A,
+    matrix_m<std::complex<T>>& Z, const ArrayDesc& ad_Z, size_t& filtered, T* W,
+    T power, const T& threshold = -1.e5, bool gpu = false,
+    const std::string& method = "scalapack", T* d_A = nullptr,
+    T* d_Z = nullptr, T* d_scaled = nullptr);
 
 }  // namespace LaConnector
 

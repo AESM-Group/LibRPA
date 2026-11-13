@@ -36,6 +36,9 @@
 
 #include "../interface/la_connector.h"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#include <ddla/ddla_vector.h>
+#endif
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #include <ddla/ddla.h>
 #endif
 
@@ -814,7 +817,8 @@ static abf_rspace_complex_block_map_t accumulate_symmetry_full_wr_from_ibz_q(
 }
 CorrEnergy compute_RPA_correlation_blacs_2d_gamma_only(Chi0 &chi0, atpair_k_cplx_mat_t &coulmat,
                                                        const std::vector<atpair_t> &local_atpair,
-                                                       const BlacsCtxtHandler &blacs_h, bool use_gpu_replace_scalapack)
+                                                       const BlacsCtxtHandler &blacs_h, bool use_gpu_replace_scalapack,
+                                                       const std::string &linear_algorithm)
 {
     using librpa_int::ArrayDesc;
     using librpa_int::global::ofs_myid;
@@ -856,6 +860,11 @@ CorrEnergy compute_RPA_correlation_blacs_2d_gamma_only(Chi0 &chi0, atpair_k_cplx
     auto coul_block = init_local_mat<double>(desc_nabf_nabf_opt, MAJOR::COL);
     auto coul_chi0_block = init_local_mat<double>(desc_nabf_nabf_opt, MAJOR::COL);
     std::vector<int> ipiv(desc_nabf_nabf_opt.m_loc() + desc_nabf_nabf_opt.mb());
+    desc_nabf_nabf_opt.set_linear_algorithm(linear_algorithm);
+#ifdef LIBRPA_USE_DDLA
+    if (linear_algorithm == "ddla" && !use_gpu_replace_scalapack)
+        desc_nabf_nabf_opt.set_ddla_handle(blacs_h.ddla_cpu_handle);
+#endif
 
     double* chi0_block_ptr = chi0_block.ptr();
     double* coul_block_ptr = coul_block.ptr();
@@ -1151,7 +1160,23 @@ CorrEnergy compute_RPA_correlation_blacs_2d(Chi0 &chi0, atpair_k_cplx_mat_t &cou
     auto coul_block = chi0_block.copy();
     auto coul_eigen_block = chi0_block.copy();
     auto coul_chi0_block = chi0_block.copy();
+    desc_nabf_nabf_opt.set_linear_algorithm(headwing_settings.linear_algorithm);
     ArrayDesc desc_headwing_response(blacs_h);
+#ifdef LIBRPA_USE_DDLA
+    if (headwing_settings.eigensolver_method == "ddla" ||
+        headwing_settings.linear_algorithm == "ddla" || headwing_settings.use_gpu_eigensolver)
+    {
+        auto handle = blacs_h.ddla_cpu_handle;
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (headwing_settings.use_gpu_eigensolver) handle = blacs_h.ddla_handle;
+#endif
+        desc_nabf_nabf_opt.set_ddla_handle(handle);
+    }
+#endif
+#ifdef LIBRPA_USE_ELPA
+    if (headwing_settings.enabled && headwing_settings.eigensolver_method == "elpa")
+        desc_nabf_nabf_opt.set_elpa_handle(headwing_settings.use_gpu_eigensolver);
+#endif
     matrix_m<std::complex<double>> headwing_response_block;
     // ofs_myid << "Iset Jset " << s0_s1 << endl;
     // ofs_myid << "atpair_unordered_local of myid " << blacs_h.myid << " " << atpair_unordered_local << endl;
@@ -1274,10 +1299,30 @@ CorrEnergy compute_RPA_correlation_blacs_2d(Chi0 &chi0, atpair_k_cplx_mat_t &cou
                 throw LIBRPA_RUNTIME_ERROR("RPA head/wing correction requested without headwing data");
             size_t n_singular = 0;
             vec<double> coul_eigenvalues(n_abf);
-            sqrtveig_blacs = LaConnector::power_hemat_la_real(
-                coul_block, desc_nabf_nabf_opt, coul_eigen_block, desc_nabf_nabf_opt,
-                n_singular, coul_eigenvalues.c, 0.5,
-                headwing_settings.sqrt_coulomb_threshold);
+            const auto compute_sqrt = [&](double* d_A = nullptr, double* d_Z = nullptr,
+                                          double* d_scaled = nullptr)
+            {
+                return LaConnector::power_hemat_la_real(
+                    coul_block, desc_nabf_nabf_opt, coul_eigen_block, desc_nabf_nabf_opt,
+                    n_singular, coul_eigenvalues.c, 0.5,
+                    headwing_settings.sqrt_coulomb_threshold,
+                    headwing_settings.use_gpu_eigensolver,
+                    headwing_settings.eigensolver_method, d_A, d_Z, d_scaled);
+            };
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+            if (headwing_settings.use_gpu_eigensolver)
+            {
+                const auto handle = desc_nabf_nabf_opt.ddla_handle();
+                ddla::DDLA_CHECK(ddla::ddlaSetDevice(handle));
+                const size_t count = std::max<size_t>(1, as_size(desc_nabf_nabf_opt.lld()) *
+                                                           desc_nabf_nabf_opt.n_loc());
+                ddla::vector<double> device_a(handle, count), device_z(handle, count),
+                    device_scaled(handle, count);
+                sqrtveig_blacs = compute_sqrt(device_a.data(), device_z.data(), device_scaled.data());
+            }
+            else
+#endif
+                sqrtveig_blacs = compute_sqrt();
             n_nonsingular_headwing = n_abf - as_int(n_singular);
             if (headwing_settings.rpa_headwing_mode == "qavg")
                 df_headwing->wing_mu_to_lambda(sqrtveig_blacs, desc_nabf_nabf_opt,
@@ -2783,7 +2828,8 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
     const double sqrt_coulomb_threshold, const bool replace_w_head, int option_dielect_func,
     const vector<std::complex<double>> &epsmac_LF_imagfreq, diele_func *df_headwing,
     const BlacsCtxtHandler &blacs_h, const ArrayDesc &ad, const bool debug, const char *output_dir,
-    bool use_cholesky_gw_wc, bool use_gpu_replace_scalapack, bool use_elpa_sqrt_coulomb)
+    bool use_cholesky_gw_wc, bool use_gpu_replace_scalapack, const std::string &eigensolver_method,
+    const std::string &linear_algorithm)
 {
     using std::cout;
     using std::endl;
@@ -2804,7 +2850,7 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
 
     if (comm_h.myid == 0)
     {
-        cout << "Calculating Wc using ScaLAPACK" << endl;
+        cout << "Calculating Wc using descriptor-based linear algebra" << endl;
     }
     comm_h.barrier();
 
@@ -2835,17 +2881,29 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
     std::complex<double>* coul_chi0_block_ptr = coul_chi0_block.ptr();
     std::complex<double>* coul_eigen_block_ptr = coul_eigen_block.ptr();
     std::complex<double>* coulwc_block_ptr = coulwc_block.ptr();
+    const size_t power_local_count = std::max<size_t>(1, as_size(desc_nabf_nabf_opt.lld()) *
+                                                            desc_nabf_nabf_opt.n_loc());
+    desc_nabf_nabf_opt.set_linear_algorithm(linear_algorithm);
 
 #if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
     if (use_gpu_replace_scalapack)
     {
         desc_nabf_nabf_opt.set_ddla_handle(blacs_h.ddla_handle); // borrow the GPU handle
         ddla::DDLA_CHECK(ddla::ddlaSetDevice(blacs_h.ddla_handle));
-        ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&chi0_block_ptr, chi0_block.size() * sizeof(std::complex<double>)));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&chi0_block_ptr,
+                                       power_local_count * sizeof(std::complex<double>)));
     }
 #endif
+#ifdef LIBRPA_USE_DDLA
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    if ((eigensolver_method == "ddla" || linear_algorithm == "ddla") && !use_gpu_replace_scalapack)
+#else
+    if (eigensolver_method == "ddla" || linear_algorithm == "ddla")
+#endif
+        desc_nabf_nabf_opt.set_ddla_handle(blacs_h.ddla_cpu_handle);
+#endif
 #if defined(LIBRPA_USE_ELPA)
-    if(use_elpa_sqrt_coulomb)
+    if(eigensolver_method == "elpa")
         desc_nabf_nabf_opt.set_elpa_handle(use_gpu_replace_scalapack);
 #endif
 
@@ -2954,6 +3012,16 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
             !epsmac_LF_imagfreq.empty());
         const bool debug_output = global::should_output(LIBRPA_VERBOSE_DEBUG);
         const bool gamma_point = is_gamma_point(q);
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (use_gpu_replace_scalapack)
+            ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&coul_chi0_block_ptr,
+                                               power_local_count * sizeof(std::complex<double>)));
+        // Non-Gamma powers use the same complex A/Z buffers as later Wc work.
+        // Gamma powers use the two real halves of chi0_block_ptr instead.
+        if (!gamma_point && use_gpu_replace_scalapack)
+            ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&coul_block_ptr,
+                                               power_local_count * sizeof(std::complex<double>)));
+#endif
         const bool gamma_full_headwing =
             gamma_point && !epsmac_LF_imagfreq.empty() &&
             (option_dielect_func == 3 || option_dielect_func == 53);
@@ -3020,19 +3088,17 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
                 LaConnector::power_hemat_la_real(
                     coulwc_block, desc_nabf_nabf_opt, coul_eigen_block, desc_nabf_nabf_opt,
                     n_singular_coulwc, eigenvalues.c, 0.5, sqrt_coulomb_threshold,
-                    use_gpu_replace_scalapack, use_elpa_sqrt_coulomb, (double*)chi0_block_ptr + chi0_block.size(), 
-                (double*)chi0_block_ptr, (double*)coul_chi0_block_ptr);
+                    use_gpu_replace_scalapack, eigensolver_method,
+                    use_gpu_replace_scalapack ? (double*)chi0_block_ptr + power_local_count : nullptr,
+                    use_gpu_replace_scalapack ? (double*)chi0_block_ptr : nullptr,
+                    use_gpu_replace_scalapack ? (double*)coul_chi0_block_ptr : nullptr);
             }
             else
             {
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-                if(use_gpu_replace_scalapack)
-                    ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&coul_block_ptr, coul_block.size() * sizeof(std::complex<double>)));
-#endif
                 LaConnector::power_hemat_la(
                     coulwc_block, desc_nabf_nabf_opt, coul_eigen_block, desc_nabf_nabf_opt,
                     n_singular_coulwc, eigenvalues.c, 0.5, sqrt_coulomb_threshold, use_gpu_replace_scalapack,
-                    use_elpa_sqrt_coulomb, coul_block_ptr, chi0_block_ptr, coul_chi0_block_ptr);
+                    eigensolver_method, coul_block_ptr, chi0_block_ptr, coul_chi0_block_ptr);
             }
             global::profiler.stop("epsilon_prepare_coulwc_sqrt_4");
         }
@@ -3116,20 +3182,22 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
         matrix_m<std::complex<double>> sqrtveig_blacs;
         if (is_gamma_point(q))
         {
-            // choice of power_hemat_blacs_real/power_hemat_blacs_desc
+            // The real path preserves descending Coulomb eigenvalues.
             // leads to sub-meV difference
             sqrtveig_blacs = LaConnector::power_hemat_la_real(
                 coul_block, desc_nabf_nabf_opt, coul_eigen_block, desc_nabf_nabf_opt,
                 n_singular, eigenvalues.c, 0.5, sqrt_coulomb_threshold,
-                use_gpu_replace_scalapack, use_elpa_sqrt_coulomb, (double*)chi0_block_ptr + chi0_block.size(), 
-                (double*)chi0_block_ptr, (double*)coul_chi0_block_ptr);
+                use_gpu_replace_scalapack, eigensolver_method,
+                use_gpu_replace_scalapack ? (double*)chi0_block_ptr + power_local_count : nullptr,
+                use_gpu_replace_scalapack ? (double*)chi0_block_ptr : nullptr,
+                use_gpu_replace_scalapack ? (double*)coul_chi0_block_ptr : nullptr);
         }
         else
         {
             sqrtveig_blacs = LaConnector::power_hemat_la(
                 coul_block, desc_nabf_nabf_opt, coul_eigen_block, desc_nabf_nabf_opt,
                 n_singular, eigenvalues.c, 0.5, sqrt_coulomb_threshold, use_gpu_replace_scalapack,
-                use_elpa_sqrt_coulomb, coul_block_ptr, chi0_block_ptr, coul_chi0_block_ptr);
+                eigensolver_method, coul_block_ptr, chi0_block_ptr, coul_chi0_block_ptr);
         }
         if (debug_output) ofs_myid << get_timestamp() << " Done power hemat couleps\n";
         const size_t n_nonsingular = n_abf - n_singular;
@@ -3143,7 +3211,8 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
         }
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
         if (is_gamma_point(q) && use_gpu_replace_scalapack)
-            ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&coul_block_ptr, coul_block.size() * sizeof(std::complex<double>)));
+            ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&coul_block_ptr,
+                                               power_local_count * sizeof(std::complex<double>)));
 #endif
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
         std::complex<double> *gamma_head_eigen_device = nullptr;
@@ -3276,8 +3345,6 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
         if (debug_output) ofs_myid << get_timestamp() << " Done couleps sqrt\n";
         std::flush(ofs_myid);
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-        if(use_gpu_replace_scalapack)
-            ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&coul_chi0_block_ptr, coul_chi0_block.size() * sizeof(std::complex<double>)));
         if (gamma_head_only && use_gpu_replace_scalapack)
             ddla::DDLA_CHECK(ddla::ddlaSynchronize(blacs_h.ddla_handle));
 #endif    

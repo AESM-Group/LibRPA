@@ -469,7 +469,9 @@ typedef struct
     //! Experimental
     double sf_sigc_omega_shift;
 
-    //! Flag of using ScaLAPACK for computing Wc from chi0.
+    //! Deprecated compatibility field, normalized to true. Wc uses one
+    //! descriptor-based algorithm; one host rank falls back to BLAS/LAPACK.
+    //! Select matrix backends with linear_algorithm and eigensolver_method.
     //! @par Default
     //! true
     LibrpaSwitch use_scalapack_gw_wc;
@@ -481,19 +483,35 @@ typedef struct
     //! Experimental
     LibrpaSwitch use_cholesky_gw_wc;
 
-    //! Flag of using GPU for computing Wc from chi0.
+    //! GPU acceleration of screened Coulomb, EXX, self-energy and mean-field matrix operations.
+    //! For screened Coulomb, selects the distributed Wc route and promotes
+    //! ScaLAPACK linear operations to DDLA and ScaLAPACK eigenvectors to ELPA
+    //! (DDLA when ELPA is not built). Requires a CUDA/HIP build.
     //! @par Default
     //! Build-dependent: true when a CUDA/HIP build detects a device, false otherwise.
     //! @par Status
     //! Experimental
     LibrpaSwitch use_gpu_replace_scalapack;
 
-    //! Flag of using ELPA for sqrt Coulomb matrix.
+    //! Distributed screened-Coulomb matrix operations: scalapack or ddla.
+    //! ScaLAPACK selection uses local BLAS/LAPACK on a one-rank host grid.
+    //! DDLA uses CPU arrays when use_gpu_replace_scalapack is false.
+    //! Unbuilt CPU DDLA falls back to ScaLAPACK.
     //! @par Default
-    //! Build-dependent: true with `LIBRPA_USE_ELPA`, false otherwise.
+    //! scalapack
     //! @par Status
     //! Experimental
-    LibrpaSwitch use_elpa_sqrt_coulomb;
+    char linear_algorithm[LIBRPA_MAX_STRLEN];
+
+    //! Eigensolver for distributed Coulomb matrix powers: scalapack, ddla, or elpa.
+    //! Unbuilt DDLA/ELPA choices fall back to ScaLAPACK. CPU-only DDLA uses CPU;
+    //! use_gpu_replace_scalapack selects CPU or GPU execution.
+    //! Replaces use_elpa_sqrt_coulomb. Recompile C and Fortran clients after this ABI change.
+    //! @par Default
+    //! Build-dependent: elpa with `LIBRPA_USE_ELPA`, scalapack otherwise.
+    //! @par Status
+    //! Experimental
+    char eigensolver_method[LIBRPA_MAX_STRLEN];
 
     //! Flag of replacing head of screened interaction by macroscopic dielectric function.
     //! @par Default

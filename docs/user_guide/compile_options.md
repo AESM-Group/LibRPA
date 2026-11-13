@@ -130,7 +130,41 @@ cmake -B build -DLIBRPA_USE_DDLA=ON \
 Choose an existing installation with `LIBDDLA_PATH`, a source tree with
 `LIBDDLA_SOURCE_DIR`, or leave both empty for the managed dependency. CPU-only
 managed builds disable CUDA, HIP, GPU collectives and GPU/CPU tunneling.
-They require host BLAS/LAPACK and MPI, but no GPU toolkit.
+They require host BLAS/LAPACK and MPI, but no GPU toolkit. Use
+`eigensolver_method = ddla` to select the DDLA CPU eigensolver at runtime.
+
+`linear_algorithm = scalapack|ddla` separately selects distributed screened-Coulomb
+GEMM and LU/Cholesky operations dispatched through `LaConnector`, including
+the shared matrix-power reconstruction. With `use_gpu_replace_scalapack = false`, DDLA
+uses its CPU interface. Host submatrix operations and rectangular-grid Cholesky
+retain ScaLAPACK where the DDLA interface cannot represent the operation.
+Explicitly native head/wing projections and general RPA energy log-determinants
+retain their ScaLAPACK implementations.
+
+`use_gpu_replace_scalapack = true` requires a CUDA/HIP build. It promotes
+the Wc route to the distributed implementation (`use_scalapack_gw_wc = true`),
+ScaLAPACK linear operations to DDLA and a ScaLAPACK eigensolver choice to ELPA.
+When ELPA is not built, DDLA's GPU eigensolver is used instead. An explicitly
+chosen DDLA or ELPA eigensolver is retained when available. ELPA must support
+the selected GPU backend; failure to configure its GPU handle is reported.
+For a managed CUDA ELPA source build, enable its GPU kernels, for example
+`-DLIBRPA_ELPA_CONFIGURE_ARGS="--enable-nvidia-gpu-kernels --with-cuda-path=/path/to/cuda --with-NVIDIA-GPU-compute-capability=sm_80"`.
+Use the corresponding AMD GPU build options for HIP, or supply a matching
+GPU-enabled external ELPA installation.
+This existing switch also controls GPU EXX, mean-field and self-energy matrix
+operations. Its default follows device availability.
+
+For GPU matrix operations and screened Coulomb:
+
+```text
+use_gpu_replace_scalapack = true
+linear_algorithm = scalapack
+eigensolver_method = scalapack
+```
+
+The effective screened-Coulomb methods are DDLA and ELPA (DDLA without ELPA).
+Recompile C and Fortran clients after the added options change the struct ABI.
+With DDLA disabled, that runtime selection falls back to ScaLAPACK.
 
 (librpa-use-cuda)=
 ### `LIBRPA_USE_CUDA`

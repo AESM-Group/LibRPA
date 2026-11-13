@@ -1,11 +1,13 @@
 // Public headers (prefixed by librpa)
 #include "librpa_enums.h"
 #include "librpa_options.h"
+#include "options.h"
 
 #include "../io/fs.h"
 #include "../utils/error.h"
 
 #include <string>
+#include <stdexcept>
 #include <cstring>
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
@@ -126,10 +128,11 @@ void librpa_init_options(LibrpaOptions *opts)
 #else
     opts->use_gpu_replace_scalapack = LIBRPA_SWITCH_OFF;
 #endif
+    std::strncpy(opts->linear_algorithm, "scalapack", LIBRPA_MAX_STRLEN);
 #ifdef LIBRPA_USE_ELPA
-    opts->use_elpa_sqrt_coulomb = LIBRPA_SWITCH_ON;
+    std::strncpy(opts->eigensolver_method, "elpa", LIBRPA_MAX_STRLEN);
 #else
-    opts->use_elpa_sqrt_coulomb = LIBRPA_SWITCH_OFF;
+    std::strncpy(opts->eigensolver_method, "scalapack", LIBRPA_MAX_STRLEN);
 #endif
     opts->replace_w_head = LIBRPA_SWITCH_OFF;
     opts->option_dielect_func = 0;
@@ -174,4 +177,41 @@ void librpa_set_output_dir(LibrpaOptions *opts, const char *output_dir)
 void librpa_set_restart_from_dir(LibrpaOptions *opts, const char *restart_from_dir)
 {
     set_directory_option(opts->restart_from_dir, restart_from_dir, "restart_from_dir", true);
+}
+
+LibrpaOptions librpa_int::resolve_linear_algebra_options(const LibrpaOptions& input)
+{
+    auto opts = input;
+    // Retain the public field for C/Fortran layout compatibility. Wc now has
+    // one descriptor-based implementation, including local one-rank dispatch.
+    opts.use_scalapack_gw_wc = LIBRPA_SWITCH_ON;
+    const bool gpu = opts.use_gpu_replace_scalapack == LIBRPA_SWITCH_ON;
+    std::string linear(opts.linear_algorithm, strnlen(opts.linear_algorithm, LIBRPA_MAX_STRLEN));
+    std::string eigen(opts.eigensolver_method, strnlen(opts.eigensolver_method, LIBRPA_MAX_STRLEN));
+    if (linear != "ddla") linear = "scalapack";
+    if (eigen != "ddla" && eigen != "elpa") eigen = "scalapack";
+#ifndef LIBRPA_USE_DDLA
+    if (linear == "ddla") linear = "scalapack";
+    if (eigen == "ddla") eigen = "scalapack";
+#endif
+#ifndef LIBRPA_USE_ELPA
+    if (eigen == "elpa") eigen = "scalapack";
+#endif
+    if (gpu)
+    {
+#if (defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)) && defined(LIBRPA_USE_DDLA)
+        linear = "ddla";
+        if (eigen == "scalapack")
+#ifdef LIBRPA_USE_ELPA
+            eigen = "elpa";
+#else
+            eigen = "ddla";
+#endif
+#else
+        throw LIBRPA_RUNTIME_ERROR("use_gpu_replace_scalapack requires a CUDA/HIP build with DDLA");
+#endif
+    }
+    std::strcpy(opts.linear_algorithm, linear.c_str());
+    std::strcpy(opts.eigensolver_method, eigen.c_str());
+    return opts;
 }

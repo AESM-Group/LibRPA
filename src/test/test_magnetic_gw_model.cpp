@@ -338,7 +338,7 @@ ResponseOperators capture_response_operators(Dataset &ds, const LibrpaOptions &o
     auto wc_tiles = compute_Wc_freq_q_blacs(
         chi, eps_coul, wc_coul, options.sqrt_coulomb_threshold, false, options.option_dielect_func,
         {}, nullptr, ds.blacs_h, ds.desc_abf, false, options.output_dir, options.use_cholesky_gw_wc,
-        options.use_gpu_replace_scalapack, options.use_elpa_sqrt_coulomb);
+        options.use_gpu_replace_scalapack, options.eigensolver_method, options.linear_algorithm);
     if (view.restore_mode == SymmetryQPointRestoreMode::FULL_CRYSTAL)
     {
         for (auto &[f, qs] : chi_tiles)

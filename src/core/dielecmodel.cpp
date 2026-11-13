@@ -3269,7 +3269,7 @@ void diele_func::wing_mu_to_lambda(matrix_m<std::complex<double>> &sqrtveig_blac
 //         mpi_comm_global_h.comm, couleps_libri, s0_s1.first, s0_s1.second);
 //     collect_block_from_ALL_IJ_Tensor(coulwc_block, desc_nabf_nabf, atomic_basis_abf_, qa,
 //                                      true, CONE, IJq_coul, MAJOR::ROW);
-//     power_hemat_blacs_real(coulwc_block, desc_nabf_nabf, coul_eigen_block, desc_nabf_nabf,
+//     LaConnector::power_hemat_la_real(coulwc_block, desc_nabf_nabf, coul_eigen_block, desc_nabf_nabf,
 //                            n_singular, eigenvalues.c, 1.0, vq_threshold);
 //     this->n_nonsingular = n_abf - n_singular;
 //     for (int iv = 1; iv != n_nonsingular; iv++)
@@ -3363,7 +3363,7 @@ void diele_func::get_Xv_cpl(double coulomb_eigen_threshold,
     collect_block_from_ALL_IJ_Tensor(coulwc_block, desc_nabf_nabf, atomic_basis_abf_, qa,
                                      true, CONE, IJq_coul, MAJOR::ROW);
     // Gamma Coulomb is real; keep this on the same eigensolver path used by epsilon.
-    power_hemat_blacs_real(coulwc_block, desc_nabf_nabf, coul_eigen_block, desc_nabf_nabf,
+    LaConnector::power_hemat_la_real(coulwc_block, desc_nabf_nabf, coul_eigen_block, desc_nabf_nabf,
                            n_singular, eigenvalues.c, 0.5, coulomb_eigen_threshold);
     this->n_nonsingular = n_abf - n_singular;
 
@@ -4609,6 +4609,10 @@ void rewrite_eps_abf_space(
     desc_invert.init(desc_nabf_nabf_opt.m(), desc_nabf_nabf_opt.n(),
                      desc_nabf_nabf_opt.mb(), desc_nabf_nabf_opt.nb(),
                      desc_nabf_nabf_opt.irsrc(), desc_nabf_nabf_opt.icsrc());
+    desc_invert.set_linear_algorithm(desc_nabf_nabf_opt.use_ddla_linear() ? "ddla" : "scalapack");
+#ifdef LIBRPA_USE_DDLA
+    desc_invert.set_ddla_handle(desc_nabf_nabf_opt.ddla_handle());
+#endif
     invert_headwing_body_with_identity_solve(eps_block, desc_invert, blacs_h,
                                              use_cholesky, use_device);
     ScalapackConnector::pgemm_f('N', 'C', n_abf, n_abf, m, -1.0,

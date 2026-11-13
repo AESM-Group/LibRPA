@@ -44,6 +44,9 @@ struct RpaHeadwingSettings
     bool use_soc = false;
     int rpa_headwing_body_start = 0;
     std::string rpa_headwing_mode = "qavg";
+    std::string eigensolver_method = "scalapack";
+    std::string linear_algorithm = "scalapack";
+    bool use_gpu_eigensolver = false;
     double sqrt_coulomb_threshold = 0.0;
 };
 

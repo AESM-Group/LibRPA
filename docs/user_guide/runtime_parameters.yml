@@ -263,7 +263,8 @@ blocks:
       - api.use_scalapack_gw_wc
       - api.use_cholesky_gw_wc
       - api.use_gpu_replace_scalapack
-      - api.use_elpa_sqrt_coulomb
+      - api.linear_algorithm
+      - api.eigensolver_method
       - api.replace_w_head
       - api.option_dielect_func
       - api.use_2d_dielectric
@@ -273,6 +274,19 @@ blocks:
       - api.sqrt_coulomb_threshold
       - api.n_bands_sigc
       - api.n_bands_exclude_sigc
+
+  - heading: Screened-Coulomb matrix backends
+    text: |
+      Wc uses the same descriptor-based algorithm on one or many MPI ranks.
+      With `linear_algorithm = scalapack` and a one-rank host BLACS grid,
+      GEMM, LU and Cholesky solves use local BLAS/LAPACK. The `scalapack`
+      eigensolver also uses local LAPACK on that grid. Explicit DDLA and ELPA
+      selections retain their respective backends. No distributed matrix is
+      gathered to select this fallback.
+
+      `use_scalapack_gw_wc` is retained for input and C/Fortran layout
+      compatibility and normalized to true. Setting it to false no longer
+      selects a separate replicated LAPACK Wc algorithm.
 
   - heading: G0W0 native velocity
     text: |

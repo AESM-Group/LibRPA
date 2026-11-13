@@ -11,6 +11,7 @@
 #include "../utils/profiler.h"
 #include "../utils/utils_mem.h"
 #include "dataset_helper.h"
+#include "options.h"
 #include "instance_manager.h"
 
 #include <string>
@@ -48,7 +49,7 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
 
     profiler.start("api_get_rpa_correlation_energy");
     auto pds = librpa_int::api::get_dataset_instance(h);
-    const auto &opts = *p_opts;
+    const auto opts = resolve_linear_algebra_options(*p_opts);
     if (opts.replace_w_head == LIBRPA_SWITCH_ON && opts.option_dielect_func == 53)
         throw LIBRPA_RUNTIME_ERROR("option_dielect_func=53 is not supported for RPA energy");
     initialize_ds_global_ddla(*pds, opts);
@@ -164,7 +165,8 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
     if (use_blacs)
     {
         if(pds->mf.get_n_kpoints() == 1 && !use_rpa_headwing)
-            corr = compute_RPA_correlation_blacs_2d_gamma_only(chi0, pds->vq, pds->atpairs_local, pds->blacs_h, opts.use_gpu_replace_scalapack);
+            corr = compute_RPA_correlation_blacs_2d_gamma_only(chi0, pds->vq, pds->atpairs_local, pds->blacs_h,
+                                                             opts.use_gpu_replace_scalapack, opts.linear_algorithm);
         else
         {
             RpaHeadwingSettings headwing_settings;
@@ -173,6 +175,9 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
             headwing_settings.use_2d_dielectric = opts.use_2d_dielectric == LIBRPA_SWITCH_ON;
             headwing_settings.rpa_headwing_body_start = opts.rpa_headwing_body_start;
             headwing_settings.rpa_headwing_mode = rpa_headwing_mode;
+            headwing_settings.eigensolver_method = opts.eigensolver_method;
+            headwing_settings.use_gpu_eigensolver = opts.use_gpu_replace_scalapack == LIBRPA_SWITCH_ON;
+            headwing_settings.linear_algorithm = opts.linear_algorithm;
             headwing_settings.sqrt_coulomb_threshold = opts.sqrt_coulomb_threshold;
             corr = compute_RPA_correlation_blacs_2d(chi0, pds->vq, pds->atpairs_local,
                                                     pds->blacs_h, headwing_settings,

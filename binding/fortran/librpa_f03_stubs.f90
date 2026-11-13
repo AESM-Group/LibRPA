@@ -257,10 +257,12 @@ module librpa_f03
       logical :: use_scalapack_gw_wc
       !> Experimental: use Cholesky factorization for computing \f$W^c\f$ from \f$\chi^0\f$.
       logical :: use_cholesky_gw_wc
-      !> Experimental: use GPU to replace scalapack for calculation
+      !> Experimental: GPU screened-Coulomb, EXX, self-energy and mean-field operations.
       logical :: use_gpu_replace_scalapack
-      !> Experimental: use elpa for sqrt coulomb matrix
-      logical :: use_elpa_sqrt_coulomb
+      !> Distributed screened-Coulomb matrix operations: scalapack or ddla.
+      character(len=LIBRPA_MAX_STRLEN) :: linear_algorithm
+      !> Distributed Coulomb eigensolver: scalapack, ddla or elpa.
+      character(len=LIBRPA_MAX_STRLEN) :: eigensolver_method
       !> Experimental: replace dielectric matrix head by the macroscopic dielectric function.
       logical :: replace_w_head
       !> Experimental: dielectric-function handling on the imaginary axis.

@@ -16,9 +16,8 @@ namespace librpa_int
 
 void initialize_ds_tfgrids(Dataset &ds, const LibrpaOptions &opts);
 
-// Initialize the global/world BLACS DDLA handle once when GPU ScaLAPACK
-// replacement is requested. This binds each MPI rank to its local GPU before
-// any k-local BLACS/DDLA handles are created.
+// Initialize the global CPU or GPU owner selected by the options. Owners are
+// cached independently so subsequent calls can switch between CPU and GPU work.
 void initialize_ds_global_ddla(Dataset &ds, const LibrpaOptions &opts);
 
 void initialize_ds_atpairs_local(Dataset &ds, LibrpaParallelRouting routing);

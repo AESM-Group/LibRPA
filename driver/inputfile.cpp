@@ -16,6 +16,7 @@
 #include <tuple>
 
 #include "../src/io/fs.h"
+#include "../src/api/options.h"
 #include "../src/utils/constants.h"
 #include "../src/utils/dev_options.h"
 #include "driver.h"
@@ -762,7 +763,24 @@ void parse_inputfile_to_params(const std::string &fn)
     }
     _parse_switch(opts, use_cholesky_gw_wc);
     _parse_switch(opts, use_gpu_replace_scalapack);
-    _parse_switch(opts, use_elpa_sqrt_coulomb);
+    parser.parse_string("linear_algorithm", stmp, flag);
+    if (flag == 0)
+    {
+        if (stmp.size() >= sizeof(opts.linear_algorithm))
+            throw std::runtime_error("linear_algorithm is too long");
+        std::strcpy(opts.linear_algorithm, stmp.c_str());
+    }
+    parser.parse_string("eigensolver_method", stmp, flag);
+    if (flag == 0)
+    {
+        if (stmp.size() >= sizeof(opts.eigensolver_method))
+            throw std::runtime_error("eigensolver_method is too long");
+        std::strcpy(opts.eigensolver_method, stmp.c_str());
+    }
+    static_cast<LibrpaOptions&>(opts) = librpa_int::resolve_linear_algebra_options(opts);
+    parser.parse_bool("use_elpa_sqrt_coulomb", btmp, flag);
+    if (flag == 0)
+        throw std::runtime_error("use_elpa_sqrt_coulomb was removed; use eigensolver_method = scalapack, ddla, or elpa");
     _parse_switch(opts, use_hedin_shift);
     _parse_int(opts, istate_ref_hedin_shift);
     _parse_double(opts, libri_g0w0_threshold_C);

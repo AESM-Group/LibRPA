@@ -153,7 +153,7 @@ void test_invert_scalapack()
 }
 
 template <typename T>
-void test_power_hemat_blacs_square_grid(const T &m_lb, const T &m_ub, bool force_real = false)
+void test_power_hemat_la_square_grid(const T &m_lb, const T &m_ub, bool force_real = false)
 {
     typedef T type;
     typedef typename to_real<type>::type real_type;
@@ -195,10 +195,10 @@ void test_power_hemat_blacs_square_grid(const T &m_lb, const T &m_ub, bool force
 
     // Take cubic root
     if (force_real)
-        power_hemat_blacs_real<real_type>(mat_loc, pair_desc_m.second, eig_loc, pair_desc_m.second,
+        LaConnector::power_hemat_la_real<real_type>(mat_loc, pair_desc_m.second, eig_loc, pair_desc_m.second,
                                           n_filtered, W, 1.0 / 3.0, -1.0e5);
     else
-        power_hemat_blacs<real_type>(mat_loc, pair_desc_m.second,
+        LaConnector::power_hemat_la<real_type>(mat_loc, pair_desc_m.second,
                                     eig_loc, pair_desc_m.second, n_filtered, W, 1.0/3.0, -1.0e5);
     assert(n_filtered == 0);
     // if (blacs_ctxt_h.myid == pid_src)
@@ -212,10 +212,10 @@ void test_power_hemat_blacs_square_grid(const T &m_lb, const T &m_ub, bool force
     // printf("mat_loc of PID %d middle\n%s", blacs_ctxt_h.myid, str(mat_loc).c_str());
     // Take cubic
     if (force_real)
-        power_hemat_blacs_real<real_type>(mat_loc, pair_desc_m.second, eig_loc, pair_desc_m.second,
+        LaConnector::power_hemat_la_real<real_type>(mat_loc, pair_desc_m.second, eig_loc, pair_desc_m.second,
                                           n_filtered, W, 3.0, -1.0e5);
     else
-        power_hemat_blacs<real_type>(mat_loc, pair_desc_m.second,
+        LaConnector::power_hemat_la<real_type>(mat_loc, pair_desc_m.second,
                                     eig_loc, pair_desc_m.second, n_filtered, W, 3.0, -1.0e5);
     assert(n_filtered == 0);
     // printf("eig_loc\n%s", str(eig_loc).c_str());
@@ -232,9 +232,9 @@ void test_power_hemat_blacs_square_grid(const T &m_lb, const T &m_ub, bool force
         if (print)
         {
             if (force_real)
-                printf("use power_hemat_blacs_real\n");
+                printf("use LaConnector::power_hemat_la_real\n");
             else
-                printf("use power_hemat_blacs\n");
+                printf("use LaConnector::power_hemat_la\n");
             printf("mat global at pid_src %d\n%s", pid_src, str(mat).c_str());
             printf("mat gathered at pid_src %d\n%s", pid_src, str(mat_gather).c_str());
         }
@@ -1095,9 +1095,9 @@ int main (int argc, char *argv[])
     // test_pgemm<complex<float>>({-2, -1}, {1, 0});
     // test_pgemm<complex<double>>({-2, -1}, {1, 0});
     //
-    test_power_hemat_blacs_square_grid<complex<double>>(0.0, {1.0, 1.0});
-    test_power_hemat_blacs_square_grid<complex<double>>(0.0, {1.0, 1.0}, true);
-    // test_power_hemat_blacs_square_grid<complex<float>>(0.0, {1.0, 2.0});
+    test_power_hemat_la_square_grid<complex<double>>(0.0, {1.0, 1.0});
+    test_power_hemat_la_square_grid<complex<double>>(0.0, {1.0, 1.0}, true);
+    // test_power_hemat_la_square_grid<complex<float>>(0.0, {1.0, 2.0});
 
     test_invert_scalapack<float>();
     test_invert_scalapack<double>();

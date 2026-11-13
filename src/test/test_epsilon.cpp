@@ -973,7 +973,7 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     const auto actual =
         compute_Wc_freq_q_blacs(chi0, bare_blocks, cut_blocks, 0.0, true, dielectric_option,
                                 std::vector<std::complex<double>>{1.0}, &headwing, blacs_h,
-                                desc_aux, false, ".", use_cholesky, false, false);
+                                desc_aux, false, ".", use_cholesky, false, "scalapack");
 
     for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
     {
