@@ -214,6 +214,8 @@ if(LIBRPA_USE_ELPA)
     interface/elpa/elpa_connector.cpp)
 endif()
 
+list(APPEND lib_sources interface/la_connector.cpp)
+
 # source must be PRIVATE to avoid recompilation when linking driver to this library
 target_sources(rpa_lib PRIVATE ${lib_sources})
 target_link_libraries(rpa_lib PRIVATE ${math_libs} ${parallel_libs})
