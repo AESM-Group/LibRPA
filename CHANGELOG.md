@@ -7,7 +7,7 @@
 - Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone download and source-preparation scripts remain compatible with 3.13.
 - Stopped shipping third-party sources. Default configuration uses network access, cached archives or prepared sources. For offline builds, download archives with `cmake/LibRPADownloadThirdparty.cmake` on a connected machine and transfer them to the build machine.
 - Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
-- Changed the real-space EXX and Sigma_c output to one indexed binary layout. EXX writes one `ExxR_ispin_SS_s_BK_myid_NNNNN.bin` file per MPI rank and spin/spinor channel instead of one file per (I,J,R) block, and keeps its real or complex storage. Sigma_c adds a leading frequency value and changes its extension from `.dat` to `.bin`. External readers and filename patterns must be updated.
+- Changed the real-space EXX and Sigma_c output to one indexed binary layout. EXX writes one `ExxR_ispin_SS_s_BK_myid_NNNNN.bin` file per MPI rank and spin/spinor channel instead of one file per (I,J,R) block, and keeps its real or complex storage. Sigma_c adds a leading frequency value and changes its extension from `.dat` to `.bin`. External readers and filename patterns must be updated ([#65](https://github.com/AESM-Group/LibRPA/pull/65)).
 - Removed automatic loading of `cmake.inc` and the `LIBRPA_USE_CMAKE_INC` build option. Use CMake `-C` initial cache files or `-D` arguments instead ([#85](https://github.com/AESM-Group/LibRPA/issues/85)).
 
 ### Added
@@ -49,7 +49,7 @@
 
 - Deprecated legacy `SigcRF_*.dat` checkpoints. Restart still reads them with a
   warning; new checkpoints use the indexed `.bin` format. Legacy reading will
-  be removed in a future release.
+  be removed in a future release ([#65](https://github.com/AESM-Group/LibRPA/pull/65)).
 
 ### Fixed
 
@@ -57,6 +57,7 @@
 - Detected parent greenX targets automatically, avoiding duplicate targets.
 - Corrected the LibDDLA revision in the license list to `0d576d4`.
 - Passed the OpenMP runtime to the ELPA source build with MKL, so that ELPA's `configure` can link `mkl_intel_thread`.
+- Handled ranks with no local Wc elements in the complex cosine transform of Wc, which divided by zero when computing batch sizes ([#65](https://github.com/AESM-Group/LibRPA/pull/65)).
 
 - Fixed the `map::at` failure of RPA energies with `parallel_routing = rtau` for
   more than one q point on more than one MPI rank.

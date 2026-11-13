@@ -279,6 +279,15 @@ Useful `<validate>` attributes:
 - `binary_extract`: numeric `struct` layout; for example, `binary_extract="2i(128d)"`
   reads two integers and 128 doubles, selecting only the doubles for comparison.
   Plain-text extraction is used when omitted.
+- `binary_extract_preset`: reader for an indexed real-space block file,
+  `ExxR` or `SigcRF`. It returns a dictionary of blocks keyed by
+  `(R1, R2, R3, I, J)`, with matrix rows as values, and cannot be combined
+  with `binary_extract`. Choose spin, spinor, and frequency in the `file` pattern.
+- `collective`: `true` merges all files matched by a preset into one block
+  dictionary, so that the comparison does not depend on how the MPI ranks split
+  the blocks into files. A duplicate block or a pattern without files is an
+  error. Use it with `comparison="cmp_dict.abs_diff(1e-8)"`, which compares keys,
+  shapes, and real or complex values. Requires `binary_extract_preset`.
 
 ## Reference update guidelines
 

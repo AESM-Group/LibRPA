@@ -661,6 +661,8 @@ typedef struct
     //! the exchange minus sign. Only stored blocks are written, without additional
     //! threshold filtering. After MPI summation each (I,J,R) block is written by
     //! exactly one rank, so the partition into files depends on the number of ranks.
+    //! Files of an earlier run with more ranks are not removed: an external reader
+    //! must use only the files of one run and reject duplicate (I,J,R) blocks.
     //! Independent of the KS-state output range.
     //! @par Default
     //! false
