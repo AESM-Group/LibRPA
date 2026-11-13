@@ -50,6 +50,17 @@ struct RspaceFileHeader
     std::optional<double> omega;  //!< set exactly for SigcRF
 };
 
+//! Header fields that the caller of write_rspace_matrices_binary owns. The writer derives
+//! dtype from the scalar type and n_blocks from the blocks.
+struct RspaceFileInfo
+{
+    RspaceKind kind = RspaceKind::ExxR;
+    std::int32_t nprocs = 0;
+    std::int32_t myid = 0;
+    std::uint64_t run_id = 0;
+    std::optional<double> omega;  //!< set exactly for SigcRF
+};
+
 //! Number of bytes of the header of the given kind.
 constexpr std::size_t rspace_header_bytes(const RspaceKind kind)
 {
@@ -69,14 +80,14 @@ RspaceFileHeader read_rspace_header(std::istream &is, const std::string &fn);
 
 //! Export one set of complete real-space AO blocks, without threshold filtering.
 //! The file starts with the header (see RspaceFileHeader), whose kind, nprocs, myid, run_id
-//! and omega come from info; dtype and n_blocks are filled in here. Then follow the records
+//! and omega come from info; dtype and n_blocks are derived here. Then follow the records
 //! of int[7] (R1,R2,R3,I,J,rows,columns) and uint64 absolute payload offset. Row-major
 //! payloads follow the complete index table.
 //! Returns false on I/O failure; callers handle MPI error propagation.
 template <typename T>
 bool write_rspace_matrices_binary(const ap_p_map<std::map<Vector3_Order<int>, matrix_m<T>>> &blocks,
                                   const AtomicBasis &basis, const std::string &fn,
-                                  RspaceFileHeader info)
+                                  const RspaceFileInfo &info)
 {
     static_assert(std::is_same_v<T, double> || std::is_same_v<T, cplxdb> ||
                       std::is_same_v<T, float> || std::is_same_v<T, std::complex<float>>,
@@ -88,15 +99,20 @@ bool write_rspace_matrices_binary(const ap_p_map<std::map<Vector3_Order<int>, ma
                                                       : 3;
     assert(info.omega.has_value() == (info.kind == RspaceKind::SigcRF));
     assert(info.run_id != 0);
-    info.dtype = dtype;
-    info.n_blocks = 0;
-    for (const auto &[IJ, R_blocks] : blocks) info.n_blocks += R_blocks.size();
+    RspaceFileHeader header;
+    header.kind = info.kind;
+    header.nprocs = info.nprocs;
+    header.myid = info.myid;
+    header.dtype = dtype;
+    header.run_id = info.run_id;
+    header.omega = info.omega;
+    for (const auto &[IJ, R_blocks] : blocks) header.n_blocks += R_blocks.size();
     std::ofstream ofs(fn, std::ios::binary);
     if (!ofs) return false;
-    if (!write_rspace_header(ofs, info)) return false;
-    const auto n_blocks = static_cast<std::size_t>(info.n_blocks);
+    if (!write_rspace_header(ofs, header)) return false;
+    const auto n_blocks = static_cast<std::size_t>(header.n_blocks);
     std::size_t offset =
-        rspace_header_bytes(info.kind) + n_blocks * (7 * sizeof(int) + sizeof(std::size_t));
+        rspace_header_bytes(header.kind) + n_blocks * (7 * sizeof(int) + sizeof(std::size_t));
     for (const auto &[IJ, R_blocks] : blocks)
         for (const auto &[R, mat] : R_blocks)
         {

@@ -533,7 +533,7 @@ void Exx::write_rspace_matrices_binary() const
 
     // One identifier for all files of this output; the header lets readers reject
     // files left over from another run in the same directory.
-    RspaceFileHeader file_info;
+    RspaceFileInfo file_info;
     file_info.kind = RspaceKind::ExxR;
     file_info.nprocs = comm_h.nprocs;
     file_info.myid = comm_h.myid;

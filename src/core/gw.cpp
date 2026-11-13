@@ -1034,7 +1034,7 @@ void G0W0::write_sigc_rf_output_files() const
     const int n_spinor = mf.get_n_spinor();
     // One identifier for all files of this output, shared by every channel and frequency,
     // so that a restart can reject files left over from another run.
-    RspaceFileHeader file_info;
+    RspaceFileInfo file_info;
     file_info.kind = RspaceKind::SigcRF;
     file_info.nprocs = comm_h.nprocs;
     file_info.myid = comm_h.myid;
