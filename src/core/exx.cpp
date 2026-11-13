@@ -531,6 +531,14 @@ void Exx::write_rspace_matrices_binary() const
          dispatch_vector_prod(atoms, pbc.Rlist, comm_h.myid, comm_h.nprocs, true, false))
         local_JRs.insert({J, {R.x, R.y, R.z}});
 
+    // One identifier for all files of this output; the header lets readers reject
+    // files left over from another run in the same directory.
+    RspaceFileHeader file_info;
+    file_info.kind = RspaceKind::ExxR;
+    file_info.nprocs = comm_h.nprocs;
+    file_info.myid = comm_h.myid;
+    file_info.run_id = make_rspace_run_id(comm_h.comm);
+
     for (int isp = 0; isp != mf.get_n_spins(); ++isp)
         for (int bra = 0; bra != mf.get_n_spinor(); ++bra)
             for (int ket = 0; ket != mf.get_n_spinor(); ++ket)
@@ -561,9 +569,9 @@ void Exx::write_rspace_matrices_binary() const
                             output_blocks[{I, JR.first}][{R[0], R[1], R[2]}] = block * (-1.0);
                         }
                     const auto fn = rspace_matrix_filename(output_dir, "ExxR", isp, bra, ket,
-                                                           global::myid_global);
-                    int write_ok =
-                        librpa_int::write_rspace_matrices_binary<T>(output_blocks, atbasis_wfc, fn);
+                                                           comm_h.myid);
+                    int write_ok = librpa_int::write_rspace_matrices_binary<T>(
+                        output_blocks, atbasis_wfc, fn, file_info);
                     MPI_Allreduce(MPI_IN_PLACE, &write_ok, 1, MPI_INT, MPI_MIN, comm_h.comm);
                     if (!write_ok)
                         throw LIBRPA_RUNTIME_ERROR(

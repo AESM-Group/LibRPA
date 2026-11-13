@@ -9,6 +9,7 @@
 #include "../core/coulmat.h"
 #include "../core/exx.h"
 #include "../io/global_io.h"
+#include "../io/output_matrix.h"
 #include "../mpi/global_mpi.h"
 #include "../utils/constants.h"
 
@@ -99,15 +100,21 @@ static double exchange(const bool qstar, const bool clear_sector, const bool inv
         if (!input.read(reinterpret_cast<char*>(&value), sizeof(value)))
             throw std::runtime_error("truncated EXX matrix output");
     };
-    std::size_t n_blocks;
-    int dtype;
-    read(n_blocks);
-    read(dtype);
-    if (dtype != 0) throw std::runtime_error("EXX output must retain real double type");
+    const auto header = read_rspace_header(input, filename.str());
+    if (header.kind != RspaceKind::ExxR || header.nprocs != comm.nprocs ||
+        header.myid != comm.myid)
+        throw std::runtime_error("EXX output header does not describe its writer");
+    if (header.dtype != 0) throw std::runtime_error("EXX output must retain real double type");
+    // All ranks of one output share the run identifier.
+    auto run_min = header.run_id, run_max = header.run_id;
+    MPI_Allreduce(MPI_IN_PLACE, &run_min, 1, MPI_UINT64_T, MPI_MIN, comm.comm);
+    MPI_Allreduce(MPI_IN_PLACE, &run_max, 1, MPI_UINT64_T, MPI_MAX, comm.comm);
+    if (run_min != run_max) throw std::runtime_error("EXX output files have different run ids");
+    const auto n_blocks = static_cast<std::size_t>(header.n_blocks);
     std::vector<double> actual(pbc.Rlist.size(), 0.0), expected(pbc.Rlist.size(), 0.0);
     std::vector<int> owners(pbc.Rlist.size(), 0);
     std::size_t expected_offset =
-        sizeof(n_blocks) + sizeof(dtype) + n_blocks * (7 * sizeof(int) + sizeof(std::size_t));
+        rspace_header_bytes(header.kind) + n_blocks * (7 * sizeof(int) + sizeof(std::size_t));
     for (std::size_t b = 0; b != n_blocks; ++b)
     {
         int dims[7];

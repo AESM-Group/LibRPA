@@ -1,8 +1,12 @@
 #include "output_matrix.h"
 
+#include <chrono>
+#include <cmath>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
+#include <random>
 #include <sstream>
 #include <vector>
 
@@ -11,6 +15,93 @@
 
 namespace librpa_int
 {
+
+std::uint64_t make_rspace_run_id(MPI_Comm comm)
+{
+    int myid = 0;
+    MPI_Comm_rank(comm, &myid);
+    std::uint64_t run_id = 0;
+    if (myid == 0)
+    {
+        // The clock alone can repeat within one process (several writes in the same
+        // tick), so mix in the random device; the identifier must not be zero.
+        std::random_device device;
+        std::mt19937_64 generator(
+            (static_cast<std::uint64_t>(device()) << 32) ^ device() ^
+            static_cast<std::uint64_t>(std::chrono::steady_clock::now().time_since_epoch().count()));
+        while (run_id == 0) run_id = generator();
+    }
+    MPI_Bcast(&run_id, 1, MPI_UINT64_T, 0, comm);
+    return run_id;
+}
+
+template <typename T>
+static void put(std::ostream &os, const T &value)
+{
+    os.write(reinterpret_cast<const char *>(&value), sizeof(T));
+}
+
+bool write_rspace_header(std::ostream &os, const RspaceFileHeader &header)
+{
+    os.write(RSPACE_MAGIC, sizeof(RSPACE_MAGIC));
+    put(os, RSPACE_ENDIAN_MARKER);
+    put(os, RSPACE_VERSION);
+    put(os, static_cast<std::int32_t>(header.kind));
+    put(os, header.nprocs);
+    put(os, header.myid);
+    put(os, header.dtype);
+    put(os, header.run_id);
+    put(os, header.n_blocks);
+    if (header.kind == RspaceKind::SigcRF) put(os, header.omega.value());
+    return static_cast<bool>(os);
+}
+
+RspaceFileHeader read_rspace_header(std::istream &is, const std::string &fn)
+{
+    auto get = [&](auto &value)
+    {
+        if (!is.read(reinterpret_cast<char *>(&value), sizeof(value)))
+            throw LIBRPA_RUNTIME_ERROR("truncated real-space matrix file header: " + fn);
+    };
+    char magic[sizeof(RSPACE_MAGIC)];
+    if (!is.read(magic, sizeof(magic)) || std::memcmp(magic, RSPACE_MAGIC, sizeof(magic)) != 0)
+        throw LIBRPA_RUNTIME_ERROR("not a real-space matrix file (bad magic): " + fn);
+    std::uint32_t endian;
+    std::int32_t version, kind;
+    RspaceFileHeader header;
+    get(endian);
+    if (endian != RSPACE_ENDIAN_MARKER)
+        throw LIBRPA_RUNTIME_ERROR("real-space matrix file has a different byte order: " + fn);
+    get(version);
+    if (version != RSPACE_VERSION)
+        throw LIBRPA_RUNTIME_ERROR("unsupported real-space matrix file version " +
+                                   std::to_string(version) + ": " + fn);
+    get(kind);
+    if (kind != static_cast<std::int32_t>(RspaceKind::ExxR) &&
+        kind != static_cast<std::int32_t>(RspaceKind::SigcRF))
+        throw LIBRPA_RUNTIME_ERROR("unknown real-space matrix file kind: " + fn);
+    header.kind = static_cast<RspaceKind>(kind);
+    get(header.nprocs);
+    get(header.myid);
+    get(header.dtype);
+    get(header.run_id);
+    get(header.n_blocks);
+    if (header.nprocs < 1 || header.myid < 0 || header.myid >= header.nprocs)
+        throw LIBRPA_RUNTIME_ERROR("invalid rank information in real-space matrix file: " + fn);
+    if (header.dtype < 0 || header.dtype > 3)
+        throw LIBRPA_RUNTIME_ERROR("unknown scalar type in real-space matrix file: " + fn);
+    if (header.run_id == 0)
+        throw LIBRPA_RUNTIME_ERROR("invalid run identifier in real-space matrix file: " + fn);
+    if (header.kind == RspaceKind::SigcRF)
+    {
+        double omega;
+        get(omega);
+        if (!std::isfinite(omega))
+            throw LIBRPA_RUNTIME_ERROR("nonfinite frequency in real-space matrix file: " + fn);
+        header.omega = omega;
+    }
+    return header;
+}
 
 static bool write_matrix_binary(const Matz &mat, const std::string &fn)
 {

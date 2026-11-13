@@ -7,7 +7,7 @@
 - Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone download and source-preparation scripts remain compatible with 3.13.
 - Stopped shipping third-party sources. Default configuration uses network access, cached archives or prepared sources. For offline builds, download archives with `cmake/LibRPADownloadThirdparty.cmake` on a connected machine and transfer them to the build machine.
 - Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
-- Changed the real-space EXX and Sigma_c output to one indexed binary layout. EXX writes one `ExxR_ispin_SS_s_BK_myid_NNNNN.bin` file per MPI rank and spin/spinor channel instead of one file per (I,J,R) block, and keeps its real or complex storage. Sigma_c adds a leading frequency value and changes its extension from `.dat` to `.bin`. External readers and filename patterns must be updated ([#65](https://github.com/AESM-Group/LibRPA/pull/65)).
+- Changed the real-space EXX and Sigma_c output to one indexed binary layout. EXX writes one `ExxR_ispin_SS_s_BK_myid_NNNNN.bin` file per MPI rank and spin/spinor channel instead of one file per (I,J,R) block, and keeps its real or complex storage. Sigma_c changes its extension from `.dat` to `.bin` and stores its frequency in the header. Every file starts with a header that holds a magic string, a byte-order marker, the layout version, the kind, the number of ranks, the rank, the scalar type, the block count, and a run identifier shared by all files of one output. A reader takes the file set from the file of rank 0 (its rank count and run identifier), uses ranks `0..nprocs-1` of that run, and ignores files of higher ranks, which an earlier run with more ranks leaves in the directory. The Sigma_c restart does this and stops on a missing file or a file of another run. External readers and filename patterns must be updated ([#65](https://github.com/AESM-Group/LibRPA/pull/65)).
 - Removed automatic loading of `cmake.inc` and the `LIBRPA_USE_CMAKE_INC` build option. Use CMake `-C` initial cache files or `-D` arguments instead ([#85](https://github.com/AESM-Group/LibRPA/issues/85)).
 
 ### Added
@@ -50,6 +50,9 @@
 - Deprecated legacy `SigcRF_*.dat` checkpoints. Restart still reads them with a
   warning; new checkpoints use the indexed `.bin` format. Legacy reading will
   be removed in a future release ([#65](https://github.com/AESM-Group/LibRPA/pull/65)).
+  The legacy files have no header, so the restart still takes their rank count from the
+  largest rank in the file names; leftover files of an earlier run with more ranks must be
+  removed by hand.
 
 ### Fixed
 

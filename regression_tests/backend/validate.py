@@ -4,7 +4,7 @@ import importlib
 import struct
 from typing import Tuple
 
-from .binary_presets import extractors
+from .binary_presets import KINDS, extract_collective, extract_file
 
 
 def _extract_files(directory: str, file: str,
@@ -23,18 +23,25 @@ def _extract_files(directory: str, file: str,
     if binary_extract_preset is not None and not matches:
         raise ValueError("no files found for {} in {}".format(file, directory))
 
+    if binary_extract_preset is not None and collective:
+        # One block dictionary from the files of one output; rank count, run identifier and
+        # leftover files are checked from the headers.
+        try:
+            return extract_collective({f: f.read_bytes() for f in sorted(matches)},
+                                      binary_extract_preset)
+        except (struct.error, ValueError) as exc:
+            raise ValueError("invalid binary data in {} ({}): {}".format(
+                directory, file, exc)) from exc
+
     for f in sorted(matches):
         rela = f.relative_to(d)
         if canonical_prefix is not None:
             rela = canonical_prefix / f.name
         if binary_extract_preset is not None:
             try:
-                blocks = extractors[binary_extract_preset](
-                    f.read_bytes(), raw if collective else None)
+                raw[rela] = extract_file(f.read_bytes(), binary_extract_preset)
             except (struct.error, ValueError) as exc:
                 raise ValueError("invalid binary data in {}: {}".format(f, exc)) from exc
-            if not collective:
-                raw[rela] = blocks
             continue
         if binary_extract is not None:
             try:
@@ -238,7 +245,9 @@ class Validate():
                 to extract data.
             file_test: Optional test-file pattern overriding file.
             file_refr: Optional reference-file pattern overriding file.
-            collective: Merge all matched preset files into one block dictionary.
+            collective: Merge all matched preset files, one per MPI rank, into one
+                block dictionary. The file headers define the set (rank count and run
+                identifier; leftover files of higher ranks are ignored with a warning).
                 False preserves the outer filename dictionary. Requires a preset.
             binary_extract_preset: ExxR or SigcRF indexed binary reader, mutually
                 exclusive with binary_extract. Text selectors are ignored.
@@ -255,7 +264,7 @@ class Validate():
         if binary_extract_preset is not None:
             if binary_extract is not None:
                 raise ValueError("binary_extract and binary_extract_preset are mutually exclusive")
-            if binary_extract_preset not in extractors:
+            if binary_extract_preset not in KINDS:
                 raise ValueError("unknown binary_extract_preset: " + binary_extract_preset)
         elif collective:
             raise ValueError("collective requires binary_extract_preset")
