@@ -209,11 +209,6 @@ if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   )
 endif()
 
-if(LIBRPA_USE_ELPA)
-  list(APPEND lib_sources
-    interface/elpa/elpa_connector.cpp)
-endif()
-
 list(APPEND lib_sources interface/la_connector.cpp)
 
 # source must be PRIVATE to avoid recompilation when linking driver to this library
