@@ -109,6 +109,48 @@ int main(int argc, char **argv)
                 }
         MPI_Allreduce(MPI_IN_PLACE, &magnitude, 1, MPI_DOUBLE, MPI_MAX, comm.comm);
         assert(magnitude > 1e-8);
+
+        // Corrupted checkpoints must be rejected. read_sigc ends in a collective, so a
+        // rank-dependent failure would hang other ranks; test only the single-rank job.
+        if (comm.nprocs == 1)
+        {
+            const std::string first_file = "/SigcRF_ispin_00_s_00_iomega_000_myid_00000.bin";
+            // Header: double omega, size_t n_blocks, int dtype; then the first record,
+            // int[7] (R1, R2, R3, I, J, rows, cols) followed by the size_t payload offset.
+            const std::streamoff header = sizeof(double) + sizeof(std::size_t) + sizeof(int);
+            const std::streamoff offset_pos = header + 7 * sizeof(int);
+            auto expect_rejected = [&](const std::string &name, const std::streamoff pos,
+                                       const auto &value)
+            {
+                const auto bad_dir = directory + "_" + name;
+                std::filesystem::remove_all(bad_dir);
+                std::filesystem::copy(directory, bad_dir, std::filesystem::copy_options::recursive);
+                {
+                    std::fstream f(bad_dir + first_file,
+                                   std::ios::in | std::ios::out | std::ios::binary);
+                    std::size_t n_blocks = 0;
+                    f.seekg(sizeof(double));
+                    f.read(reinterpret_cast<char *>(&n_blocks), sizeof(n_blocks));
+                    assert(f && n_blocks > 0);
+                    f.seekp(pos);
+                    f.write(reinterpret_cast<const char *>(&value), sizeof(value));
+                    assert(f);
+                }
+                G0W0 bad(mf, basis, pbc, symmetry, grids, kctx, kctx, desc, desc, false, false);
+                bool rejected = false;
+                try
+                {
+                    bad.read_sigc(bad_dir);
+                }
+                catch (const std::exception &)
+                {
+                    rejected = true;
+                }
+                assert(rejected);
+            };
+            expect_rejected("bad_R", header, int{99});
+            expect_rejected("bad_offset", offset_pos, std::size_t{1} << 40);
+        }
     }
     global::finalize_global_io();
     global::finalize_global_mpi();

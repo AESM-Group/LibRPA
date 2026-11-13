@@ -287,7 +287,7 @@ static void read_exact(std::ifstream &ifs, void *dst, const std::streamsize n,
 }
 
 static void read_indexed_sigc(std::ifstream &ifs, const std::string &fn, const AtomicBasis &basis,
-                              const double expected_omega,
+                              const PeriodicBoundaryData &pbc, const double expected_omega,
                               ap_p_map<std::map<Vector3_Order<int>, Matz>> &blocks)
 {
     double omega;
@@ -328,6 +328,11 @@ static void read_indexed_sigc(std::ifstream &ifs, const std::string &fn, const A
             nbytes > static_cast<std::size_t>(file_end) - offset)
             throw LIBRPA_RUNTIME_ERROR("SigC checkpoint payload is out of range: " + fn);
         const Vector3_Order<int> R{dims[0], dims[1], dims[2]};
+        // As in the legacy reader, reject blocks outside the current BvK cell set,
+        // for example from a checkpoint of a different k-mesh.
+        if (pbc.get_R_index(R) < 0)
+            throw LIBRPA_RUNTIME_ERROR("SigC checkpoint R vector is not in the current R list: " +
+                                       fn);
         auto &R_blocks = blocks[{I, J}];
         if (R_blocks.count(R)) throw LIBRPA_RUNTIME_ERROR("duplicate SigC checkpoint block: " + fn);
         Matz mat(dims[5], dims[6], MAJOR::ROW);
@@ -824,7 +829,7 @@ void G0W0::read_sigc(const std::string &input_dir)
                         if (indexed)
                         {
                             read_indexed_sigc(
-                                ifs_sigmac_r, fn, atbasis_wfc, omega,
+                                ifs_sigmac_r, fn, atbasis_wfc, pbc, omega,
                                 sigc_is_f_IJ_R[ispin][ispinor_bra][ispinor_ket][omega]);
                             continue;
                         }
