@@ -159,6 +159,7 @@ private:
 
     //! flag for initialization
     bool initialized_ = false;
+    bool use_ddla_linear_ = false;
 
 #ifdef LIBRPA_USE_DDLA
     // Non-owning: the BLACS handler owns the matching DDLA process grid.
@@ -171,6 +172,8 @@ private:
 
 public:
     int desc[9];
+    void set_linear_algorithm(const std::string& method) { use_ddla_linear_ = method == "ddla"; }
+    bool use_ddla_linear() const noexcept { return use_ddla_linear_; }
     ArrayDesc();
     ArrayDesc(const BlacsCtxtHandler &blacs_ctxt_h);
     ArrayDesc(const int &ictxt);

@@ -47,6 +47,12 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 add_test(NAME test_la_connector_single_rank_subcommunicators
   COMMAND mpirun -np 4 $<TARGET_FILE:test_la_connector_single_rank>)
+if(LIBRPA_USE_DDLA)
+  config_test(test_ddla_cpu_connector 4)
+  add_test(NAME test_ddla_cpu_connector_serial COMMAND $<TARGET_FILE:test_ddla_cpu_connector>)
+  add_test(NAME test_ddla_cpu_connector_rectangular
+    COMMAND mpirun -np 2 $<TARGET_FILE:test_ddla_cpu_connector>)
+endif()
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   config_test(test_ddla_connector 4)
 endif()

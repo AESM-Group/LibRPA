@@ -51,6 +51,30 @@ inline bool submatrix_fits(const ArrayDesc& desc, int64_t i, int64_t j,
            j - 1 <= desc.n() && cols <= desc.n() - (j - 1);
 }
 
+inline bool use_ddla_cpu(const ArrayDesc& desc)
+{
+#ifdef LIBRPA_USE_DDLA
+    if (desc.use_ddla_linear())
+    {
+        if (desc.ddla_handle() == nullptr)
+            throw std::invalid_argument("DDLA linear operations require a caller-provided handle");
+        return ddla::ddlaGetBackend(desc.ddla_handle()) == ddla::DdlaBackend::CPU;
+    }
+#endif
+    return false;
+}
+
+inline bool is_device_array(const void* ptr, const ArrayDesc& desc)
+{
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    return desc.ddla_handle() != nullptr &&
+           ddla::ddlaGetBackend(desc.ddla_handle()) == ddla::DdlaBackend::GPU &&
+           DeviceConnector::check_device_ptr(const_cast<void*>(ptr));
+#else
+    return false;
+#endif
+}
+
 // A/Z are caller-owned pointers in the selected solver's memory space.
 // W is host memory for DDLA/ScaLAPACK; ELPA uses its native A/W/Z placement.
 // Handles and GPU buffers must be prepared by the caller. ScaLAPACK workspace
@@ -161,8 +185,18 @@ inline void pgemm(const char& transa, const char& transb, const int& m, const in
                   const ArrayDesc& array_descB, const T& beta, T* C, const int64_t& ic,
                   const int64_t& jc, const ArrayDesc& array_descC)
 {
+#ifdef LIBRPA_USE_DDLA
+    // DDLA's public GEMM uses complete arrays; fall through for submatrices.
+    if (ia == 1 && ja == 1 && ib == 1 && jb == 1 && ic == 1 && jc == 1 &&
+        use_ddla_cpu(array_descA))
+    {
+        ddla::pgemm<ddla::DdlaBackend::CPU>(array_descA.ddla_handle(), transa, transb,
+            m, n, k, alpha, A, array_descA.desc, B, array_descB.desc, beta, C, array_descC.desc);
+        return;
+    }
+#endif
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if (DeviceConnector::check_device_ptr((void*)A))
+    if (is_device_array(A, array_descA))
     {
         ddla::pgemm(array_descA.ddla_handle(), transa, transb, m, n, k, alpha, A,
                     array_descA.desc, B, array_descB.desc, beta, C,
@@ -205,7 +239,7 @@ inline void scal(
     const ArrayDesc &array_desc
 ){
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(DeviceConnector::check_device_ptr((void*)X)){
+    if(is_device_array(X, array_desc)){
         ddla::scal(array_desc.ddla_handle(), N, T2(alpha), X, incX);
     }else
     #endif
@@ -222,7 +256,7 @@ inline void pdam(const T1& num, T2* A, const ArrayDesc& array_desc)
         throw std::runtime_error("In LaConnector::pdam, only square matrix is supported!");
     }
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(DeviceConnector::check_device_ptr((void*)A)){
+    if(is_device_array(A, array_desc)){
         ddla::pdam(array_desc.ddla_handle(), num, A, array_desc.desc);
     }else
     #endif
@@ -248,7 +282,7 @@ inline void axpy(
     const BlacsCtxtHandler &blacs_h
 ){
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(DeviceConnector::check_device_ptr((void*)X)){
+    if(blacs_h.ddla_handle != nullptr && DeviceConnector::check_device_ptr((void*)X)){
         ddla::axpy(
             blacs_h.ddla_handle,
             N,
@@ -276,8 +310,16 @@ inline void pgetrf_bpiv(
     int& info // host
 )
 {
+#ifdef LIBRPA_USE_DDLA
+    if (ia == 1 && ja == 1 && use_ddla_cpu(array_descA))
+    {
+        ddla::pgetrf_bpiv<ddla::DdlaBackend::CPU>(array_descA.ddla_handle(), m, n,
+                                                d_A, array_descA.desc, ipiv, info);
+        return;
+    }
+#endif
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(DeviceConnector::check_device_ptr((void*)d_A)){
+    if(is_device_array(d_A, array_descA)){
         if(ia!=1 || ja!=1){
             throw std::runtime_error("In LaConnector::pgetrf_bpiv, only support ia=ja=1 for device implementation!");
         }
@@ -309,8 +351,17 @@ inline void pgesv(
     int& info
 )
 {
+#ifdef LIBRPA_USE_DDLA
+    if (ia == 1 && ja == 1 && ib == 1 && jb == 1 && use_ddla_cpu(array_descA))
+    {
+        ddla::pgesv<ddla::DdlaBackend::CPU>(array_descA.ddla_handle(), 'L', 'N', n, nrhs,
+                                           d_A, array_descA.desc, d_B, array_descB.desc);
+        info = 0;
+        return;
+    }
+#endif
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(DeviceConnector::check_device_ptr((void*)d_A)){
+    if(is_device_array(d_A, array_descA)){
         if(ia!=1 || ja!=1 || ib!=1 || jb!=1){
             throw std::runtime_error("In LaConnector::pgesv, only support ia=ja=ib=jb=1 for device implementation!");
         }
@@ -320,6 +371,7 @@ inline void pgesv(
             d_A, array_descA.desc,
             d_B, array_descB.desc
         );
+        info = 0;
     }else
     #endif
     {
@@ -356,8 +408,18 @@ inline void pposv(
 )
 {
     assert(side == 'L');
+#ifdef LIBRPA_USE_DDLA
+    if (ia == 1 && ja == 1 && ib == 1 && jb == 1 &&
+        array_descA.nprows() == array_descA.npcols() && use_ddla_cpu(array_descA))
+    {
+        ddla::pposv<ddla::DdlaBackend::CPU>(array_descA.ddla_handle(), side, uplo, trans,
+            n, nrhs, d_A, ia, ja, array_descA.desc, d_B, ib, jb, array_descB.desc,
+            info, is_head, location);
+        return;
+    }
+#endif
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(DeviceConnector::check_device_ptr((void*)d_A)){
+    if(is_device_array(d_A, array_descA)){
         if(ia!=1 || ja!=1 || ib!=1 || jb!=1){
             throw std::runtime_error("In LaConnector::pposv, only support ia=ja=ib=jb=1 for device implementation!");
         }
