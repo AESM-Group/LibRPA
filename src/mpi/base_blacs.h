@@ -259,7 +259,8 @@ public:
         elpa_set(elpa_handle_, "process_row", myprow_, &error);
         elpa_set(elpa_handle_, "process_col", mypcol_, &error);
 
-        elpa_setup(elpa_handle_);
+        if (elpa_setup(elpa_handle_) != ELPA_OK)
+            throw std::runtime_error("ELPA handle setup failed");
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
         if(use_gpu_replace_scalapack)
@@ -275,13 +276,16 @@ public:
             elpa_set(elpa_handle_, "use_gpu_id", device, &error);
 #ifdef LIBRPA_USE_HIP
             elpa_set(elpa_handle_, "amd-gpu", 1, &error);
+            if (error != ELPA_OK) throw std::runtime_error("ELPA was not built with HIP support");
 #endif
 #ifdef LIBRPA_USE_CUDA
             elpa_set(elpa_handle_, "nvidia-gpu", 1, &error);
+            if (error != ELPA_OK) throw std::runtime_error("ELPA was not built with CUDA support");
 #endif
             elpa_set(elpa_handle_, "use_ccl", 0, &error);
             // 初始化 GPU
-            elpa_setup_gpu(elpa_handle_);
+            if (elpa_setup_gpu(elpa_handle_) != ELPA_OK)
+                throw std::runtime_error("ELPA GPU setup failed");
         }else{
             elpa_set(elpa_handle_, "gpu_tridiag",                   0, &error);
             elpa_set(elpa_handle_, "gpu_solve_tridi",               0, &error);
