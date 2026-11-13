@@ -20,6 +20,33 @@ namespace librpa_int {
 class LapackConnector
 {
 public:
+    // Raw column-major solves, without the legacy matrix-container conversion.
+    static inline void gesv_f(int n, int nrhs, float* a, int lda, int* ipiv,
+                              float* b, int ldb, int& info)
+    { sgesv_(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void gesv_f(int n, int nrhs, double* a, int lda, int* ipiv,
+                              double* b, int ldb, int& info)
+    { dgesv_(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void gesv_f(int n, int nrhs, std::complex<float>* a, int lda, int* ipiv,
+                              std::complex<float>* b, int ldb, int& info)
+    { cgesv_(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void gesv_f(int n, int nrhs, std::complex<double>* a, int lda, int* ipiv,
+                              std::complex<double>* b, int ldb, int& info)
+    { zgesv_(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+
+    static inline void posv_f(char uplo, int n, int nrhs, float* a, int lda,
+                              float* b, int ldb, int& info)
+    { sposv_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void posv_f(char uplo, int n, int nrhs, double* a, int lda,
+                              double* b, int ldb, int& info)
+    { dposv_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void posv_f(char uplo, int n, int nrhs, std::complex<float>* a, int lda,
+                              std::complex<float>* b, int ldb, int& info)
+    { cposv_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void posv_f(char uplo, int n, int nrhs, std::complex<double>* a, int lda,
+                              std::complex<double>* b, int ldb, int& info)
+    { zposv_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+
     // Transpose an row-major array to the fortran-form colum-major array.
     template <typename T>
     static inline T* transpose(const T* a, const int &n, const int &lda, bool conjugate = false)
