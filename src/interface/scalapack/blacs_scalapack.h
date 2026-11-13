@@ -57,6 +57,9 @@ extern "C"
     void pdpotrf_(char *uplo, int *n, double *a, int *ia, int *ja, int *desca, int *info);
     void pzpotrf_(char *uplo, int *n, std::complex<double> *a, int *ia, int *ja, int *desca, int *info);
 
+    void pdposv_(const char* uplo, const int* n, const int* nrhs, double* a,
+                 const int* ia, const int* ja, const int* desca, double* b,
+                 const int* ib, const int* jb, const int* descb, int* info);
     void pzposv_(
         const char *uplo, const int *n, const int *nrhs,   
         std::complex<double> *a, const int *ia, const int *ja, const int *descA,  
@@ -218,7 +221,10 @@ extern "C"
                   std::complex<double> *A, const int *IA, const int *JA, const int *DESCA,
                   int *ipiv, int *info);
 
-    void pzgesv_(const int* n, const int* nrhs, std::complex<double>* a, const int* ia, const int* ja,   
+    void pdgesv_(const int* n, const int* nrhs, double* a, const int* ia, const int* ja,
+                 const int* desca, int* ipiv, double* b, const int* ib, const int* jb,
+                 const int* descb, int* info);
+    void pzgesv_(const int* n, const int* nrhs, std::complex<double>* a, const int* ia, const int* ja,
                  const int* DESCA, int* ipiv, std::complex<double>* b, const int* ib, const int* jb,   
                  const int* DESCB, int* info);  
 

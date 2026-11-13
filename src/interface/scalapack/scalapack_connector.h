@@ -459,12 +459,28 @@ public:
         pzgetrf_(&m, &n, a, &ia, &ja, desca, ipiv, &info);
     }
 
+    static inline void pgesv_f(const int &n, const int &nrhs, double *a,
+                               const int &ia, const int &ja, const int *desca, int *ipiv,
+                               double *b, const int &ib, const int &jb,
+                               const int *descb, int &info)
+    {
+        pdgesv_(&n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info);
+    }
+
     static inline void pgesv_f(const int &n, const int &nrhs, std::complex<double> *a,
                                const int &ia, const int &ja, const int *desca, int *ipiv,
                                std::complex<double> *b, const int &ib, const int &jb,
                                const int *descb, int &info)
     {
         pzgesv_(&n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info);
+    }
+
+    static inline void pposv_f(const char &uplo, const int &n, const int &nrhs,
+                               double *a, const int &ia, const int &ja,
+                               const int *descA, double *b, const int &ib,
+                               const int &jb, const int *descB, int &info)
+    {
+        pdposv_(&uplo, &n, &nrhs, a, &ia, &ja, descA, b, &ib, &jb, descB, &info);
     }
 
     static inline void pposv_f(const char &uplo, const int &n, const int &nrhs,
