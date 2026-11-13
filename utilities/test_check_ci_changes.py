@@ -105,14 +105,21 @@ class EditedPrBuildTest(unittest.TestCase):
             "referenced_workflows": [{
                 "path": "owner/repo/.github/workflows/ci-oneapi.yml@merge",
                 "sha": "merge", "ref": "refs/pull/92/merge",
+            }, {
+                "path": "owner/repo/.github/workflows/ci-gpu.yml@merge",
+                "sha": "merge", "ref": "refs/pull/92/merge",
             }],
         }
         self.job = {
             "name": "oneAPI / ONEAPI", "status": "completed", "conclusion": "success",
         }
+        self.gpu_jobs = [{
+            "name": f"GPU builds / CPU+{backend} build + install",
+            "status": "completed", "conclusion": "success",
+        } for backend in ("CUDA", "HIP")]
         self.api = Mock(side_effect=lambda path, **kwargs: (
             {"workflow_runs": [self.run]} if "scheduler.yml" in path
-            else {"jobs": [self.job]}
+            else {"jobs": [self.job, *self.gpu_jobs]}
         ))
         diff = patch("check_ci_changes.build_required", return_value=True)
         self.diff = diff.start()
@@ -139,6 +146,22 @@ class EditedPrBuildTest(unittest.TestCase):
 
     def test_other_job_success_does_not_skip_build(self):
         self.job["name"] = "Checks / checks"
+        self.assertTrue(self.decision())
+
+    def test_missing_or_unsuccessful_gpu_build_does_not_skip_build(self):
+        for job in self.gpu_jobs:
+            for conclusion in ("skipped", "failure", "cancelled", None):
+                with self.subTest(job=job["name"], conclusion=conclusion):
+                    job["conclusion"] = conclusion
+                    self.assertTrue(self.decision())
+            job["conclusion"] = "success"
+        self.gpu_jobs.pop()
+        self.assertTrue(self.decision())
+
+    def test_gpu_workflow_must_match_the_merge_revision(self):
+        self.run["referenced_workflows"][1]["sha"] = "older-merge"
+        self.assertTrue(self.decision())
+        self.run["referenced_workflows"].pop()
         self.assertTrue(self.decision())
 
     def test_other_head_or_current_run_does_not_skip_build(self):
@@ -182,7 +205,7 @@ class EditedPrBuildTest(unittest.TestCase):
             {"workflow_runs": [dict(self.run, id=42)] * 100},
             {"workflow_runs": [self.run]},
             {"jobs": [dict(self.job, name="other")] * 100},
-            {"jobs": [self.job]},
+            {"jobs": [self.job, *self.gpu_jobs]},
         ]
         self.assertFalse(self.decision())
         self.assertIn("page=2", self.api.call_args_list[1].args[0])

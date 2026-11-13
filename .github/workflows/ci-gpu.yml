@@ -1,0 +1,151 @@
+name: GPU build and install checks
+
+# GitHub-hosted runners have no GPU. Compile both CPU/GPU paths and tests,
+# install the result, and link an installed consumer without executing it.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: CPU+${{ matrix.backend }} build + install
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - backend: CUDA
+            image: nvcr.io/nvidia/nvhpc:25.1-devel-cuda12.6-ubuntu22.04
+          - backend: HIP
+            image: rocm/dev-ubuntu-22.04:5.7
+    container:
+      image: ${{ matrix.image }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      DEBIAN_FRONTEND: noninteractive
+      OMP_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y build-essential gfortran git cmake pkg-config python3 \
+            libopenmpi-dev openmpi-bin libopenblas-dev libscalapack-openmpi-dev
+
+      - name: Install ROCm math and communication dependencies
+        if: matrix.backend == 'HIP'
+        run: |
+          apt-get install -y hipblas-dev hipsolver-dev rocrand-dev \
+            rccl rocthrust-dev hipcub-dev
+
+      - name: Cache third-party archives
+        uses: actions/cache@v4
+        with:
+          path: thirdparty/downloads
+          key: thirdparty-${{ hashFiles('thirdparty/manifest.cmake') }}
+
+      - name: Configure, build, install and link a consumer
+        env:
+          BACKEND: ${{ matrix.backend }}
+        run: |
+          # Keep Ubuntu's ScaLAPACK and MPI together, rather than selecting
+          # the NVIDIA SDK's MPI from its inherited PATH/OPAL_PREFIX.
+          unset OPAL_PREFIX
+          export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu/openmpi/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          prefix="$GITHUB_WORKSPACE/install"
+          args=(
+            -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+            -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++
+            -DCMAKE_Fortran_COMPILER=/usr/bin/gfortran
+            -DMPI_C_COMPILER=/usr/bin/mpicc -DMPI_CXX_COMPILER=/usr/bin/mpicxx
+            -DMPI_Fortran_COMPILER=/usr/bin/mpifort
+            "-DCMAKE_INSTALL_PREFIX=$prefix" -DCMAKE_INSTALL_LIBDIR=lib
+            -DBLAS_LIBRARIES=/usr/lib/x86_64-linux-gnu/libopenblas.so
+            -DLAPACK_LIBRARIES=/usr/lib/x86_64-linux-gnu/libopenblas.so
+            -DScaLAPACK_LIBRARY=/usr/lib/x86_64-linux-gnu/libscalapack-openmpi.so
+            -DDDLA_CPU_BLAS_LIBRARY=/usr/lib/x86_64-linux-gnu/libopenblas.so
+            -DDDLA_LAPACK_LIBRARY=/usr/lib/x86_64-linux-gnu/libopenblas.so
+            -DLIBRPA_USE_DDLA=ON -DLIBRPA_USE_LIBRI=ON -DLIBRPA_USE_LIBRI_GPU=ON
+            -DLIBRPA_USE_ELPA=OFF -DLIBRPA_ENABLE_DRIVER=ON
+            -DLIBRPA_ENABLE_TEST=ON -DLIBRPA_ENABLE_CPP_TEST=ON
+            -DLIBRPA_ENABLE_FORTRAN_BIND=ON -DENABLE_GREENX_CTEST=OFF
+          )
+          case "$BACKEND" in
+            CUDA)
+              cuda_root=/opt/nvidia/hpc_sdk/Linux_x86_64/25.1/cuda/12.6
+              nccl_header=$(find /opt/nvidia/hpc_sdk/Linux_x86_64/25.1/comm_libs/12.6 \
+                -name nccl.h -print -quit)
+              test -n "$nccl_header"
+              nccl_root=$(dirname "$(dirname "$nccl_header")")
+              export CPATH="$cuda_root/include:$nccl_root/include${CPATH:+:$CPATH}"
+              export LIBRARY_PATH="$nccl_root/lib${LIBRARY_PATH:+:$LIBRARY_PATH}"
+              export LD_LIBRARY_PATH="$nccl_root/lib:$cuda_root/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+              args+=(
+                -DLIBRPA_USE_CUDA=ON -DLIBRPA_USE_HIP=OFF
+                "-DCUDAToolkit_ROOT=$cuda_root"
+                "-DCMAKE_CUDA_COMPILER=$cuda_root/bin/nvcc"
+                -DCMAKE_CUDA_ARCHITECTURES=70
+              )
+              ;;
+            HIP)
+              export ROCM_PATH=/opt/rocm
+              export CPATH="$ROCM_PATH/include${CPATH:+:$CPATH}"
+              export LIBRARY_PATH="$ROCM_PATH/lib:$ROCM_PATH/lib64${LIBRARY_PATH:+:$LIBRARY_PATH}"
+              export LD_LIBRARY_PATH="$ROCM_PATH/lib:$ROCM_PATH/lib64:$ROCM_PATH/llvm/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+              args+=(
+                -DLIBRPA_USE_CUDA=OFF -DLIBRPA_USE_HIP=ON
+                "-DCMAKE_PREFIX_PATH=$ROCM_PATH" "-DROCM_PATH=$ROCM_PATH"
+                "-DCMAKE_HIP_COMPILER_ROCM_ROOT=$ROCM_PATH"
+                -DCMAKE_HIP_ARCHITECTURES=gfx90a
+              )
+              ;;
+            *) echo "Unknown backend: $BACKEND" >&2; exit 1 ;;
+          esac
+          cmake "${args[@]}" 2>&1 | tee configure.log
+          cmake --build build --parallel 2 2>&1 | tee build.log
+          cmake --install build 2>&1 | tee install.log
+
+          test -s "$prefix/include/librpa/librpa.h"
+          test -s "$prefix/include/ddla/ddla.h"
+          test -s "$prefix/lib/librpa.so"
+          test -s "$prefix/lib/libddla.so"
+          test -x "$prefix/bin/chi0_main.exe"
+          cat > installed-consumer.cpp <<'CPP'
+          #include <librpa/librpa.h>
+          int main() {
+              LibrpaOptions options;
+              librpa_init_options(&options);
+              return 0;
+          }
+          CPP
+          /usr/bin/mpicxx installed-consumer.cpp -I"$prefix/include" \
+            -L"$prefix/lib" -Wl,-rpath,"$prefix/lib" -Wl,-rpath-link,"$prefix/lib" \
+            -lrpa -o installed-consumer 2>&1 | tee consumer-link.log
+          # Inspect dependencies only: no driver, consumer, ctest or GPU probe.
+          ldd "$prefix/bin/chi0_main.exe" > installed-linkage.log
+          ldd ./installed-consumer >> installed-linkage.log
+          cat installed-linkage.log
+          if grep -q 'not found' installed-linkage.log; then exit 1; fi
+
+      - name: Save build and installation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gpu-build-install-${{ matrix.backend }}
+          path: |
+            configure.log
+            build.log
+            install.log
+            consumer-link.log
+            installed-linkage.log
+            build/CMakeCache.txt
+            build/install_manifest.txt
+            build/**/CMakeError.log
+            build/**/CMakeConfigureLog.yaml

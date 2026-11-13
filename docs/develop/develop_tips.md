@@ -44,16 +44,26 @@ event triggers.
 | `checks.yml` | Checks the runtime option definitions, the Fortran stub module, and the Python scripts |
 | `risk-tier.yml` | Gives the minimum risk tier and checks the PR description. See "Risk tiers" |
 | `ci-oneapi.yml` | Builds LibRPA with oneAPI and runs the unit tests and the regression tests |
+| `ci-gpu.yml` | Builds and installs CPU+CUDA and CPU+HIP in toolkit containers; compiles tests and links an installed consumer without GPU execution |
 | `deploy-ghpages-doc.yml` | Builds the documentation independently |
 
 If Risk tier fails, Checks and CI build jobs are skipped. If Checks fails,
 CI build jobs are skipped. A push to `master` skips Risk tier because it has no
 PR description. Editing a PR description
 runs the checks again and can start the build after the tier is corrected.
-For a description edit, Build selection reuses a successful oneAPI job from
-the same PR head and merge commit. A changed base therefore needs a new build.
+For a description edit, Build selection reuses a successful run only when
+oneAPI and both GPU build/install jobs passed for the same PR head and merge
+commit. A changed base therefore needs a new build.
 Skipped, failed, and cancelled jobs do not count as successful builds. If the
 Actions API cannot verify an earlier success, the build runs again.
+
+The GPU checks use the NVIDIA HPC SDK CUDA 12.6 and ROCm 5.7 containers,
+with explicit `sm_70` and `gfx90a` compilation targets so configuration does
+not need a visible GPU. Both enable LibRI GPU contractions, managed LibDDLA,
+the driver, C++ tests and Fortran bindings. They build shared libraries,
+install them, link a consumer against installed headers/libraries, and check
+installed dynamic dependencies. They do not run CTest, the driver, or the
+consumer. Numerical GPU validation still requires a GPU-equipped environment.
 
 CI build jobs are skipped when a change has only these files:
 

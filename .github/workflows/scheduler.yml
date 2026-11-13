@@ -64,11 +64,19 @@ jobs:
           needs.changes.result == 'success' && needs.changes.outputs.build == 'true' }}
     uses: ./.github/workflows/ci-oneapi.yml
 
+  gpu:
+    name: GPU builds
+    needs: [checks, changes]
+    if: >-
+      ${{ !cancelled() && needs.checks.result == 'success' &&
+          needs.changes.result == 'success' && needs.changes.outputs.build == 'true' }}
+    uses: ./.github/workflows/ci-gpu.yml
+
   # The only check that branch rules require. A skipped reusable workflow
   # reports no check under its job names, so the rules cannot require those.
   result:
     name: CI result
-    needs: [tier, checks, changes, oneapi]
+    needs: [tier, checks, changes, oneapi, gpu]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -80,8 +88,9 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           BUILD: ${{ needs.changes.outputs.build }}
           ONEAPI: ${{ needs.oneapi.result }}
+          GPU: ${{ needs.gpu.result }}
         run: |
-          echo "tier=$TIER checks=$CHECKS changes=$CHANGES build=$BUILD oneapi=$ONEAPI"
+          echo "tier=$TIER checks=$CHECKS changes=$CHANGES build=$BUILD oneapi=$ONEAPI gpu=$GPU"
           status=0
           if [[ "$TIER" != success && ! ( "$EVENT" == push && "$TIER" == skipped ) ]]; then
             echo "::error::Risk tier did not pass"; status=1
@@ -90,5 +99,8 @@ jobs:
           [[ "$CHANGES" == success ]] || { echo "::error::Build selection did not pass"; status=1; }
           if [[ "$BUILD" == true && "$ONEAPI" != success ]]; then
             echo "::error::The oneAPI build did not pass"; status=1
+          fi
+          if [[ "$BUILD" == true && "$GPU" != success ]]; then
+            echo "::error::The CUDA/HIP build and install checks did not pass"; status=1
           fi
           exit $status

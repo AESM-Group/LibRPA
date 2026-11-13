@@ -55,13 +55,19 @@ def github_json(path, *, environ):
         return json.load(response)
 
 
-def successful_oneapi_run(event, *, environ, get_json=github_json):
+def successful_build_run(event, *, environ, get_json=github_json):
     """Find a successful build of this PR's exact merge commit."""
     pr = event["pull_request"]
     merge_sha = environ["GITHUB_SHA"]
-    workflow_path = (
-        f'{environ["GITHUB_REPOSITORY"]}/.github/workflows/ci-oneapi.yml@{merge_sha}'
-    )
+    workflow_paths = {
+        f'{environ["GITHUB_REPOSITORY"]}/.github/workflows/{workflow}@{merge_sha}'
+        for workflow in ("ci-oneapi.yml", "ci-gpu.yml")
+    }
+    required_jobs = {
+        "oneAPI / ONEAPI",
+        "GPU builds / CPU+CUDA build + install",
+        "GPU builds / CPU+HIP build + install",
+    }
     page = 1
     while True:
         query = urlencode({
@@ -79,22 +85,26 @@ def successful_oneapi_run(event, *, environ, get_json=github_json):
                 continue
             # Fork PRs can have an empty pull_requests list. The reusable
             # workflow records the tested merge SHA and PR ref directly.
-            if not any(
-                workflow.get("path") == workflow_path
-                and workflow.get("sha") == merge_sha
-                and workflow.get("ref") == f'refs/pull/{pr["number"]}/merge'
+            tested_workflows = {
+                workflow.get("path")
                 for workflow in run.get("referenced_workflows", [])
-            ):
+                if workflow.get("sha") == merge_sha
+                and workflow.get("ref") == f'refs/pull/{pr["number"]}/merge'
+            }
+            if not workflow_paths.issubset(tested_workflows):
                 continue
             job_page = 1
+            successful_jobs = set()
             while True:
                 jobs = get_json(
                     f'actions/runs/{run["id"]}/jobs?filter=latest&per_page=100&page={job_page}',
                     environ=environ,
                 )["jobs"]
-                if any(job["name"] == "oneAPI / ONEAPI"
-                       and job["status"] == "completed"
-                       and job["conclusion"] == "success" for job in jobs):
+                successful_jobs.update(
+                    job["name"] for job in jobs
+                    if job["status"] == "completed" and job["conclusion"] == "success"
+                )
+                if required_jobs.issubset(successful_jobs):
                     return run["id"]
                 if len(jobs) < 100:
                     break
@@ -109,12 +119,12 @@ def scheduled_build_required(event, *, environ, cwd=None, get_json=github_json):
         return False
     if "pull_request" in event and event.get("action") == "edited":
         try:
-            run_id = successful_oneapi_run(event, environ=environ, get_json=get_json)
+            run_id = successful_build_run(event, environ=environ, get_json=get_json)
         except (URLError, TimeoutError, ValueError, KeyError) as error:
-            print(f"Cannot verify an earlier oneAPI build; build again: {error}", file=sys.stderr)
+            print(f"Cannot verify earlier CPU/CUDA/HIP builds; build again: {error}", file=sys.stderr)
         else:
             if run_id is not None:
-                print(f"Reuse successful oneAPI build from run {run_id}.", file=sys.stderr)
+                print(f"Reuse successful CPU/CUDA/HIP builds from run {run_id}.", file=sys.stderr)
                 return False
     return True
 
