@@ -512,7 +512,10 @@ if(LIBRPA_USE_HIP)
     add_compile_definitions("DDLA_USE_HIP")
   endif()
   add_compile_definitions("__HIP_PLATFORM_AMD__")
-  set(HIP_LIBRARIES "-lamdhip64 -lgalaxyhip -lhipblas -lhipsolver -lrccl -lhiprand")
+  # LibRPA directly uses the host HIP runtime; LibDDLA owns GPU math/CCL
+  # dependencies (and optional Hygon-specific runtime dependencies).
+  find_package(hip REQUIRED CONFIG HINTS "${ROCM_PATH}" "$ENV{ROCM_PATH}")
+  set(HIP_LIBRARIES hip::host)
   list(APPEND math_libs
       ${HIP_LIBRARIES}
   )
