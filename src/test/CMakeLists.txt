@@ -37,6 +37,16 @@ macro(config_test TARGET NUMPROC)
 endmacro()
 
 # add serial tests
+config_test(test_la_connector_single_rank 1)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_compile_definitions(test_la_connector_single_rank PRIVATE LIBRPA_TEST_LOCAL_LAPACK_DISPATCH)
+  foreach(symbol psgemm_ pdgemm_ pcgemm_ pzgemm_ pssyev_ pdsyev_ pcheev_ pzheev_
+                 pdgetrf_ pzgetrf_ pdgesv_ pzgesv_ pdposv_ pzposv_)
+    target_link_options(test_la_connector_single_rank PRIVATE "LINKER:--wrap=${symbol}")
+  endforeach()
+endif()
+add_test(NAME test_la_connector_single_rank_subcommunicators
+  COMMAND mpirun -np 4 $<TARGET_FILE:test_la_connector_single_rank>)
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   config_test(test_ddla_connector 4)
 endif()

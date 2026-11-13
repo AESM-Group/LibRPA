@@ -1,6 +1,7 @@
 #ifndef LA_CONNECTOR_H
 #define LA_CONNECTOR_H
 
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,33 @@ namespace librpa_int
 
 namespace LaConnector
 {
+
+// Matrix ownership belongs to the descriptor's grid, not MPI_COMM_WORLD.
+// A one-rank k-point grid can exist inside a multi-rank calculation.
+inline bool is_single_rank_grid(const ArrayDesc& desc)
+{
+    return desc.is_initialized() && desc.nprows() == 1 && desc.npcols() == 1 &&
+           desc.myprow() == 0 && desc.mypcol() == 0;
+}
+
+inline bool is_same_single_rank_grid(const ArrayDesc& a, const ArrayDesc& b)
+{
+    return is_single_rank_grid(a) && is_single_rank_grid(b) && a.ictxt() == b.ictxt();
+}
+
+template <typename T>
+inline T* local_submatrix(T* a, int64_t i, int64_t j, const ArrayDesc& desc)
+{
+    return a + (i - 1) + int64_t(desc.lld()) * (j - 1);
+}
+
+inline bool submatrix_fits(const ArrayDesc& desc, int64_t i, int64_t j,
+                          int64_t rows, int64_t cols)
+{
+    return i >= 1 && j >= 1 && rows >= 0 && cols >= 0 &&
+           i - 1 <= desc.m() && rows <= desc.m() - (i - 1) &&
+           j - 1 <= desc.n() && cols <= desc.n() - (j - 1);
+}
 
 // A/Z are caller-owned pointers in the selected solver's memory space.
 // W is host memory for DDLA/ScaLAPACK; ELPA uses its native A/W/Z placement.
@@ -68,6 +96,41 @@ inline void pheev(char jobz, char uplo, int n, T* A, int ia, int ja, const Array
     }
 #endif
 
+    if (is_single_rank_grid(ad_A) && submatrix_fits(ad_A, ia, ja, n, n) &&
+        ((jobz == 'N' || jobz == 'n') ||
+         (is_same_single_rank_grid(ad_A, ad_Z) && submatrix_fits(ad_Z, iz, jz, n, n))))
+    {
+        // LAPACK stores eigenvectors in A; the distributed interface returns Z.
+        auto* a = local_submatrix(A, ia, ja, ad_A);
+        T work_query{};
+        if constexpr (is_complex_t<T>::value)
+        {
+            std::vector<Real> rwork(std::max(1, 3 * n - 2));
+            LapackConnector::heev_f(jobz, uplo, n, a, ad_A.lld(), W,
+                                    &work_query, -1, rwork.data(), info);
+            if (info != 0) return;
+            std::vector<T> work(std::max(1, static_cast<int>(get_real(work_query))));
+            LapackConnector::heev_f(jobz, uplo, n, a, ad_A.lld(), W,
+                                    work.data(), work.size(), rwork.data(), info);
+        }
+        else
+        {
+            LapackConnector::syev_f(jobz, uplo, n, a, ad_A.lld(), W, &work_query, -1, info);
+            if (info != 0) return;
+            std::vector<T> work(std::max(1, static_cast<int>(work_query)));
+            LapackConnector::syev_f(jobz, uplo, n, a, ad_A.lld(), W,
+                                    work.data(), work.size(), info);
+        }
+        if (info == 0 && (jobz == 'V' || jobz == 'v'))
+        {
+            auto* z = local_submatrix(Z, iz, jz, ad_Z);
+            if (a != z || ad_A.lld() != ad_Z.lld())
+                for (int j = 0; j < n; ++j)
+                    std::copy_n(a + int64_t(j) * ad_A.lld(), n, z + int64_t(j) * ad_Z.lld());
+        }
+        return;
+    }
+
     T work_query{};
     Real rwork_query{}, w_query{};
     if constexpr (is_complex_t<T>::value)
@@ -92,31 +155,36 @@ inline void pheev(char jobz, char uplo, int n, T* A, int ia, int ja, const Array
 }
 
 template <typename T>
-inline void pgemm(
-    const char& transa, const char& transb,
-    const int & m, const int & n,const int & k,
-    const T & alpha,
-    const T* A, const int64_t& ia, const int64_t& ja, const ArrayDesc& array_descA,
-    const T* B, const int64_t& ib, const int64_t& jb, const ArrayDesc& array_descB,
-    const T & beta,
-    T* C,const int64_t& ic,const int64_t& jc,const ArrayDesc& array_descC
-)
+inline void pgemm(const char& transa, const char& transb, const int& m, const int& n, const int& k,
+                  const T& alpha, const T* A, const int64_t& ia, const int64_t& ja,
+                  const ArrayDesc& array_descA, const T* B, const int64_t& ib, const int64_t& jb,
+                  const ArrayDesc& array_descB, const T& beta, T* C, const int64_t& ic,
+                  const int64_t& jc, const ArrayDesc& array_descC)
 {
-    #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(DeviceConnector::check_device_ptr((void*)A)){
-        ddla::pgemm(
-            array_descA.ddla_handle(),
-            transa, transb,
-            m, n, k,
-            alpha,
-            A, array_descA.desc,
-            B, array_descB.desc,
-            beta,
-            C, array_descC.desc
-        );
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    if (DeviceConnector::check_device_ptr((void*)A))
+    {
+        ddla::pgemm(array_descA.ddla_handle(), transa, transb, m, n, k, alpha, A,
+                    array_descA.desc, B, array_descB.desc, beta, C,
+                    array_descC.desc);
+        return;
     }
-    else
-    #endif
+#endif
+    const bool normal_a = transa == 'N' || transa == 'n';
+    const bool normal_b = transb == 'N' || transb == 'n';
+    if (is_same_single_rank_grid(array_descA, array_descB) &&
+        is_same_single_rank_grid(array_descA, array_descC) &&
+        submatrix_fits(array_descA, ia, ja, normal_a ? m : k, normal_a ? k : m) &&
+        submatrix_fits(array_descB, ib, jb, normal_b ? k : n, normal_b ? n : k) &&
+        submatrix_fits(array_descC, ic, jc, m, n))
+    {
+        if (m == 0 || n == 0) return;
+        LapackConnector::gemm_f(transa, transb, m, n, k, alpha,
+            local_submatrix(A, ia, ja, array_descA), array_descA.lld(),
+            local_submatrix(B, ib, jb, array_descB), array_descB.lld(), beta,
+            local_submatrix(C, ic, jc, array_descC), array_descC.lld());
+        return;
+    }
     ScalapackConnector::pgemm_f(
         transa, transb,
         m, n, k,
@@ -126,7 +194,6 @@ inline void pgemm(
         beta,
         C, ic, jc, array_descC.desc
     );
-
 }
 
 template <typename T1, typename T2>
@@ -210,14 +277,26 @@ inline void pgetrf_bpiv(
 )
 {
     #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(ia!=1 || ja!=1){
-        throw std::runtime_error("In LaConnector::pgetrf_bpiv, only support ia=ja=1 for device implementation!");
-    }
     if(DeviceConnector::check_device_ptr((void*)d_A)){
+        if(ia!=1 || ja!=1){
+            throw std::runtime_error("In LaConnector::pgetrf_bpiv, only support ia=ja=1 for device implementation!");
+        }
         ddla::pgetrf_bpiv(array_descA.ddla_handle(), m, n, d_A, array_descA.desc, ipiv, info);
     }else
     #endif
     {
+        if (is_single_rank_grid(array_descA) &&
+            submatrix_fits(array_descA, ia, ja, m, n))
+        {
+            if (m == 0 || n == 0) { info = 0; return; }
+            // ScaLAPACK stores pivots at parent rows with global row numbers.
+            auto* pivots = ipiv + (ia - 1);
+            LapackConnector::getrf_f(m, n, local_submatrix(d_A, ia, ja, array_descA),
+                                     array_descA.lld(), pivots, info);
+            if (info >= 0)
+                for (int i = 0; i < std::min(m, n); ++i) pivots[i] += ia - 1;
+            return;
+        }
         ScalapackConnector::pgetrf_f(m, n, d_A, ia, ja, array_descA.desc, ipiv, info);
     }
 }
@@ -245,6 +324,13 @@ inline void pgesv(
     #endif
     {
         std::vector<int> ipiv(array_descA.m_loc() + array_descA.mb());
+        if (is_same_single_rank_grid(array_descA, array_descB) &&
+            submatrix_fits(array_descA, ia, ja, n, n) &&
+            submatrix_fits(array_descB, ib, jb, n, nrhs))
+            LapackConnector::gesv_f(n, nrhs, local_submatrix(d_A, ia, ja, array_descA),
+                array_descA.lld(), ipiv.data(),
+                local_submatrix(d_B, ib, jb, array_descB), array_descB.lld(), info);
+        else
         ScalapackConnector::pgesv_f(
             n, nrhs,
             d_A, ia, ja, array_descA.desc,
@@ -253,7 +339,7 @@ inline void pgesv(
             info
         );
         if (info != 0){
-            printf("Error in ScalapackConnector::pgesv_f, info = %d\n", info);
+            printf("Error in LaConnector::pgesv, info = %d\n", info);
             throw std::runtime_error("info !=0\n");
         }
     }
@@ -288,6 +374,13 @@ inline void pposv(
     #endif
     {
         assert(trans == 'N' && side == 'L');
+        if (is_same_single_rank_grid(array_descA, array_descB) &&
+            submatrix_fits(array_descA, ia, ja, n, n) &&
+            submatrix_fits(array_descB, ib, jb, n, nrhs))
+            LapackConnector::posv_f(uplo, n, nrhs, local_submatrix(d_A, ia, ja, array_descA),
+                array_descA.lld(),
+                local_submatrix(d_B, ib, jb, array_descB), array_descB.lld(), info);
+        else
         ScalapackConnector::pposv_f(
             uplo, n, nrhs,
             d_A, ia, ja, array_descA.desc,
