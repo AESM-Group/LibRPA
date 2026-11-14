@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <iterator>
 #include <sstream>
 
 #include "../core/gw.h"
@@ -24,6 +25,7 @@ static constexpr std::streamoff POS_KIND = 16;
 static constexpr std::streamoff POS_NPROCS = 20;
 static constexpr std::streamoff POS_MYID = 24;
 static constexpr std::streamoff POS_RUN_ID = 32;
+static constexpr std::streamoff POS_N_BLOCKS = 40;
 static constexpr std::streamoff POS_FIRST_RECORD = 56;                         // 48 + omega
 static constexpr std::streamoff POS_FIRST_OFFSET = POS_FIRST_RECORD + 7 * 4;  // after int[7]
 
@@ -211,6 +213,52 @@ int main(int argc, char **argv)
                         { patch(first_nonempty(dir), POS_FIRST_RECORD, int{99}); });
         expect_rejected("bad_offset", [&](const std::string &dir)
                         { patch(first_nonempty(dir), POS_FIRST_OFFSET, std::size_t{1} << 40); });
+        // Two index records with different R that point at the same payload bytes. The fixture
+        // has one atom pair, so the file is rebuilt: header with two blocks, the record of an
+        // existing block twice (the second with another R of the cell set), then the payload.
+        expect_rejected("overlap", [&](const std::string &dir)
+                        {
+                            const auto fn = first_nonempty(dir);
+                            std::ifstream input(fn, std::ios::binary);
+                            std::string data((std::istreambuf_iterator<char>(input)),
+                                             std::istreambuf_iterator<char>());
+                            input.close();
+                            const std::size_t record_bytes = 7 * sizeof(int) + sizeof(std::size_t);
+                            const std::size_t head = static_cast<std::size_t>(POS_FIRST_RECORD);
+                            std::uint64_t n_blocks;
+                            std::memcpy(&n_blocks, data.data() + POS_N_BLOCKS, sizeof(n_blocks));
+                            assert(n_blocks >= 1);
+                            std::string record = data.substr(head, record_bytes);
+                            int R1[3];
+                            std::memcpy(R1, record.data(), sizeof(R1));
+                            std::size_t offset;
+                            std::memcpy(&offset, record.data() + 7 * sizeof(int), sizeof(offset));
+                            offset += record_bytes;  // the table grows by one record
+                            std::memcpy(record.data() + 7 * sizeof(int), &offset, sizeof(offset));
+                            std::string record2 = record;
+                            bool found = false;
+                            for (const auto &R : pbc.Rlist)
+                                if (!(R.x == R1[0] && R.y == R1[1] && R.z == R1[2]))
+                                {
+                                    const int R2[3] = {R.x, R.y, R.z};
+                                    std::memcpy(record2.data(), R2, sizeof(R2));
+                                    found = true;
+                                    break;
+                                }
+                            assert(found);
+                            const std::uint64_t two = 2;
+                            std::string out = data.substr(0, head);
+                            std::memcpy(out.data() + POS_N_BLOCKS, &two, sizeof(two));
+                            out += record + record2;
+                            // The payload of the first block of the original file.
+                            std::size_t offset0;
+                            std::memcpy(&offset0, data.data() + head + 7 * sizeof(int),
+                                        sizeof(offset0));
+                            out += data.substr(offset0);
+                            std::ofstream output(fn, std::ios::binary | std::ios::trunc);
+                            output.write(out.data(), static_cast<std::streamsize>(out.size()));
+                            assert(output);
+                        });
         expect_rejected("bad_magic", [&](const std::string &dir)
                         { patch(sigc_file(dir, 0, 0), POS_MAGIC, 'X'); });
         expect_rejected("bad_endian", [&](const std::string &dir)

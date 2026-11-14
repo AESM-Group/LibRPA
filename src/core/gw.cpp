@@ -315,6 +315,8 @@ static void read_indexed_sigc(std::ifstream &ifs, const std::string &fn, const A
         throw LIBRPA_RUNTIME_ERROR("truncated SigC checkpoint index: " + fn);
     const auto table_end = static_cast<std::size_t>(table_start) + n_blocks * record_bytes;
     ifs.seekg(table_start);
+    std::vector<std::pair<std::size_t, std::size_t>> payloads;
+    payloads.reserve(n_blocks);
     for (std::size_t idx = 0; idx != n_blocks; ++idx)
     {
         int dims[7];
@@ -331,6 +333,7 @@ static void read_indexed_sigc(std::ifstream &ifs, const std::string &fn, const A
         if (offset < table_end || offset > static_cast<std::size_t>(file_end) ||
             nbytes > static_cast<std::size_t>(file_end) - offset)
             throw LIBRPA_RUNTIME_ERROR("SigC checkpoint payload is out of range: " + fn);
+        payloads.emplace_back(offset, offset + nbytes);
         const Vector3_Order<int> R{dims[0], dims[1], dims[2]};
         // As in the legacy reader, reject blocks outside the current BvK cell set,
         // for example from a checkpoint of a different k-mesh.
@@ -345,6 +348,11 @@ static void read_indexed_sigc(std::ifstream &ifs, const std::string &fn, const A
         R_blocks.emplace(R, std::move(mat));
         ifs.seekg(next_record);
     }
+    // Two records must not share payload bytes; the regression backend rejects this as well.
+    std::sort(payloads.begin(), payloads.end());
+    for (std::size_t i = 1; i < payloads.size(); ++i)
+        if (payloads[i - 1].second > payloads[i].first)
+            throw LIBRPA_RUNTIME_ERROR("overlapping SigC checkpoint payloads: " + fn);
 }
 
 static bool use_symmetry_ibz_root_projection(
