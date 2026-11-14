@@ -46,9 +46,6 @@ ComplexMatrix build_dense_symmetry_hermitian_matrix_from_local_blocks(
 
 CorrEnergy compute_RPA_correlation(LibrpaParallelRouting routing, const Chi0 &chi0, const atpair_k_cplx_mat_t &coulmat);
 
-CorrEnergy compute_RPA_correlation_blacs(const Chi0 &chi0, const atpair_k_cplx_mat_t &coulmat,
-                                         const std::vector<atpair_t> &local_atpair,
-                                         const BlacsCtxtHandler &blacs_h);
 CorrEnergy compute_RPA_correlation_blacs_2d(Chi0 &chi0, atpair_k_cplx_mat_t &coulmat,
                                             const std::vector<atpair_t> &local_atpair,
                                             const BlacsCtxtHandler &blacs_h,
@@ -58,7 +55,6 @@ CorrEnergy compute_RPA_correlation_blacs_2d_gamma_only(Chi0 &chi0, atpair_k_cplx
                                                        const std::vector<atpair_t> &local_atpair,
                                                        const BlacsCtxtHandler &blacs_h, bool use_gpu_replace_scalapack = false,
                                                        const std::string &linear_algorithm = "scalapack");
-CorrEnergy compute_MP2_correlation(const Chi0 &chi0, const atpair_k_cplx_mat_t &coulmat);
 
 std::map<double, std::map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>> compute_Pi_q(
     const Chi0 &chi0, const atpair_k_cplx_mat_t &coulmat);
@@ -160,18 +156,11 @@ atom_mapping<std::map<Vector3_Order<int>, matrix_m<std::complex<double>>>>::pair
     const std::string &output_dir,
     bool use_symmetry_context = true);
 
-ComplexMatrix compute_Pi_freq_q_row_ri(const AtomicBasis &atbasis_abf, const Vector3_Order<double> &ik_vec, const atom_mapping<ComplexMatrix>::pair_t_old &chi0_freq_q, const atpair_k_cplx_mat_t &Vq_loc, const std::vector<atpair_t> &local_atpair, const int &I, const Vector3_Order<double> &q);
-ComplexMatrix compute_Pi_freq_q_row(const AtomicBasis &atbasis_abf, const Vector3_Order<double> &ik_vec,
-                                    const atom_mapping<ComplexMatrix>::pair_t_old &chi0_freq_q,
-                                    const atom_mapping<ComplexMatrix>::pair_t_old &Vq_row,
-                                    const std::vector<atpair_t> &local_atpair, const int &I);
 
-cplxdb compute_pi_det_blacs(ComplexMatrix &loc_piT, const librpa_int::ArrayDesc& arrdesc_pi, int *ipiv, int &info);
 
 cplxdb compute_pi_det_blacs_2d(Matz &loc_piT, const librpa_int::ArrayDesc &arrdesc_pi, int *ipiv, int &info);
 cplxdb compute_rpa_response_trace_logdet_blacs_2d(
     const Matz &response, const librpa_int::ArrayDesc &response_desc);
-double compute_pi_det_blacs_2d_gamma_only(Matd &loc_piT, const librpa_int::ArrayDesc &arrdesc_pi, int *ipiv, int &info);
 
 // void test_libcomm_for_system(const atpair_k_cplx_mat_t &coulmat);
 }
