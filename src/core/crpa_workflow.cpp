@@ -411,7 +411,7 @@ CrpaScreenedResponse screen_crpa_response(CrpaContext &context, Chi0QMap respons
     std::vector<std::complex<double>> epsmac;
     if (optical)
         for (double value : optical->get_head_vec()) epsmac.emplace_back(value);
-    auto wc = compute_Wc_freq_q_blacs(chi, context.coulomb, coulomb_wc,
+    auto wc = compute_Wc_freq_q(chi, context.coulomb, coulomb_wc,
                                       context.sqrt_coulomb_threshold, optical != nullptr,
                                       optical ? 3 : 0, epsmac, optical, context.blacs, desc, false);
     if (chi.qpoint_view().restore_mode == SymmetryQPointRestoreMode::FULL_CRYSTAL)

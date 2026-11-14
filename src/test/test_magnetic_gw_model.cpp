@@ -334,7 +334,7 @@ ResponseOperators capture_response_operators(Dataset &ds, const LibrpaOptions &o
     // later API run. BLACS consumes chi(freq,q); chi snapshot above is independent.
     auto eps_coul = independent_coulomb_copy(options.use_fullcoul_eps ? ds.vq : ds.vq_cut);
     auto wc_coul = independent_coulomb_copy(options.use_fullcoul_wc ? ds.vq : ds.vq_cut);
-    auto wc_tiles = compute_Wc_freq_q_blacs(
+    auto wc_tiles = compute_Wc_freq_q(
         chi, eps_coul, wc_coul, options.sqrt_coulomb_threshold, false, options.option_dielect_func,
         {}, nullptr, ds.blacs_h, ds.desc_abf, false, options.output_dir, options.use_cholesky_gw_wc,
         options.use_gpu_replace_scalapack, options.eigensolver_method, options.linear_algorithm);

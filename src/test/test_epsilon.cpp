@@ -971,7 +971,7 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     headwing.init_wing(0.0, bare_blocks);
     headwing.set_0_wing();
     const auto actual =
-        compute_Wc_freq_q_blacs(chi0, bare_blocks, cut_blocks, 0.0, true, dielectric_option,
+        compute_Wc_freq_q(chi0, bare_blocks, cut_blocks, 0.0, true, dielectric_option,
                                 std::vector<std::complex<double>>{1.0}, &headwing, blacs_h,
                                 desc_aux, false, ".", use_cholesky, false, "scalapack");
 

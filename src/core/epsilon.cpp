@@ -2130,7 +2130,7 @@ atom_mapping<ComplexMatrix>::pair_t_old gather_vq_row_q(const AtomicBasis &atbas
     return Vq_row;
 }
 
-std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
+std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
     Chi0 &chi0, const atpair_k_cplx_mat_t &coulmat_eps, atpair_k_cplx_mat_t &coulmat_wc,
     const double sqrt_coulomb_threshold, const bool replace_w_head, int option_dielect_func,
     const vector<std::complex<double>> &epsmac_LF_imagfreq, diele_func *df_headwing,
@@ -2161,7 +2161,7 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
     }
     comm_h.barrier();
 
-    global::profiler.start("compute_Wc_freq_q_blacs_init");
+    global::profiler.start("compute_Wc_freq_q_init");
     const auto &desc_nabf_nabf = ad;
     assert(desc_nabf_nabf.initialized() && desc_nabf_nabf.m() == n_abf && desc_nabf_nabf.n() == n_abf);
     // Use a square blocksize instead max block, otherwise heev and inversion will complain about illegal parameter
@@ -2269,10 +2269,10 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
                                                 chi0.pbc);
 
     vec<double> eigenvalues(n_abf);
-    global::profiler.stop("compute_Wc_freq_q_blacs_init");
+    global::profiler.stop("compute_Wc_freq_q_init");
     librpa_int::global::lib_printf_root("Time for Wc initialization (seconds, Wall/CPU): %f %f\n",
-            global::profiler.get_wall_time_last("compute_Wc_freq_q_blacs_init"),
-            global::profiler.get_cpu_time_last("compute_Wc_freq_q_blacs_init"));
+            global::profiler.get_wall_time_last("compute_Wc_freq_q_init"),
+            global::profiler.get_cpu_time_last("compute_Wc_freq_q_init"));
 
     global::profiler.start("compute_Wc_freq_q_work");
 #ifdef LIBRPA_USE_LIBRI

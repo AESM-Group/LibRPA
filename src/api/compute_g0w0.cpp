@@ -888,7 +888,7 @@ void librpa_int::api::build_gw_sigma_for_task(
     auto &coul_wc = opts.use_fullcoul_wc ? pds->vq : pds->vq_cut;
     // One Wc algorithm for every grid size; LaConnector selects local LAPACK
     // on one host rank and preserves explicitly selected DDLA/ELPA backends.
-    Wc_freq_q = compute_Wc_freq_q_blacs(
+    Wc_freq_q = compute_Wc_freq_q(
         chi0, coul_eps, coul_wc, opts.sqrt_coulomb_threshold,
         opts.replace_w_head == LIBRPA_SWITCH_ON,
         opts.option_dielect_func, epsmac_LF_imagfreq, pds->p_headwing.get(), pds->blacs_h,

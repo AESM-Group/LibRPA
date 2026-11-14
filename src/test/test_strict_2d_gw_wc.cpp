@@ -233,7 +233,7 @@ void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, boo
     const std::vector<std::complex<double>> epsmac(head_values.begin(), head_values.end());
     auto wc_coulomb_blocks = coulomb_blocks;
     const auto actual =
-        compute_Wc_freq_q_blacs(response, coulomb_blocks, wc_coulomb_blocks, 0.0, true, 3, epsmac,
+        compute_Wc_freq_q(response, coulomb_blocks, wc_coulomb_blocks, 0.0, true, 3, epsmac,
                                 &headwing, blacs_h, desc, false, ".", use_cholesky);
     assert(actual.size() == frequencies.size());
     for (const auto &frequency : expected)

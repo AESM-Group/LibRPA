@@ -74,7 +74,7 @@ void task_screened_coulomb_real_freq(std::map<Vector3_Order<double>, ComplexMatr
         atom_mapping<std::map<Vector3_Order<double>, matrix_m<complex<double>>>>::pair_t_old>
         Wc_freq_q;
     if (Params::use_scalapack_gw_wc)
-        Wc_freq_q = compute_Wc_freq_q_blacs(chi0, Vq, Vq_cut, epsmac_LF_imagfreq);
+        Wc_freq_q = compute_Wc_freq_q(chi0, Vq, Vq_cut, epsmac_LF_imagfreq);
     else
         Wc_freq_q = compute_Wc_freq_q(chi0, Vq, Vq_cut, epsmac_LF_imagfreq);
     Profiler::stop("compute_Wc_freq_q");

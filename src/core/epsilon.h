@@ -65,7 +65,7 @@ atom_mapping<ComplexMatrix>::pair_t_old gather_vq_row_q(const AtomicBasis &atbas
                                                         const atpair_k_cplx_mat_t &coulmat,
                                                         const Vector3_Order<double> &ik_vec);
 
-std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q_blacs(
+std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
     Chi0 &chi0, const atpair_k_cplx_mat_t &coulmat_eps, atpair_k_cplx_mat_t &coulmat_wc,
     double sqrt_coulomb_threshold, const bool replace_w_head, int option_dielect_func,
     const std::vector<std::complex<double>> &epsmac_LF_imagfreq, diele_func *df_headwing,
