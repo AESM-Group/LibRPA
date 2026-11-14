@@ -91,14 +91,8 @@ inline void pheev(char jobz, char uplo, int n, T* A, int ia, int ja, const Array
         if (ia != 1 || ja != 1 || iz != 1 || jz != 1)
             throw std::invalid_argument("DDLA pheev requires unit submatrix offsets");
         const auto handle = ad_A.ddla_handle();
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-        if (ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU)
-            ddla::pheevd<ddla::DdlaBackend::GPU>(handle, jobz, uplo, n, A, ad_A.desc, W, Z,
-                                                 ad_Z.desc, info);
-        else
-#endif
-            ddla::pheevd<ddla::DdlaBackend::CPU>(handle, jobz, uplo, n, A, ad_A.desc, W, Z,
-                                                 ad_Z.desc, info);
+        // Matrix powers need all eigenvectors; the handle selects CPU or GPU.
+        ddla::pheevd(handle, jobz, uplo, n, n, A, ad_A.desc, W, Z, ad_Z.desc, info);
         return;
     }
 #endif
@@ -186,18 +180,13 @@ inline void pgemm(const char& transa, const char& transb, const int& m, const in
                   const int64_t& jc, const ArrayDesc& array_descC)
 {
 #ifdef LIBRPA_USE_DDLA
-    // DDLA's public GEMM uses complete arrays; fall through for submatrices.
-    if (ia == 1 && ja == 1 && ib == 1 && jb == 1 && ic == 1 && jc == 1 &&
-        use_ddla_cpu(array_descA))
+    // DDLA has no submatrix offsets. Host submatrices retain ScaLAPACK/LAPACK.
+    const bool device = is_device_array(A, array_descA);
+    if (device || (ia == 1 && ja == 1 && ib == 1 && jb == 1 && ic == 1 && jc == 1 &&
+                   use_ddla_cpu(array_descA)))
     {
-        ddla::pgemm<ddla::DdlaBackend::CPU>(array_descA.ddla_handle(), transa, transb,
-            m, n, k, alpha, A, array_descA.desc, B, array_descB.desc, beta, C, array_descC.desc);
-        return;
-    }
-#endif
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if (is_device_array(A, array_descA))
-    {
+        if (ia != 1 || ja != 1 || ib != 1 || jb != 1 || ic != 1 || jc != 1)
+            throw std::runtime_error("DDLA pgemm requires unit submatrix offsets");
         ddla::pgemm(array_descA.ddla_handle(), transa, transb, m, n, k, alpha, A,
                     array_descA.desc, B, array_descB.desc, beta, C,
                     array_descC.desc);
@@ -311,21 +300,16 @@ inline void pgetrf_bpiv(
 )
 {
 #ifdef LIBRPA_USE_DDLA
-    if (ia == 1 && ja == 1 && use_ddla_cpu(array_descA))
+    if (is_device_array(d_A, array_descA) ||
+        (ia == 1 && ja == 1 && use_ddla_cpu(array_descA)))
     {
-        ddla::pgetrf_bpiv<ddla::DdlaBackend::CPU>(array_descA.ddla_handle(), m, n,
-                                                d_A, array_descA.desc, ipiv, info);
-        return;
-    }
-#endif
-    #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(is_device_array(d_A, array_descA)){
         if(ia!=1 || ja!=1){
             throw std::runtime_error("In LaConnector::pgetrf_bpiv, only support ia=ja=1 for device implementation!");
         }
         ddla::pgetrf_bpiv(array_descA.ddla_handle(), m, n, d_A, array_descA.desc, ipiv, info);
-    }else
-    #endif
+        return;
+    }
+#endif
     {
         if (is_single_rank_grid(array_descA) &&
             submatrix_fits(array_descA, ia, ja, m, n))
@@ -352,16 +336,9 @@ inline void pgesv(
 )
 {
 #ifdef LIBRPA_USE_DDLA
-    if (ia == 1 && ja == 1 && ib == 1 && jb == 1 && use_ddla_cpu(array_descA))
+    if (is_device_array(d_A, array_descA) ||
+        (ia == 1 && ja == 1 && ib == 1 && jb == 1 && use_ddla_cpu(array_descA)))
     {
-        ddla::pgesv<ddla::DdlaBackend::CPU>(array_descA.ddla_handle(), 'L', 'N', n, nrhs,
-                                           d_A, array_descA.desc, d_B, array_descB.desc);
-        info = 0;
-        return;
-    }
-#endif
-    #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(is_device_array(d_A, array_descA)){
         if(ia!=1 || ja!=1 || ib!=1 || jb!=1){
             throw std::runtime_error("In LaConnector::pgesv, only support ia=ja=ib=jb=1 for device implementation!");
         }
@@ -372,8 +349,9 @@ inline void pgesv(
             d_B, array_descB.desc
         );
         info = 0;
-    }else
-    #endif
+        return;
+    }
+#endif
     {
         std::vector<int> ipiv(array_descA.m_loc() + array_descA.mb());
         if (is_same_single_rank_grid(array_descA, array_descB) &&
@@ -403,23 +381,14 @@ inline void pposv(
     const int & n, const int& nrhs,
     T* d_A, const int& ia, const int& ja, const ArrayDesc& array_descA,
     T* d_B, const int& ib, const int& jb, const ArrayDesc& array_descB,
-    int& info, // host
-    bool is_head = false, int location = -1
+    int& info // host
 )
 {
     assert(side == 'L');
 #ifdef LIBRPA_USE_DDLA
-    if (ia == 1 && ja == 1 && ib == 1 && jb == 1 &&
-        array_descA.nprows() == array_descA.npcols() && use_ddla_cpu(array_descA))
+    if (is_device_array(d_A, array_descA) ||
+        (ia == 1 && ja == 1 && ib == 1 && jb == 1 && use_ddla_cpu(array_descA)))
     {
-        ddla::pposv<ddla::DdlaBackend::CPU>(array_descA.ddla_handle(), side, uplo, trans,
-            n, nrhs, d_A, ia, ja, array_descA.desc, d_B, ib, jb, array_descB.desc,
-            info, is_head, location);
-        return;
-    }
-#endif
-    #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(is_device_array(d_A, array_descA)){
         if(ia!=1 || ja!=1 || ib!=1 || jb!=1){
             throw std::runtime_error("In LaConnector::pposv, only support ia=ja=ib=jb=1 for device implementation!");
         }
@@ -429,11 +398,11 @@ inline void pposv(
             n, nrhs,
             d_A, 1, 1, array_descA.desc,
             d_B, 1, 1, array_descB.desc,
-            info,
-            is_head, location
+            info
         );
-    }else
-    #endif
+        return;
+    }
+#endif
     {
         assert(trans == 'N' && side == 'L');
         if (is_same_single_rank_grid(array_descA, array_descB) &&

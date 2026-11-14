@@ -439,9 +439,6 @@ if(LIBRPA_USE_CUDA)
     # ${MAGMA_ROOT}/lib/libmagma.so
     )
   add_compile_definitions("LIBRPA_USE_CUDA")
-  if(LIBRPA_USE_LIBRI_GPU)
-    add_compile_definitions("DDLA_USE_CUDA")
-  endif()
 endif()
 
 # DDLA is available independently of GPU support. A managed build enables
@@ -473,11 +470,6 @@ if(LIBRPA_USE_DDLA)
       NO_DEFAULT_PATH)
     set(LIBRPA_DDLA_TARGET ddla::ddla)
   else()
-    if(LIBRPA_USE_HIP)
-      set(DDLA_USE_GPU_CPU_TUNNEL ON)
-    else()
-      set(DDLA_USE_GPU_CPU_TUNNEL OFF)
-    endif()
     if(_libddla_user_source)
       set(_libddla_source_dir "${_libddla_user_source}")
       if(NOT EXISTS "${_libddla_source_dir}/include/ddla/ddla.h" OR
@@ -508,9 +500,6 @@ message(STATUS "Use LibDDLA                    : ${LIBRPA_USE_DDLA}")
 
 if(LIBRPA_USE_HIP)
   add_compile_definitions("LIBRPA_USE_HIP")
-  if(LIBRPA_USE_LIBRI_GPU)
-    add_compile_definitions("DDLA_USE_HIP")
-  endif()
   add_compile_definitions("__HIP_PLATFORM_AMD__")
   # LibRPA directly uses the host HIP runtime; LibDDLA owns GPU math/CCL
   # dependencies (and optional Hygon-specific runtime dependencies).

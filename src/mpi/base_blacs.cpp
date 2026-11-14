@@ -96,6 +96,12 @@ void BlacsCtxtHandler::init_ddla_handle(ddla::DdlaBackend backend)
     ddla::DDLA_CHECK(ddla::ddlaInit(handle, backend));
     try
     {
+#ifdef LIBRPA_USE_HIP
+        // Preserve the previous HIP host-staging policy through the public API.
+        if (backend == ddla::DdlaBackend::GPU)
+            ddla::DDLA_CHECK(ddla::ddlaSetCommunication(
+                handle, ddla::DdlaCommunication::HostStagedMPI));
+#endif
         ddla::DDLA_CHECK(ddla::ddlaSet(handle, mpi_comm_h.comm, nprows, npcols, layout_ch));
     }
     catch (...)

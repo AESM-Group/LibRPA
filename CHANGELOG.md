@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+- Align the managed dependency and linear-algebra adapters with LibDDLA
+  `1ff05d9`: handle-selected computational calls, explicit full eigenvector
+  counts, standard Cholesky solves on rectangular grids, and no obsolete
+  GPU/CPU tunnel build option. Patch the official LibRI GPU adapter for this API.
+
 - Centralize one-rank host BLAS/LAPACK fallback in `LaConnector`, retaining
   explicit DDLA/ELPA choices. Remove the separate replicated LAPACK Wc path.
 

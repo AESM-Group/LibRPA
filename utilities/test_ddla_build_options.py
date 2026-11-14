@@ -38,10 +38,10 @@ file(WRITE "${{CMAKE_BINARY_DIR}}/child-args.txt" "${{args}}")
                     "DDLA_USE_CUDA": backend == "CUDA",
                     "DDLA_USE_HIP": backend == "HIP",
                     "DDLA_USE_CCL": backend != "CPU",
-                    "DDLA_USE_GPU_CPU_TUNNEL": backend == "HIP",
                 }
                 for name, enabled in expected.items():
                     self.assertIn(f"-D{name}:BOOL={'ON' if enabled else 'OFF'}", args)
+                self.assertFalse(any("DDLA_USE_GPU_CPU_TUNNEL" in arg for arg in args))
                 self.assertIn(f"Managed LibDDLA backend         : {backend}", result.stdout)
 
 

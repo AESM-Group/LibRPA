@@ -6,7 +6,9 @@ librpa_thirdparty_declare(LibRI
   ARCHIVE "LibRI-0e8afc3.tar.gz"
   ARCHIVE_SHA256 d352323a101e0d397222f7bf80b74525ab78e6939858251c06f50940afa4205c
   HASH_SUBDIR include
-  TREE_SHA256 4df54680362b17789af178e6ae7d379a572ee39fe1ab57b06dd30dd1901e5cbc
+  PATCHES LibRI/0001-current-ddla-api.patch
+  PRISTINE_SHA256 4df54680362b17789af178e6ae7d379a572ee39fe1ab57b06dd30dd1901e5cbc
+  TREE_SHA256 715752313b154b19759dc9fbda68bacebdd35508d923c53f8ce911086d19ee53
   LICENSE LGPL-3.0)
 
 librpa_thirdparty_declare(LibComm
@@ -30,11 +32,11 @@ librpa_thirdparty_declare(cereal
   LICENSE BSD-3-Clause)
 
 librpa_thirdparty_declare(LibDDLA
-  VERSION 190dada8bc2c41b824a0334db1ec749e3de6fc5d
-  URL "https://github.com/userchba/LibDDLA/archive/190dada8bc2c41b824a0334db1ec749e3de6fc5d.tar.gz"
-  ARCHIVE "LibDDLA-190dada.tar.gz"
-  ARCHIVE_SHA256 cf6bbc5af778c742a1d2e840d512fd340d1f4d8df587ee358a473df5f46294bd
-  TREE_SHA256 283013932b7e4593f4e0441c10f42c0686d7a6db59182bc332b1337f328a498f
+  VERSION 1ff05d91559e52cf921ded8ad2aba34217e10f4d
+  URL "https://github.com/userchba/LibDDLA/archive/1ff05d91559e52cf921ded8ad2aba34217e10f4d.tar.gz"
+  ARCHIVE "LibDDLA-1ff05d9.tar.gz"
+  ARCHIVE_SHA256 86457772417d10e87b0802a702579e16c3f168daacf4ea3bc756dc023cb2f75a
+  TREE_SHA256 061b65292a66951a53a1f14f3537ea8bb33b26ba6fc27a55ba8b5bf5593ace99
   LICENSE LGPL-3.0)
 
 librpa_thirdparty_declare(greenX

@@ -86,11 +86,17 @@ When you change the compiler or MPI installation, make sure you use a new build 
 
 ### CUDA with the current LibDDLA interface
 
-The dependency manifest pairs LibDDLA `190dada` (0.0.6) with LibRI
-`0e8afc3` from the official `abacusmodeling/LibRI` master branch. This
-LibRI adapter uses LibDDLA's public opaque-handle API. Older LibRI GPU
-adapters and LibDDLA installations exposing private stream headers are
-incompatible with this build.
+The dependency manifest pins LibDDLA `1ff05d9` and official LibRI `0e8afc3`
+with a small compatibility patch for LibDDLA's handle-selected public API.
+Computational calls deduce the scalar type; the explicitly initialized
+handle selects CPU or GPU. Eigensolvers receive the required eigenvector
+count, and Cholesky uses the standard factor/solve interface.
+Older LibDDLA installations can also report version 0.0.6 while exposing an
+incompatible API. Use the pinned revision or a compatible newer installation,
+with matching headers and libraries. An external LibRI must include the same
+adapter changes; the managed patch is under `thirdparty/patches/LibRI/`.
+GPU communication defaults to CCL in the managed build; host-staged MPI is
+available through LibDDLA's runtime communication policy, without a build option.
 
 After loading compatible GCC, MPI, CUDA and NCCL installations, configure
 on a compute node. OpenBLAS in this example supplies both host BLAS and

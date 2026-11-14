@@ -33,6 +33,9 @@ int main(int argc, char** argv)
         desc.set_ddla_handle(grid.ddla_handle);
         assert(desc.ddla_handle() == gpu_handle);
         const auto handle = grid.ddla_handle;
+#ifdef LIBRPA_USE_HIP
+        assert(ddla::ddlaGetCommunication(handle) == ddla::DdlaCommunication::HostStagedMPI);
+#endif
         const int count = desc.lld() * desc.n_loc();
         std::vector<T> original(count), identity(count), diagonal(count), result(count);
         for (int j = 0; j < desc.n_loc(); ++j)
@@ -74,26 +77,11 @@ int main(int argc, char** argv)
         check(identity, 0.5);
         upload(a, diagonal);
         upload(c, identity);
-        if (grid.nprows == grid.npcols)
-        {
-            LaConnector::pposv('L', 'L', 'N', 7, 7, a.data(), 1, 1, desc,
-                               c.data(), 1, 1, desc, info);
-            assert(info == 0);
-            check(identity, 0.5);
-        }
-        else
-        {
-            // DDLA's Cholesky factorization requires a square process grid.
-            bool rejected_grid = false;
-            try
-            {
-                LaConnector::pposv('L', 'L', 'N', 7, 7, a.data(), 1, 1, desc,
-                                   c.data(), 1, 1, desc, info);
-            }
-            catch (const std::invalid_argument&) { rejected_grid = true; }
-            assert(rejected_grid);
-            check(identity, 1.0);
-        }
+        // Current DDLA supports rectangular grids as well as square grids.
+        LaConnector::pposv('L', 'L', 'N', 7, 7, a.data(), 1, 1, desc,
+                           c.data(), 1, 1, desc, info);
+        assert(info == 0);
+        check(identity, 0.5);
         upload(c, identity);
         LaConnector::pdam(1.0, c.data(), desc);
         check(identity, 2.0);
@@ -106,6 +94,14 @@ int main(int argc, char** argv)
         {
             LaConnector::pgesv(7, 7, a.data(), 1, 1, desc,
                                c.data(), 1, 2, desc, info);
+        }
+        catch (const std::runtime_error&) { rejected = true; }
+        assert(rejected);
+        rejected = false;
+        try
+        {
+            LaConnector::pgemm('N', 'N', 6, 6, 6, T(1), a.data(), 1, 2, desc,
+                               b.data(), 1, 1, desc, T(0), c.data(), 1, 1, desc);
         }
         catch (const std::runtime_error&) { rejected = true; }
         assert(rejected);

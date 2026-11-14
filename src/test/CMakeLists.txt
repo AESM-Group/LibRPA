@@ -56,6 +56,9 @@ if(LIBRPA_USE_DDLA)
 endif()
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   config_test(test_ddla_connector 4)
+  add_test(NAME test_ddla_connector_serial COMMAND $<TARGET_FILE:test_ddla_connector>)
+  add_test(NAME test_ddla_connector_rectangular
+    COMMAND mpirun -np 2 $<TARGET_FILE:test_ddla_connector>)
 endif()
 
 foreach(target
@@ -257,7 +260,7 @@ if(LIBRPA_USE_DDLA)
   if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
     list(APPEND _matrix_power_ddla_backends gpu)
   endif()
-  foreach(np 1 4)
+  foreach(np 1 2 4)
     foreach(backend IN LISTS _matrix_power_ddla_backends)
       add_test(NAME test_matrix_power_ddla_${backend}_np${np}
         COMMAND mpirun -np ${np} $<TARGET_FILE:test_matrix_power_scalar> ddla ${backend})

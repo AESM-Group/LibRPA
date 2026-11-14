@@ -1,0 +1,38 @@
+Source: https://github.com/abacusmodeling/LibRI/archive/0e8afc3931ee4cdf564699811ca220215570dd6b.tar.gz
+Use LibDDLA capability guards and handle-selected computational templates.
+License: same as upstream. Upstream submission: not recorded.
+
+--- a/include/RI/global/gpu/GPU_Backend.h
++++ b/include/RI/global/gpu/GPU_Backend.h
+@@ -12,10 +12,10 @@
+ #endif
+ 
+ #ifdef __DDLA_RI
+-    #if (defined(DDLA_USE_CUDA) + defined(DDLA_USE_HIP)) != 1
+-        #error "__DDLA_RI requires exactly one of DDLA_USE_CUDA or DDLA_USE_HIP"
++    #include <ddla/ddla.h>
++    #if !DDLA_HAS_GPU
++        #error "__DDLA_RI requires a GPU-enabled LibDDLA"
+     #endif
+-    #include <ddla/ddla.h>
+ 
+ #elif defined(__MAGMA_RI)
+     #include "Magmablas_Interface-Contiguous.h"
+@@ -254,7 +254,7 @@
+     Int*& lda = transA == NoTrans ? k : m;
+     Int*& ldb = transB == NoTrans ? n : k;
+     Int*& ldc = n;
+-    ddla::gemmVbatched<ddla::DdlaBackend::GPU>(
++    ddla::gemmVbatched(
+         queue, transB, transA, n, m, k,
+         alpha, dB_array, ldb, dA_array, lda,
+         beta, dC_array, ldc, batch_count);
+@@ -287,7 +287,7 @@
+     Int* lda_1 = transA_1 == NoTrans ? k_1 : m_1;
+     Int* ldb_1 = transB_1 == NoTrans ? n_1 : k_1;
+     Int* ldc_1 = n_1;
+-    ddla::gemmVbatched2s<ddla::DdlaBackend::GPU>(
++    ddla::gemmVbatched2s(
+         queue, transB_0, transA_0, n_0, m_0, k_0,
+         alpha_0, dB_array_0, ldb_0, dA_array_0, lda_0,
+         beta_0, dC_array_0, ldc_0,

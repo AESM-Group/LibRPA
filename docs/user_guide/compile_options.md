@@ -750,13 +750,16 @@ For split CUDA installations, `DDLA_CUDA_MATH_LIBRARY_DIR` and explicit
 `CUBLAS_LIBRARY`, `CUBLASLT_LIBRARY`, `CURAND_LIBRARY`, `CUSOLVER_LIBRARY`
 and `CUDART_LIBRARY` overrides are forwarded when provided.
 
-Other parent cache entries are not automatically forwarded. `ROCM_PATH` also accepts an environment fallback. LibRPA enables GPU collectives only for CUDA/HIP, disables LibDDLA's tests, and selects GPU/CPU tunneling for HIP only.
+Other parent cache entries are not automatically forwarded. `ROCM_PATH` also accepts an environment fallback. LibRPA enables GPU collectives only for CUDA/HIP and disables LibDDLA's tests.
 
-LibDDLA transport options such as `DDLA_USE_GPU_CPU_TUNNEL` and
-`DDLA_USE_CCL` configure the LibDDLA build; LibRPA does not need them as
-consumer compile definitions. The current LibRI GPU adapter still requires
-`DDLA_USE_CUDA` or `DDLA_USE_HIP` to select its backend. LibRPA supplies the
-matching definition only when `LIBRPA_USE_LIBRI_GPU=ON`.
+`DDLA_USE_CCL` configures the LibDDLA child build and is not a consumer
+compile definition. Host-staged MPI is always available in GPU-enabled
+LibDDLA and selected through its runtime communication policy. The managed
+LibRI adapter uses `DDLA_HAS_GPU` from LibDDLA's generated public header;
+LibRPA does not supply private DDLA vendor or transport definitions.
+LibRPA's HIP BLACS handles select host-staged MPI through
+`ddlaSetCommunication` before grid initialization, preserving the earlier
+HIP communication policy. CUDA handles retain LibDDLA's default policy.
 
 Without a target, installation or source path, LibRPA prepares managed LibDDLA sources.
 

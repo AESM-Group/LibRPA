@@ -52,7 +52,6 @@ if(LIBRPA_USE_CUDA)
   list(APPEND _libddla_cmake_args
     "-DDDLA_USE_CUDA:BOOL=ON"
     "-DDDLA_USE_HIP:BOOL=OFF"
-    "-DDDLA_USE_GPU_CPU_TUNNEL:BOOL=OFF"
     "-DDDLA_USE_CCL:BOOL=ON"
   )
   set(_libddla_backend CUDA)
@@ -67,7 +66,6 @@ elseif(LIBRPA_USE_HIP)
   list(APPEND _libddla_cmake_args
     "-DDDLA_USE_CUDA:BOOL=OFF"
     "-DDDLA_USE_HIP:BOOL=ON"
-    "-DDDLA_USE_GPU_CPU_TUNNEL:BOOL=ON"
     "-DDDLA_USE_CCL:BOOL=ON"
   )
   set(_libddla_backend HIP)
@@ -84,7 +82,6 @@ else()
     "-DDDLA_USE_CUDA:BOOL=OFF"
     "-DDDLA_USE_HIP:BOOL=OFF"
     "-DDDLA_USE_CCL:BOOL=OFF"
-    "-DDDLA_USE_GPU_CPU_TUNNEL:BOOL=OFF"
   )
   set(_libddla_backend CPU)
   set(_libddla_forward_variables "")
