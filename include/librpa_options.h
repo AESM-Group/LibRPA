@@ -553,6 +553,13 @@ typedef struct
     int rpa_headwing_body_start;
 
     //! Flag of reading NAO correlation self-energy matrix in real-space/frequency form.
+    //! Reads indexed SigcRF .bin checkpoints. The file of rank 0 gives the number of
+    //! ranks and the run_id of the checkpoint; files of higher ranks in the directory are
+    //! ignored with a warning, and a missing file, a file of another run, or a rank
+    //! count that disagrees with the header stops the run. The number of ranks of the
+    //! restart job may differ. Legacy .dat checkpoints remain readable but are
+    //! deprecated and will be removed in a future release; for them the number of
+    //! ranks is still taken from the largest rank in the file names.
     //! @par Default
     //! false
     //! @par Status
@@ -648,14 +655,26 @@ typedef struct
     LibrpaSwitch output_exx_mat_k;
 
     //! Output real-space NAO exact-exchange blocks after symmetry restoration,
-    //! before redistribution for k-space projection. Files in output_dir:
-    //! ExxR_ispin_S_spinor_BRA_KET_I_I_J_J_R_X_Y_Z.bin (zero-based indices).
-    //! Uses the Sigma_c(R,iw) checkpoint layout: native size_t block count (1),
-    //! size_t[5] (R index in Rlist, I, J, rows, columns), then row-major complex
-    //! doubles in Hartree, including the exchange minus sign.
-    //! Only stored blocks are written, without additional
-    //! threshold filtering. MPI contributions are summed on rank zero, one
-    //! row atom at a time. Independent of the KS-state output range.
+    //! before redistribution for k-space projection. One file per MPI rank and
+    //! spin/spinor channel in output_dir:
+    //! ExxR_ispin_SS_s_BK_myid_NNNNN.bin (B, K: bra and ket spinor indices).
+    //! Shares the indexed layout of the Sigma_c(R,iw) output. Native byte order.
+    //! Header (48 bytes, fields in this order): char[8] magic "LIBRPAIJ", uint32
+    //! endian marker 0x01020304, int32 version (1), int32 kind (0 for ExxR), int32
+    //! nprocs and int32 myid (size of the writing MPI communicator and the rank of this
+    //! file), int32 scalar type (0 double, 1 complex double), uint64 run_id, uint64
+    //! block count. Then one record per block with int32[7] (R1, R2, R3, I, J, rows,
+    //! columns) and the uint64 absolute payload offset, followed by the row-major
+    //! payloads. Scalar-spinor runs store real doubles; spinor runs store complex
+    //! doubles. Values are in Hartree and include the exchange minus sign. Only stored
+    //! blocks are written, without additional threshold filtering. After MPI summation
+    //! each (I,J,R) block is written by exactly one rank, so the partition into files
+    //! depends on the number of ranks.
+    //! The run_id is nonzero and equal in all files of one output. Files of an earlier
+    //! run in the same directory are not removed. A reader must take the file set from
+    //! the file of rank 0: its nprocs and run_id; use exactly the ranks 0..nprocs-1 with
+    //! this run_id; ignore files of higher ranks; and reject duplicate (I,J,R) blocks.
+    //! Independent of the KS-state output range.
     //! @par Default
     //! false
     //! @par Status
@@ -699,6 +718,12 @@ typedef struct
     LibrpaSwitch output_gw_sigc_mat_rt;
 
     //! Output correlation self-energy matrix in NAO basis (real space, imaginary frequency domain).
+    //! One file per MPI rank, spin/spinor channel and frequency in output_dir:
+    //! SigcRF_ispin_SS_s_BK_iomega_FFF_myid_NNNNN.bin. The layout and the rules for
+    //! readers are those of output_exx_mat_r, with kind 1 and a header of 56 bytes: the
+    //! frequency (double) follows the block count. Payloads are complex doubles. The
+    //! run_id is the same in all files of the output, whatever the spin, spinor and
+    //! frequency.
     //! @par Default
     //! false
     //! @par Status

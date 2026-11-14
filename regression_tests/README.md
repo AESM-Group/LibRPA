@@ -279,6 +279,21 @@ Useful `<validate>` attributes:
 - `binary_extract`: numeric `struct` layout; for example, `binary_extract="2i(128d)"`
   reads two integers and 128 doubles, selecting only the doubles for comparison.
   Plain-text extraction is used when omitted.
+- `binary_extract_preset`: reader for an indexed real-space block file,
+  `ExxR` or `SigcRF`. It returns a dictionary of blocks keyed by
+  `(R1, R2, R3, I, J)`, with matrix rows as values, and cannot be combined
+  with `binary_extract`. Choose spin, spinor, and frequency in the `file` pattern.
+- `collective`: `true` merges all files matched by a preset into one block
+  dictionary, so that the comparison does not depend on how the MPI ranks split
+  the blocks into files. The header of each file names the rank count and the
+  run identifier of its output. The file of rank 0 defines the set. The other files
+  must be exactly the ranks `0..nprocs-1` of that run. Files of higher ranks, left in
+  the directory by an earlier run with more ranks, are ignored with a warning. A
+  missing rank, a rank claimed twice, a file of another run, a duplicate block, or a
+  pattern without files is an error. Use it with
+  `comparison="cmp_dict.abs_diff(1e-8)"`, which compares keys, shapes, and real or
+  complex values. Requires `binary_extract_preset`. The header values (rank count,
+  rank, run identifier) are checked and never compared.
 
 ## Reference update guidelines
 
@@ -289,3 +304,8 @@ Useful `<validate>` attributes:
 - Update references sparingly. Code changes may perturb output, but if the
   quantities validated in `testsuite.xml` remain within tolerance, keep the
   existing reference data. That is the point of a regression test.
+- The header of real-space block files (`ExxR`, `SigcRF`) holds a run identifier
+  that differs in every run. A regenerated file is therefore never byte-identical
+  to the reference; the validation decodes the blocks and ignores the identifier.
+  Replace such a reference only when the layout changes or the blocks differ, and
+  show that the decoded blocks are equal if only the layout changed.

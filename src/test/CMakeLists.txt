@@ -132,12 +132,52 @@ endif()
 if(LIBRPA_USE_LIBRI)
   config_test(test_exx_coulomb_ownership 1)
   target_compile_options(test_exx_coulomb_ownership PRIVATE -UNDEBUG)
+  config_test(test_sigc_matrix_output 1)
+  target_compile_options(test_sigc_matrix_output PRIVATE -UNDEBUG)
   foreach(nproc 2 4)
     add_test(NAME test_exx_coulomb_ownership_mpi${nproc}
       COMMAND mpirun -np ${nproc} $<TARGET_FILE:test_exx_coulomb_ownership>)
+    add_test(NAME test_sigc_matrix_output_mpi${nproc}
+      COMMAND mpirun -np ${nproc} $<TARGET_FILE:test_sigc_matrix_output>)
   endforeach()
   set_tests_properties(test_exx_coulomb_ownership test_exx_coulomb_ownership_mpi2
     test_exx_coulomb_ownership_mpi4 PROPERTIES LABELS "symmetry;exx" TIMEOUT 120)
+  set_tests_properties(test_sigc_matrix_output test_sigc_matrix_output_mpi2
+    test_sigc_matrix_output_mpi4 PROPERTIES LABELS "gw;io" TIMEOUT 120
+    ENVIRONMENT "OMP_NUM_THREADS=1")
+
+  # Restart from a checkpoint written with another number of ranks. The first two tests
+  # write into one directory in turn (four ranks, then two), so that the files of ranks 2
+  # and 3 are leftovers; the restarts must use only the files of the last run. Another
+  # pair writes with one rank and restarts with four, so that some ranks read no file.
+  set(_sigc_exe $<TARGET_FILE:test_sigc_matrix_output>)
+  add_test(NAME test_sigc_xnp_write4
+    COMMAND mpirun -np 4 ${_sigc_exe} --write-dir sigc_xnp_shared --clean)
+  add_test(NAME test_sigc_xnp_write2_over4
+    COMMAND mpirun -np 2 ${_sigc_exe} --write-dir sigc_xnp_shared)
+  add_test(NAME test_sigc_xnp_restart1_from2
+    COMMAND mpirun -np 1 ${_sigc_exe} --write-dir sigc_xnp_r1
+            --restart-dir sigc_xnp_shared --clean)
+  add_test(NAME test_sigc_xnp_restart4_from2
+    COMMAND mpirun -np 4 ${_sigc_exe} --write-dir sigc_xnp_r4a
+            --restart-dir sigc_xnp_shared --clean)
+  add_test(NAME test_sigc_xnp_write1
+    COMMAND mpirun -np 1 ${_sigc_exe} --write-dir sigc_xnp_one --clean)
+  add_test(NAME test_sigc_xnp_restart4_from1
+    COMMAND mpirun -np 4 ${_sigc_exe} --write-dir sigc_xnp_r4b
+            --restart-dir sigc_xnp_one --clean)
+  set_tests_properties(test_sigc_xnp_write4 PROPERTIES FIXTURES_SETUP sigc_xnp_written4)
+  set_tests_properties(test_sigc_xnp_write2_over4 PROPERTIES
+    FIXTURES_REQUIRED sigc_xnp_written4 FIXTURES_SETUP sigc_xnp_over4)
+  set_tests_properties(test_sigc_xnp_restart1_from2 test_sigc_xnp_restart4_from2 PROPERTIES
+    FIXTURES_REQUIRED sigc_xnp_over4)
+  set_tests_properties(test_sigc_xnp_write1 PROPERTIES FIXTURES_SETUP sigc_xnp_written1)
+  set_tests_properties(test_sigc_xnp_restart4_from1 PROPERTIES
+    FIXTURES_REQUIRED sigc_xnp_written1)
+  set_tests_properties(
+    test_sigc_xnp_write4 test_sigc_xnp_write2_over4 test_sigc_xnp_restart1_from2
+    test_sigc_xnp_restart4_from2 test_sigc_xnp_write1 test_sigc_xnp_restart4_from1
+    PROPERTIES LABELS "gw;io" TIMEOUT 180 ENVIRONMENT "OMP_NUM_THREADS=1")
 endif()
 
 add_test(NAME test_rpa_logdet_mpi
