@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #ifdef LIBRPA_USE_DDLA
@@ -218,6 +219,47 @@ inline void pgemm(const char& transa, const char& transb, const int& m, const in
         C, ic, jc, array_descC.desc
     );
 }
+
+#ifdef LIBRPA_USE_DDLA
+// Mixed-domain products have no ScaLAPACK fallback. The caller selects DDLA
+// and supplies native real storage, the owning grid, and backend-local arrays.
+template <typename A, typename B,
+          std::enable_if_t<!std::is_same_v<A, B>, int> = 0>
+inline void pgemm(char transa, char transb, int64_t m, int64_t n, int64_t k,
+                  const std::complex<double>& alpha,
+                  const A* a, int64_t ia, int64_t ja, const ArrayDesc& ad_a,
+                  const B* b, int64_t ib, int64_t jb, const ArrayDesc& ad_b,
+                  const std::complex<double>& beta,
+                  std::complex<double>* c, int64_t ic, int64_t jc, const ArrayDesc& ad_c)
+{
+    static_assert((std::is_same_v<A, double> && std::is_same_v<B, std::complex<double>>) ||
+                  (std::is_same_v<B, double> && std::is_same_v<A, std::complex<double>>));
+    if (ia != 1 || ja != 1 || ib != 1 || jb != 1 || ic != 1 || jc != 1)
+        throw std::invalid_argument("DDLA mixed pgemm requires unit submatrix offsets");
+    if (ad_a.ddla_handle() == nullptr || ad_a.ddla_handle() != ad_b.ddla_handle() ||
+        ad_a.ddla_handle() != ad_c.ddla_handle())
+        throw std::invalid_argument("DDLA mixed pgemm requires one owning handle");
+    if (!use_ddla_cpu(ad_a) &&
+        (ddla::ddlaGetBackend(ad_a.ddla_handle()) != ddla::DdlaBackend::GPU ||
+         (m > 0 && n > 0 && !is_device_array(c, ad_c))))
+        throw std::invalid_argument("DDLA mixed pgemm requires DDLA-selected backend-local arrays");
+    const bool normal_a = transa == 'N' || transa == 'n';
+    const bool normal_b = transb == 'N' || transb == 'n';
+    if (is_same_single_rank_grid(ad_a, ad_b) && is_same_single_rank_grid(ad_a, ad_c) &&
+        submatrix_fits(ad_a, 1, 1, normal_a ? m : k, normal_a ? k : m) &&
+        submatrix_fits(ad_b, 1, 1, normal_b ? k : n, normal_b ? n : k) &&
+        submatrix_fits(ad_c, 1, 1, m, n))
+    {
+        // Mixed DDLA pgemm currently retains panel transport on a 1x1 grid.
+        // Native local GEMM has identical storage semantics and needs no panels.
+        ddla::gemm(ad_a.ddla_handle(), transa, transb, m, n, k, alpha,
+                   a, ad_a.lld(), b, ad_b.lld(), beta, c, ad_c.lld());
+        return;
+    }
+    ddla::pgemm(ad_a.ddla_handle(), transa, transb, m, n, k, alpha,
+                a, ad_a.desc, b, ad_b.desc, beta, c, ad_c.desc);
+}
+#endif
 
 template <typename T1, typename T2>
 inline void scal(

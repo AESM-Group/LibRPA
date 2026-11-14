@@ -10,6 +10,94 @@
 
 using namespace librpa_int;
 
+void check_mixed(const BlacsCtxtHandler& grid)
+{
+    using Z = std::complex<double>;
+    const auto real_value = [](int i, int j) { return 0.2 + 0.1 * i - 0.03 * j; };
+    const auto complex_value = [](int i, int j) { return Z(0.3 + 0.07 * i, -0.4 + 0.05 * j); };
+    for (int m : {1, 7})
+        for (bool real_a : {false, true})
+            for (char ta : {'N', 'T', 'C'})
+                for (char tb : {'N', 'T', 'C'})
+                {
+                    const int n = m == 1 ? 1 : 5, k = 3;
+                    ArrayDesc da(grid), db(grid), dc(grid);
+                    da.init(ta == 'N' ? m : k, ta == 'N' ? k : m, 2, 2, 0, 0);
+                    db.init(tb == 'N' ? k : n, tb == 'N' ? n : k, 2, 2, 0, 0);
+                    dc.init(m, n, 2, 2, 0, 0);
+                    for (auto* d : {&da, &db, &dc})
+                    {
+                        d->set_ddla_handle(grid.ddla_cpu_handle);
+                        d->set_linear_algorithm("ddla");
+                    }
+                    std::vector<double> ra(std::max(1, da.lld() * da.n_loc()));
+                    std::vector<double> rb(std::max(1, db.lld() * db.n_loc()));
+                    std::vector<Z> a(ra.size()), b(rb.size()), c(std::max(1, dc.lld() * dc.n_loc()));
+                    const auto fill = [&](const ArrayDesc& d, auto& real, auto& complex) {
+                        for (int j = 0; j < d.n_loc(); ++j)
+                            for (int i = 0; i < d.m_loc(); ++i)
+                            {
+                                const int r = d.indx_l2g_r(i), s = d.indx_l2g_c(j);
+                                real[i + d.lld() * j] = real_value(r, s);
+                                complex[i + d.lld() * j] = complex_value(r, s);
+                            }
+                    };
+                    fill(da, ra, a); fill(db, rb, b);
+                    for (const Z beta : {Z(0), Z(0.2, -0.1)})
+                    {
+                        const Z alpha(0.7, -0.2), initial(-0.6, 0.9);
+                        std::fill(c.begin(), c.end(), beta == Z(0)
+                            ? Z(std::numeric_limits<double>::quiet_NaN(), 0) : initial);
+                        if (real_a)
+                            LaConnector::pgemm(ta, tb, m, n, k, alpha, ra.data(), 1, 1, da,
+                                b.data(), 1, 1, db, beta, c.data(), 1, 1, dc);
+                        else
+                            LaConnector::pgemm(ta, tb, m, n, k, alpha, a.data(), 1, 1, da,
+                                rb.data(), 1, 1, db, beta, c.data(), 1, 1, dc);
+                        double error = 0;
+                        for (int j = 0; j < dc.n_loc(); ++j)
+                            for (int i = 0; i < dc.m_loc(); ++i)
+                            {
+                                const int r = dc.indx_l2g_r(i), s = dc.indx_l2g_c(j);
+                                std::complex<long double> sum = 0;
+                                for (int p = 0; p < k; ++p)
+                                {
+                                    const int ar = ta == 'N' ? r : p, ac = ta == 'N' ? p : r;
+                                    const int br = tb == 'N' ? p : s, bc = tb == 'N' ? s : p;
+                                    Z av = real_a ? Z(real_value(ar, ac)) : complex_value(ar, ac);
+                                    Z bv = real_a ? complex_value(br, bc) : Z(real_value(br, bc));
+                                    if (ta == 'C') av = std::conj(av);
+                                    if (tb == 'C') bv = std::conj(bv);
+                                    sum += std::complex<long double>(av) * std::complex<long double>(bv);
+                                }
+                                const Z expected = alpha * Z(sum) + beta * initial;
+                                const double delta = std::abs(c[i + dc.lld() * j] - expected);
+                                error = std::isfinite(delta) ? std::max(error, delta) : INFINITY;
+                            }
+                        MPI_Allreduce(MPI_IN_PLACE, &error, 1, MPI_DOUBLE, MPI_MAX, grid.comm());
+                        assert(error < 1e-12);
+                    }
+                    bool rejected = false;
+                    try {
+                        LaConnector::pgemm('N', 'N', 1, 1, 1, Z(1), ra.data(), 2, 1, da,
+                            b.data(), 1, 1, db, Z(0), c.data(), 1, 1, dc);
+                    } catch (const std::invalid_argument&) { rejected = true; }
+                    assert(rejected);
+                    // Alpha-zero/k-zero must not inspect absent inputs.
+                    for (int inner : {0, k})
+                    {
+                        std::fill(c.begin(), c.end(), Z(1));
+                        LaConnector::pgemm(ta, tb, m, n, inner, Z(0),
+                            static_cast<const double*>(nullptr), 1, 1, da,
+                            static_cast<const Z*>(nullptr), 1, 1, db,
+                            Z(2, -1), c.data(), 1, 1, dc);
+                        for (int j = 0; j < dc.n_loc(); ++j)
+                            for (int i = 0; i < dc.m_loc(); ++i)
+                                assert(c[i + dc.lld() * j] == Z(2, -1));
+                    }
+                }
+}
+
 template <typename T>
 void check(const BlacsCtxtHandler& grid, bool ddla_linear)
 {
@@ -93,6 +181,7 @@ int main(int argc, char** argv)
         grid.init_ddla_handle(ddla::DdlaBackend::CPU);
         for (bool ddla_linear : {false, true})
         {
+            if (ddla_linear) check_mixed(grid);
             check<double>(grid, ddla_linear);
             check<std::complex<double>>(grid, ddla_linear);
         }
