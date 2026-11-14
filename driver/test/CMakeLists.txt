@@ -9,6 +9,12 @@ add_test(NAME test_removed_scalapack_options
     -DLIBRPA_DRIVER=$<TARGET_FILE:rpa_exe>
     -DTEST_WORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/removed-scalapack-options
     -P ${CMAKE_CURRENT_SOURCE_DIR}/check_removed_options.cmake)
+add_test(NAME test_mixed_type_ddla_options
+  COMMAND ${CMAKE_COMMAND}
+    -DLIBRPA_DRIVER=$<TARGET_FILE:rpa_exe>
+    -DHAS_DDLA=${LIBRPA_USE_DDLA}
+    -DTEST_WORK_DIR=${CMAKE_CURRENT_BINARY_DIR}/mixed-type-ddla-options
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/check_mixed_type_ddla.cmake)
 
 add_executable(test_driver_params test_driver_params.cpp ../driver.cpp)
 target_link_libraries(test_driver_params PRIVATE librpa_file_reader)

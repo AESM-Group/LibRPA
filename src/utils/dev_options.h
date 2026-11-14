@@ -13,6 +13,8 @@ struct DevOptions
     bool use_chi0_q_uhap_split;
     bool use_delayed_ft_shrink;
     bool use_real_dense_gw_wc;
+    // Experimental FP64 real/complex products; no public C/Fortran ABI field.
+    bool use_mixed_type_ddla;
 
     DevOptions();
 };

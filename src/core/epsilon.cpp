@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <iterator>
 #include <limits>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -24,6 +25,7 @@
 #include "../math/vector3_order.h"
 #include "../utils/base_utility.h"
 #include "../utils/constants.h"
+#include "../utils/dev_options.h"
 #include "../utils/libri_utils.h"
 #include "../utils/profiler.h"
 #include "../utils/utils_mem.h"
@@ -2334,6 +2336,12 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
             (option_dielect_func == 3 || option_dielect_func == 53);
         const bool gamma_head_only =
             gamma_point && !epsmac_LF_imagfreq.empty() && !gamma_full_headwing;
+        const bool mixed_gamma = global::dev_opts.use_mixed_type_ddla &&
+                                 gamma_point && !gamma_full_headwing && !gamma_head_only;
+#ifndef LIBRPA_USE_DDLA
+        if (mixed_gamma)
+            throw LIBRPA_RUNTIME_ERROR("use_mixed_type_ddla requires LIBRPA_USE_DDLA");
+#endif
         coul_block.zero_out();
         coulwc_block.zero_out();
         // lib_printf("coul_block\n%s", str(coul_block).c_str());
@@ -2507,6 +2515,27 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
                 eigensolver_method, coul_block_ptr, chi0_block_ptr, coul_chi0_block_ptr);
         }
         if (debug_output) ofs_myid << get_timestamp() << " Done power hemat couleps\n";
+        // Ordinary Gamma no longer uses eigenvectors. std::complex array-oriented
+        // access exposes its 2*N doubles: reuse them for S=sqrt(V) and Sc=sqrt(Vc).
+        // Each factor retains the existing block-cyclic local layout. Head/wing
+        // paths still need the eigenvectors and deliberately keep complex GEMMs.
+        double* real_coul_host = nullptr;
+        double* real_coulwc_host = nullptr;
+        if (mixed_gamma)
+        {
+            global::profiler.start("epsilon_pack_mixed_factors", LIBRPA_VERBOSE_DEBUG);
+            const size_t count = coul_eigen_block.size();
+            real_coul_host = reinterpret_cast<double*>(coul_eigen_block.ptr());
+            real_coulwc_host = count ? real_coul_host + count : real_coul_host;
+            for (size_t i = 0; i < count; ++i)
+            {
+                real_coul_host[i] = coul_block.ptr()[i].real();
+                real_coulwc_host[i] = coulwc_block.ptr()[i].real();
+            }
+            global::profiler.stop("epsilon_pack_mixed_factors");
+            if (comm_h.is_root())
+                std::cout << "Experimental DDLA mixed FP64 Gamma Wc products enabled" << std::endl;
+        }
         const size_t n_nonsingular = n_abf - n_singular;
         if (gamma_full_headwing && n_singular != 0)
         {
@@ -2771,10 +2800,22 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
 #if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
             if (use_gpu_replace_scalapack)
             {
-                ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, coul_block_ptr, coul_block.ptr(), coul_block.size() * sizeof(std::complex<double>)));
+                ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, coul_block_ptr,
+                    mixed_gamma ? static_cast<const void*>(real_coul_host) : coul_block.ptr(),
+                    coul_block.size() * (mixed_gamma ? sizeof(double) : sizeof(std::complex<double>))));
             }
 #endif
             profiler.start("epsilon_compute_eps_pgemm_1", LIBRPA_VERBOSE_DEBUG);
+#ifdef LIBRPA_USE_DDLA
+            double* real_coul_ptr = use_gpu_replace_scalapack
+                ? reinterpret_cast<double*>(coul_block_ptr) : real_coul_host;
+            if (mixed_gamma)
+                LaConnector::pgemm('N', 'N', n_abf, n_abf, n_abf, C_ONE,
+                    real_coul_ptr, 1, 1, desc_nabf_nabf_opt,
+                    chi0_block_ptr, 1, 1, desc_nabf_nabf_opt, C_ZERO,
+                    coul_chi0_block_ptr, 1, 1, desc_nabf_nabf_opt);
+            else
+#endif
             LaConnector::pgemm(
                 'N', 'N', n_abf, n_abf, n_abf, {1.0, 0.0}, coul_block_ptr,
                 1, 1, desc_nabf_nabf_opt, chi0_block_ptr, 1, 1,
@@ -2782,6 +2823,14 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
                 desc_nabf_nabf_opt);
             profiler.stop("epsilon_compute_eps_pgemm_1");
             profiler.start("epsilon_compute_eps_pgemm_2", LIBRPA_VERBOSE_DEBUG);
+#ifdef LIBRPA_USE_DDLA
+            if (mixed_gamma)
+                LaConnector::pgemm('N', 'N', n_abf, n_abf, n_abf, -C_ONE,
+                    coul_chi0_block_ptr, 1, 1, desc_nabf_nabf_opt,
+                    real_coul_ptr, 1, 1, desc_nabf_nabf_opt, C_ZERO,
+                    chi0_block_ptr, 1, 1, desc_nabf_nabf_opt);
+            else
+#endif
             LaConnector::pgemm(
                 'N', 'N', n_abf, n_abf, n_abf, {-1.0, 0.0},
                 coul_chi0_block_ptr, 1, 1, desc_nabf_nabf_opt, coul_block_ptr,
@@ -3055,6 +3104,27 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
 
                 global::profiler.start("epsilon_multiply_coulwc_2",
                                        "Multiply truncated Coulomb", LIBRPA_VERBOSE_DEBUG);
+#ifdef LIBRPA_USE_DDLA
+                if (mixed_gamma)
+                {
+                    // The complex Sc is needed through the solve/subtraction.
+                    // Reuse its device allocation as real Sc only afterwards.
+                    double* real_sc = real_coulwc_host;
+#if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
+                    if (use_gpu_replace_scalapack)
+                    {
+                        real_sc = reinterpret_cast<double*>(coul_block_ptr);
+                        ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, real_sc,
+                            real_coulwc_host, coulwc_block.size() * sizeof(double)));
+                    }
+#endif
+                    LaConnector::pgemm('N', 'N', n_abf, n_abf, n_abf, C_ONE,
+                        real_sc, 1, 1, desc_nabf_nabf_opt,
+                        coul_chi0_block_ptr, 1, 1, desc_nabf_nabf_opt, C_ZERO,
+                        chi0_block_ptr, 1, 1, desc_nabf_nabf_opt);
+                }
+                else
+#endif
                 LaConnector::pgemm('N', 'N', n_abf, n_abf, n_abf, {1.0, 0.0}, coulwc_block_ptr, 1,
                                    1, desc_nabf_nabf_opt, coul_chi0_block_ptr, 1, 1,
                                    desc_nabf_nabf_opt, {0.0, 0.0}, chi0_block_ptr, 1, 1,
@@ -3935,12 +4005,36 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> CT_FT_Wc_freq_q(
     }
 
     // initialize inverse consine tranform matrix.
-    Matz coeff_f2t(n_freq, n_freq, MAJOR::COL);
+    const bool mixed_transform = global::dev_opts.use_mixed_type_ddla;
+    Matz coeff_f2t;
+    Matd real_coeff_f2t;
+#ifdef LIBRPA_USE_DDLA
+    // These batches live on the host. Reuse the existing grid/handle owner on
+    // MPI_COMM_SELF; local GEMM must not add collectives on the Wc communicator.
+    std::unique_ptr<BlacsCtxtHandler> transform_grid;
+    if (mixed_transform)
+    {
+        transform_grid = std::make_unique<BlacsCtxtHandler>(MPI_COMM_SELF);
+        transform_grid->init();
+        transform_grid->set_grid(1, 1);
+        transform_grid->init_ddla_handle(ddla::DdlaBackend::CPU);
+        real_coeff_f2t = Matd(n_freq, n_freq, MAJOR::COL);
+        global::lib_printf_root("Experimental DDLA mixed FP64 host Wc cosine transform enabled\n");
+    }
+    else
+#else
+    if (mixed_transform)
+        throw LIBRPA_RUNTIME_ERROR("use_mixed_type_ddla requires LIBRPA_USE_DDLA");
+#endif
+        coeff_f2t = Matz(n_freq, n_freq, MAJOR::COL);
     for (size_t itau = 0; itau < n_freq; itau++)
     {
         for (size_t ifreq = 0; ifreq < n_freq; ifreq++)
         {
-            coeff_f2t(ifreq, itau) = {tfg.get_costrans_f2t()(itau, ifreq), 0.0};
+            if (mixed_transform)
+                real_coeff_f2t(ifreq, itau) = tfg.get_costrans_f2t()(itau, ifreq);
+            else
+                coeff_f2t(ifreq, itau) = {tfg.get_costrans_f2t()(itau, ifreq), 0.0};
         }
     }
     // global::ofs_myid << coeff_f2t << std::endl;
@@ -4014,9 +4108,18 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> CT_FT_Wc_freq_q(
                 }
             }
             // Transform
+            global::profiler.start("wc_cosine_gemm", LIBRPA_VERBOSE_DEBUG);
+#ifdef LIBRPA_USE_DDLA
+            if (mixed_transform)
+                ddla::gemm(transform_grid->ddla_cpu_handle, 'N', 'N', row_this, n_freq, n_freq,
+                           C_ONE, fmat.data(), row_max, real_coeff_f2t.ptr(), n_freq,
+                           C_ZERO, tmat.data(), row_max);
+            else
+#endif
             LapackConnector::gemm_f('N', 'N', row_this, n_freq, n_freq,
                                     C_ONE, fmat.data(), row_max, coeff_f2t.ptr(), n_freq,
                                     C_ZERO, tmat.data(), row_max);
+            global::profiler.stop("wc_cosine_gemm");
             // librpa_int::global::ofs_myid << tmat << endl;
 
             // Copy back

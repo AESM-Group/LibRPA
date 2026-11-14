@@ -17,6 +17,7 @@
 #include "../mpi/base_blacs.h"
 #include "../mpi/base_mpi.h"
 #include "../utils/constants.h"
+#include "../utils/dev_options.h"
 #include "mpi_test_config.h"
 
 using namespace librpa_int;
@@ -642,6 +643,15 @@ void test_dense_wc_real_ct_matches_legacy_real_part()
     auto real_input = input;
     const auto legacy = librpa_int::CT_FT_Wc_freq_q(
         librpa_int::global::mpi_comm_global_h, legacy_input, pbc, tfg, true);
+#ifdef LIBRPA_USE_DDLA
+    auto mixed_input = input;
+    librpa_int::global::dev_opts.use_mixed_type_ddla = true;
+    const auto mixed = librpa_int::CT_FT_Wc_freq_q(
+        librpa_int::global::mpi_comm_global_h, mixed_input, pbc, tfg, true);
+    librpa_int::global::dev_opts.use_mixed_type_ddla = false;
+    assert(mixed_input.empty());
+    assert_dense_wq_rspace_maps_close(mixed, legacy);
+#endif
     const auto actual = librpa_int::CT_FT_Wc_freq_q_real(
         librpa_int::global::mpi_comm_global_h, real_input, pbc, tfg);
     assert(legacy_input.empty());
@@ -875,7 +885,8 @@ double rectangular_gamma_volume_ratio()
 
 void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bool rank_deficient,
                                        const bool zero_response, const int dielectric_option,
-                                       const bool use_cholesky, const int block_size = 1)
+                                       const bool use_cholesky, const int block_size = 1,
+                                       const bool mixed_test = false, const bool gpu = false)
 {
     constexpr int n = 4;
     const int retained = rank_deficient ? n - 1 : n;
@@ -971,14 +982,17 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     headwing.init_wing(0.0, bare_blocks);
     headwing.set_0_wing();
     const auto actual =
-        compute_Wc_freq_q(chi0, bare_blocks, cut_blocks, 0.0, true, dielectric_option,
-                                std::vector<std::complex<double>>{1.0}, &headwing, blacs_h,
-                                desc_aux, false, ".", use_cholesky, false, "scalapack");
+        compute_Wc_freq_q(chi0, bare_blocks, cut_blocks, 0.0, !mixed_test, dielectric_option,
+                                mixed_test ? std::vector<std::complex<double>>{} :
+                                             std::vector<std::complex<double>>{1.0},
+                                mixed_test ? nullptr : &headwing, blacs_h,
+                                desc_aux, false, ".", use_cholesky, gpu, "scalapack",
+                                mixed_test ? "ddla" : "scalapack");
 
     for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
     {
         auto expected_channels = inverse.copy();
-        if (iq == 0 && dielectric_option == 3)
+        if (!mixed_test && iq == 0 && dielectric_option == 3)
         {
             expected_channels(0, 0) = rectangular_gamma_volume_ratio();
             for (int i = 0; i != n; ++i)
@@ -1056,6 +1070,22 @@ int main(int argc, char *argv[])
 #ifdef LIBRPA_USE_LIBRI
         test_dense_wc_layout(blacs_h);
         test_gamma_wc_retained_identity(blacs_h);
+#ifdef LIBRPA_USE_DDLA
+        bool mixed_gpu = false;
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        mixed_gpu = argc > 1 && std::string(argv[1]) == "--mixed-gpu";
+        if (mixed_gpu) blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
+#endif
+        blacs_h.init_ddla_handle(ddla::DdlaBackend::CPU);
+        // Compare the full production ordinary-Gamma path with an independent
+        // dense inverse, including filtering, complex response and both solves.
+        librpa_int::global::dev_opts.use_mixed_type_ddla = true;
+        for (bool filtered : {false, true})
+            for (bool cholesky : {false, true})
+                verify_gamma_wc_retained_identity(blacs_h, filtered, false, 3, cholesky,
+                                                   1, true, mixed_gpu);
+        librpa_int::global::dev_opts.use_mixed_type_ddla = false;
+#endif
 #endif
     }
 

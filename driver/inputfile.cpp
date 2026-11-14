@@ -637,6 +637,7 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_bool(dev_opts, use_chi0_q_uhap_split);
     _parse_bool(dev_opts, use_delayed_ft_shrink);
     _parse_bool(dev_opts, use_real_dense_gw_wc);
+    _parse_bool(dev_opts, use_mixed_type_ddla);
 
     // general runtime parameters
     parser.parse_string("output_dir", stmp, flag);
@@ -770,6 +771,15 @@ void parse_inputfile_to_params(const std::string &fn)
         std::strcpy(opts.eigensolver_method, stmp.c_str());
     }
     static_cast<LibrpaOptions&>(opts) = librpa_int::resolve_linear_algebra_options(opts);
+    if (dev_opts.use_mixed_type_ddla)
+    {
+#ifndef LIBRPA_USE_DDLA
+        throw std::runtime_error("use_mixed_type_ddla requires a LIBRPA_USE_DDLA build");
+#else
+        if (std::string(opts.linear_algorithm) != "ddla")
+            throw std::runtime_error("use_mixed_type_ddla requires linear_algorithm = ddla");
+#endif
+    }
     for (const char* keyword : {"use_scalapack_ecrpa", "use_scalapack_gw_wc"})
     {
         parser.parse_string(keyword, stmp, flag);
