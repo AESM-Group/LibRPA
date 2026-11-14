@@ -202,7 +202,6 @@ module librpa_f03
       real(c_double) :: gf_threshold
       integer(c_int) :: libri_chi0_collect_s0_chunk
       integer(c_long_long) :: libri_chi0_collect_max_bytes
-      integer(c_int) :: use_scalapack_ecrpa
 
       integer(c_int) :: use_shrink_abfs
       integer(c_int) :: use_shrink_chi
@@ -227,7 +226,6 @@ module librpa_f03
       integer(c_int) :: istate_ref_hedin_shift
       real(c_double) :: sf_gf_omega_shift
       real(c_double) :: sf_sigc_omega_shift
-      integer(c_int) :: use_scalapack_gw_wc
       integer(c_int) :: use_cholesky_gw_wc
       integer(c_int) :: use_gpu_replace_scalapack
       character(kind=c_char, len=1) :: linear_algorithm(LIBRPA_MAX_STRLEN)
@@ -337,8 +335,6 @@ module librpa_f03
       integer :: libri_chi0_collect_s0_chunk
       !> Maximum estimated local chi0 tensor bytes per LibRI collection chunk.
       integer(c_long_long) :: libri_chi0_collect_max_bytes
-      !> Use ScaLAPACK to calculate \f$E_\text{c}^{\text{RPA}}\f$.
-      logical :: use_scalapack_ecrpa
       !> Experimental: use a compressed auxiliary basis.
       logical :: use_shrink_abfs
       !> Experimental: build response matrices in the compressed auxiliary basis.
@@ -383,8 +379,6 @@ module librpa_f03
       real(dp) :: sf_gf_omega_shift
       !> Broadening/shift used for correlation self-energy in spectral-function output, in Hartree.
       real(dp) :: sf_sigc_omega_shift
-      !> Use ScaLAPACK for computing \f$W^c\f$ from \f$\chi^0\f$.
-      logical :: use_scalapack_gw_wc
       !> Experimental: use Cholesky factorization for computing \f$W^c\f$ from \f$\chi^0\f$.
       logical :: use_cholesky_gw_wc
       !> Experimental: GPU screened-Coulomb, EXX, self-energy and mean-field operations.
@@ -1225,7 +1219,6 @@ contains
       call sync_opt(opts%gf_threshold,            opts%opts_c%gf_threshold,            direction)
       call sync_opt(opts%libri_chi0_collect_s0_chunk, opts%opts_c%libri_chi0_collect_s0_chunk, direction)
       call sync_opt(opts%libri_chi0_collect_max_bytes, opts%opts_c%libri_chi0_collect_max_bytes, direction)
-      call sync_opt(opts%use_scalapack_ecrpa,     opts%opts_c%use_scalapack_ecrpa,     direction)
       call sync_opt(opts%use_shrink_abfs,         opts%opts_c%use_shrink_abfs,         direction)
       call sync_opt(opts%use_shrink_chi,          opts%opts_c%use_shrink_chi,          direction)
       call sync_opt(opts%anacon_method, opts%opts_c%anacon_method, direction)
@@ -1252,7 +1245,6 @@ contains
       call sync_opt(opts%rpa_headwing_body_start, opts%opts_c%rpa_headwing_body_start, direction)
       call sync_opt(opts%read_sigc_mat_rf,        opts%opts_c%read_sigc_mat_rf,        direction)
       call sync_opt(opts%rpa_headwing_mode,       opts%opts_c%rpa_headwing_mode,       direction)
-      call sync_opt(opts%use_scalapack_gw_wc,     opts%opts_c%use_scalapack_gw_wc,     direction)
       call sync_opt(opts%use_cholesky_gw_wc,      opts%opts_c%use_cholesky_gw_wc,      direction)
       call sync_opt(opts%use_gpu_replace_scalapack, opts%opts_c%use_gpu_replace_scalapack, direction)
       call sync_opt(opts%linear_algorithm, opts%opts_c%linear_algorithm, direction)

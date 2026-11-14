@@ -17,7 +17,6 @@ int main()
                     LibrpaOptions input;
                     librpa_init_options(&input);
                     input.use_gpu_replace_scalapack = gpu ? LIBRPA_SWITCH_ON : LIBRPA_SWITCH_OFF;
-                    input.use_scalapack_gw_wc = LIBRPA_SWITCH_OFF;
                     std::strcpy(input.linear_algorithm, linear);
                     std::strcpy(input.eigensolver_method, eigen);
                     bool threw = false;
@@ -26,7 +25,6 @@ int main()
                         const auto resolved = resolve_linear_algebra_options(input);
                         const auto again = resolve_linear_algebra_options(resolved);
                         assert(resolved.use_gpu_replace_scalapack == input.use_gpu_replace_scalapack);
-                        assert(resolved.use_scalapack_gw_wc == LIBRPA_SWITCH_ON);
                         std::string want_linear = linear, want_eigen = eigen;
 #ifndef LIBRPA_USE_DDLA
                         if (want_linear == "ddla") want_linear = "scalapack";
@@ -60,7 +58,6 @@ int main()
                     assert(threw == gpu);
 #endif
                     assert(std::strcmp(input.linear_algorithm, linear) == 0);
-                    assert(input.use_scalapack_gw_wc == LIBRPA_SWITCH_OFF);
                     assert(std::strcmp(input.eigensolver_method, eigen) == 0);
                 }
 }

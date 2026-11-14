@@ -39,7 +39,6 @@ Run FHI-aims, and after the calculation is completed, the dataset files for LibR
 ```text
 task = rpa
 nfreq = 16
-use_scalapack_ecrpa = t
 ```
 
 ## 4. **Running the RPA Calculation with LibRPA**

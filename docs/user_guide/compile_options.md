@@ -142,7 +142,6 @@ Explicitly native head/wing projections and general RPA energy log-determinants
 retain their ScaLAPACK implementations.
 
 `use_gpu_replace_scalapack = true` requires a CUDA/HIP build. It promotes
-the Wc route to the distributed implementation (`use_scalapack_gw_wc = true`),
 ScaLAPACK linear operations to DDLA and a ScaLAPACK eigensolver choice to ELPA.
 When ELPA is not built, DDLA's GPU eigensolver is used instead. An explicitly
 chosen DDLA or ELPA eigensolver is retained when available. ELPA must support

@@ -685,10 +685,9 @@ void librpa_int::api::build_gw_sigma_for_task(
     auto* pds = &dataset;
     const bool debug = global::should_output(LIBRPA_VERBOSE_DEBUG);
     if (opts.replace_w_head == LIBRPA_SWITCH_ON && opts.option_dielect_func == 53 &&
-        (opts.use_2d_dielectric == LIBRPA_SWITCH_ON ||
-         opts.use_scalapack_gw_wc != LIBRPA_SWITCH_ON))
+        opts.use_2d_dielectric == LIBRPA_SWITCH_ON)
         throw LIBRPA_RUNTIME_ERROR(
-            "option_dielect_func=53 requires use_2d_dielectric=false and use_scalapack_gw_wc=true");
+            "option_dielect_func=53 requires use_2d_dielectric=false");
     const bool need_wing = opts.option_dielect_func == 3 || opts.option_dielect_func == 53;
     // Fail fast, before any expensive chi0/W work: exchange from a
     // symmetry-reduced SCF k-grid with the EXX symmetry restore off is
@@ -876,7 +875,6 @@ void librpa_int::api::build_gw_sigma_for_task(
         opts.replace_w_head == LIBRPA_SWITCH_ON, opts.option_dielect_func,
         opts.use_2d_dielectric == LIBRPA_SWITCH_ON);
     validate_strict_2d_complete_wc_runtime(strict_2d_complete_wc, !epsmac_LF_imagfreq.empty(),
-                                           opts.use_scalapack_gw_wc == LIBRPA_SWITCH_ON,
                                            pds->p_headwing != nullptr &&
                                                pds->p_headwing->strict_2d_coulomb_head_configured());
     validate_strict_2d_gw_coulomb_choices(strict_2d_complete_wc,

@@ -7,7 +7,6 @@ nfreq = 6
 n_params_anacon = 6
 option_dielect_func = 3
 replace_w_head = t
-use_scalapack_gw_wc = t
 parallel_routing = libri
 vq_threshold = 0
 sqrt_coulomb_threshold = 0

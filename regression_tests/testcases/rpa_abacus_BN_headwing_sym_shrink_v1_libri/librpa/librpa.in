@@ -9,7 +9,6 @@ option_dielect_func = 3
 replace_w_head = t
 rpa_headwing_mode = qavg
 rpa_headwing_body_start = 1
-use_scalapack_ecrpa = t
 parallel_routing = libri
 vq_threshold = 0
 sqrt_coulomb_threshold = 0

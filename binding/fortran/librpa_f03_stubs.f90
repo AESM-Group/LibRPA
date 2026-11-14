@@ -207,8 +207,6 @@ module librpa_f03
       !> Number of first-index atoms per LibRI chi0 collection chunk.
       integer :: libri_chi0_collect_s0_chunk
       !> Maximum estimated local chi0 tensor bytes per LibRI collection chunk.
-      !> Use ScaLAPACK to calculate \f$E_\text{c}^{\text{RPA}}\f$.
-      logical :: use_scalapack_ecrpa
       !> Experimental: use a compressed auxiliary basis.
       logical :: use_shrink_abfs
       !> Experimental: build response matrices in the compressed auxiliary basis.
@@ -253,8 +251,6 @@ module librpa_f03
       real(dp) :: sf_gf_omega_shift
       !> Broadening/shift used for correlation self-energy in spectral-function output, in Hartree.
       real(dp) :: sf_sigc_omega_shift
-      !> Use ScaLAPACK for computing \f$W^c\f$ from \f$\chi^0\f$.
-      logical :: use_scalapack_gw_wc
       !> Experimental: use Cholesky factorization for computing \f$W^c\f$ from \f$\chi^0\f$.
       logical :: use_cholesky_gw_wc
       !> Experimental: GPU screened-Coulomb, EXX, self-energy and mean-field operations.

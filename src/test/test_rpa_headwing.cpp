@@ -1182,13 +1182,13 @@ void test_strict_2d_gw_fails_closed_for_incomplete_runtime_configuration()
     require_condition(!librpa_int::strict_2d_complete_wc_requested(true, 3, false),
                       "3D dielectric mode was classified as strict 2D");
 
-    librpa_int::validate_strict_2d_complete_wc_runtime(false, false, false, false);
-    librpa_int::validate_strict_2d_complete_wc_runtime(true, true, true, true);
+    librpa_int::validate_strict_2d_complete_wc_runtime(false, false, false);
+    librpa_int::validate_strict_2d_complete_wc_runtime(true, true, true);
 
     bool rejected_missing_metadata = false;
     try
     {
-        librpa_int::validate_strict_2d_complete_wc_runtime(true, true, true, false);
+        librpa_int::validate_strict_2d_complete_wc_runtime(true, true, false);
     }
     catch (const std::logic_error &)
     {
@@ -1200,7 +1200,7 @@ void test_strict_2d_gw_fails_closed_for_incomplete_runtime_configuration()
     bool rejected_missing_data = false;
     try
     {
-        librpa_int::validate_strict_2d_complete_wc_runtime(true, false, true, true);
+        librpa_int::validate_strict_2d_complete_wc_runtime(true, false, true);
     }
     catch (const std::logic_error &)
     {
@@ -1209,17 +1209,7 @@ void test_strict_2d_gw_fails_closed_for_incomplete_runtime_configuration()
     require_condition(rejected_missing_data,
                       "strict 2D GW silently accepted missing analytic head/wing data");
 
-    bool rejected_dense_wc = false;
-    try
-    {
-        librpa_int::validate_strict_2d_complete_wc_runtime(true, true, false, true);
-    }
-    catch (const std::logic_error &)
-    {
-        rejected_dense_wc = true;
-    }
-    require_condition(rejected_dense_wc,
-                      "strict 2D GW silently accepted a path without complete-Wc support");
+
 }
 
 void test_strict_2d_pw_wc_transforms_to_auxiliary_coulomb_basis()
@@ -5043,7 +5033,6 @@ void test_native_optical_uses_handler_communicator()
         librpa::Options opts;
         opts.option_dielect_func = 3;
         opts.replace_w_head = LIBRPA_SWITCH_ON;
-        opts.use_scalapack_gw_wc = LIBRPA_SWITCH_ON;
         opts.tfgrids_type = LIBRPA_TFGRID_EVEN_SPACED_TF;
         opts.nfreq = 2;
         opts.tfgrids_freq_min = 0.5;

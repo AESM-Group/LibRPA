@@ -88,7 +88,6 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->gf_threshold = 0.0e0;
     opts->libri_chi0_collect_s0_chunk = 0;
     opts->libri_chi0_collect_max_bytes = 0;
-    opts->use_scalapack_ecrpa = LIBRPA_SWITCH_ON;
 
     opts->use_shrink_abfs = LIBRPA_SWITCH_OFF;
     opts->use_shrink_chi = LIBRPA_SWITCH_ON;
@@ -112,7 +111,6 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->istate_ref_hedin_shift = -1;
     opts->sf_gf_omega_shift = 0.01;
     opts->sf_sigc_omega_shift = 0.01;
-    opts->use_scalapack_gw_wc = LIBRPA_SWITCH_ON;
     opts->use_cholesky_gw_wc = LIBRPA_SWITCH_OFF;
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     int deviceCount = 0;
@@ -182,9 +180,6 @@ void librpa_set_restart_from_dir(LibrpaOptions *opts, const char *restart_from_d
 LibrpaOptions librpa_int::resolve_linear_algebra_options(const LibrpaOptions& input)
 {
     auto opts = input;
-    // Retain the public field for C/Fortran layout compatibility. Wc now has
-    // one descriptor-based implementation, including local one-rank dispatch.
-    opts.use_scalapack_gw_wc = LIBRPA_SWITCH_ON;
     const bool gpu = opts.use_gpu_replace_scalapack == LIBRPA_SWITCH_ON;
     std::string linear(opts.linear_algorithm, strnlen(opts.linear_algorithm, LIBRPA_MAX_STRLEN));
     std::string eigen(opts.eigensolver_method, strnlen(opts.eigensolver_method, LIBRPA_MAX_STRLEN));

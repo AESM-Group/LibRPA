@@ -292,11 +292,6 @@ typedef struct
     //! Experimental
     long long libri_chi0_collect_max_bytes;
 
-    //! Flag to control whether to use ScaLAPACK to compute RPA correlation energy.
-    //! @par Default
-    //! true
-    LibrpaSwitch use_scalapack_ecrpa;
-
     /* ============================================================================= */
     /* ABF compression */
 
@@ -468,13 +463,6 @@ typedef struct
     //! @par Status
     //! Experimental
     double sf_sigc_omega_shift;
-
-    //! Deprecated compatibility field, normalized to true. Wc uses one
-    //! descriptor-based algorithm; one host rank falls back to BLAS/LAPACK.
-    //! Select matrix backends with linear_algorithm and eigensolver_method.
-    //! @par Default
-    //! true
-    LibrpaSwitch use_scalapack_gw_wc;
 
     //! Flag of using cholesky factorization for computing Wc from chi0.
     //! @par Default

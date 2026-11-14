@@ -63,15 +63,12 @@ bool strict_2d_complete_wc_requested(const bool replace_w_head, const int option
 
 void validate_strict_2d_complete_wc_runtime(const bool strict_2d_requested,
                                             const bool headwing_data_available,
-                                            const bool use_scalapack_gw_wc,
                                             const bool strict_2d_metadata_configured)
 {
     if (!strict_2d_requested) return;
     if (!headwing_data_available)
         throw std::logic_error(
             "strict 2D complete-Wc was requested but analytic head/wing data are unavailable");
-    if (!use_scalapack_gw_wc)
-        throw std::logic_error("strict 2D complete-Wc currently requires the ScaLAPACK Wc path");
     if (!strict_2d_metadata_configured)
         throw std::logic_error(
             "strict 2D complete-Wc requires producer monopole metadata; "

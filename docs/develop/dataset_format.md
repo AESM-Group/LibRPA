@@ -86,7 +86,6 @@ parallel_routing = libri
 replace_w_head = t
 option_dielect_func = 3
 use_2d_dielectric = t
-use_scalapack_gw_wc = t
 use_fullcoul_eps = t
 use_fullcoul_wc = t
 use_shrink_abfs = f

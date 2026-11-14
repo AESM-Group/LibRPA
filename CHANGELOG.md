@@ -8,12 +8,18 @@
 ## [Unreleased]
 
 - Centralize one-rank host BLAS/LAPACK fallback in `LaConnector`, retaining
-  explicit DDLA/ELPA choices. Remove the separate replicated LAPACK Wc path;
-  `use_scalapack_gw_wc` remains layout-compatible and is normalized to true.
+  explicit DDLA/ELPA choices. Remove the separate replicated LAPACK Wc path.
 
 ### Breaking changes
 
 - Replaced the `g0w0_headwing_velocity` selector with `option_velocity`, whose values are `pyatb` (default) and `native`, and removed the `option_dielect_func = 6` driver preset. Every analytic head/wing option (`3`, `4`, `53`) accepts either velocity source through the new selector, so the preset no longer served a distinct purpose. Inputs that still set `option_dielect_func = 6` must switch to `option_dielect_func = 3` with `option_velocity = native`; inputs that set `g0w0_headwing_velocity = file` must use `option_velocity = pyatb`. The `use_pyatb` switch is gone; it only guarded rejections. The external optical bundle directory is `pyatb_librpa_df/`.
+
+- Removed `use_scalapack_ecrpa` and `use_scalapack_gw_wc` from inputs and the
+  C/Fortran options structure. Recompile library clients and remove both
+  keywords from input files. ScaLAPACK is selected automatically for supported
+  RPA routes; Wc always uses the shared descriptor-based implementation.
+  R-tau and builds without LibRI retain automatic conventional RPA assembly.
+  Removed five unused epsilon helpers and the unused MP2 placeholder.
 
 - Replaced `use_elpa_sqrt_coulomb` with `eigensolver_method = scalapack|ddla|elpa`
   for distributed Coulomb matrix powers. Recompile applications using the C or

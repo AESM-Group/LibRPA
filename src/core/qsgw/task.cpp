@@ -598,12 +598,6 @@ void Task::prepare()
     {
         throw LIBRPA_RUNTIME_ERROR("QSGW analytic head/wing requires option_dielect_func = 3 or 4");
     }
-    if (update_head && opts.option_dielect_func == 3 && !enabled(opts.use_scalapack_gw_wc))
-    {
-        throw LIBRPA_RUNTIME_ERROR(
-            "QSGW option_dielect_func = 3 requires use_scalapack_gw_wc = true "
-            "to consume analytic wings");
-    }
     if (enabled(opts.use_kpara_scf_eigvec))
     {
         throw LIBRPA_RUNTIME_ERROR(

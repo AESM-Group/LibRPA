@@ -7,7 +7,6 @@ tfgrid_type = minimax
 n_params_anacon = 6
 parallel_routing = libri
 replace_w_head = true
-use_scalapack_gw_wc = true
 use_shrink_abfs = false
 use_shrink_chi = false
 use_kpara_scf_eigvec = false

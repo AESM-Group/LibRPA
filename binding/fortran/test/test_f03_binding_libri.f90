@@ -163,7 +163,6 @@ program test_f03_binding_libri
 
    allocate(contrib_ibzk(2))
    opts%tfgrids_type = LIBRPA_TFGRID_MINIMAX
-   opts%use_scalapack_ecrpa = .true.
    rpa_corr = h%get_rpa_correlation_energy(opts, 2, contrib_ibzk)
    deallocate(contrib_ibzk)
 

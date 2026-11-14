@@ -13,7 +13,6 @@ anacon_nfreq = -1
 parallel_routing = libri
 vq_threshold = 0
 sqrt_coulomb_threshold = 0
-use_scalapack_gw_wc = true
 use_shrink_abfs = false
 use_shrink_chi = false
 replace_w_head = false

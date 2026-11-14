@@ -30,7 +30,6 @@ tfgrids_type = minimax
 n_params_anacon = -1
 n_params_anacon_resample = -1
 anacon_nfreq = -1
-use_scalapack_gw_wc = true
 vq_threshold = 0
 cs_threshold = 0
 sqrt_coulomb_threshold = 0

@@ -7,7 +7,6 @@ version_lri_reader = 1
 nfreq = 8
 option_dielect_func = 3
 replace_w_head = f
-use_scalapack_gw_wc = t
 parallel_routing = libri
 vq_threshold = 0
 sqrt_coulomb_threshold = 1e-8

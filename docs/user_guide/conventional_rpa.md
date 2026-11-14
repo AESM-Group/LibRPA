@@ -53,9 +53,11 @@ In the C and C++ APIs, set `chi0_method` to `LIBRPA_METHOD_CONVENTIONAL`, and
 
 The method works with all `parallel_routing` values, and with builds without
 LibRI. With `atompair` and `libri`, MPI ranks share the atom pairs. With `rtau`,
-they share the q points. In a build without LibRI, set
-`use_scalapack_ecrpa = false` with `atompair`, because the ScaLAPACK energy
-routine needs LibRI. Otherwise the calculation stops at the start.
+they share the q points. With LibRI enabled, `atompair` and `libri` select
+the shared BLACS/ScaLAPACK energy path automatically, including on one rank
+where connector operations use local BLAS/LAPACK. The existing conventional
+assembly is selected automatically for `rtau` and builds without LibRI.
+There is no separate ScaLAPACK enable/disable switch.
 
 ## Requirements
 

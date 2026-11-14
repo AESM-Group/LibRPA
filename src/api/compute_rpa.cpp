@@ -91,13 +91,10 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
             pds->redistribute_eigvecs_kpara();
     }
 
-    const bool use_blacs = opts.use_scalapack_ecrpa && (routing == LIBRPA_ROUTING_ATOMPAIR || routing == LIBRPA_ROUTING_LIBRI);
-#ifndef LIBRPA_USE_LIBRI
-    // Stop before the response is built, instead of in the energy routine.
-    if (use_blacs)
-        throw LIBRPA_RUNTIME_ERROR(
-            "use_scalapack_ecrpa requires a build with LibRI for the atompair and libri routings; "
-            "set use_scalapack_ecrpa = false");
+#ifdef LIBRPA_USE_LIBRI
+    const bool use_blacs = routing == LIBRPA_ROUTING_ATOMPAIR || routing == LIBRPA_ROUTING_LIBRI;
+#else
+    const bool use_blacs = false;
 #endif
 
     // Determine the atom pairs that this process is responsible for

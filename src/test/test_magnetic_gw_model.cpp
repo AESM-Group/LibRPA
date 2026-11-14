@@ -286,7 +286,6 @@ ResponseOperators capture_response_operators(Dataset &ds, const LibrpaOptions &o
     assert(ds.basis_aux.n_atoms == 3 && ds.basis_aux.nb_total == 3);
     for (int atom = 0; atom != 3; ++atom) assert(ds.basis_aux.get_atom_nb(atom) == 1);
     assert(options.use_shrink_abfs == LIBRPA_SWITCH_OFF);
-    assert(options.use_scalapack_gw_wc == LIBRPA_SWITCH_ON);
     assert(options.replace_w_head == LIBRPA_SWITCH_OFF);
     assert(ds.mf.get_n_kpoints() == ds.pbc.get_n_cells_bvk());
     initialize_ds_chi0(ds, options);

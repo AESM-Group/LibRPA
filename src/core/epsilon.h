@@ -20,7 +20,6 @@ namespace librpa_int {
 bool strict_2d_complete_wc_requested(bool replace_w_head, int option_dielect_func,
                                      bool use_2d_dielectric);
 void validate_strict_2d_complete_wc_runtime(bool strict_2d_requested, bool headwing_data_available,
-                                            bool use_scalapack_gw_wc,
                                             bool strict_2d_metadata_configured);
 bool use_strict_2d_complete_wc_gamma_route(bool replace_w_head, int option_dielect_func,
                                            bool use_2d_dielectric, bool gamma_point,
