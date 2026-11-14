@@ -828,11 +828,11 @@ void G0W0::read_sigc(const std::string &input_dir)
     }
 
     const auto myid_old_range = sigc_rf_file_range_for_rank(
-        nprocs_old, global::size_global, global::myid_global);
+        nprocs_old, comm_h.nprocs, comm_h.myid);
     const int myid_old_begin = myid_old_range.first;
     const int myid_old_end = myid_old_range.second;
     global::lib_printf_root("Detected SigcRF files from %d MPI rank(s); current job has %d rank(s).\n",
-                            nprocs_old, global::size_global);
+                            nprocs_old, comm_h.nprocs);
 
     int missing_file_local = 0;
     std::string missing_file;
