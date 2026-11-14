@@ -64,6 +64,7 @@
 
 - Fixed the `map::at` failure of RPA energies with `parallel_routing = rtau` for
   more than one q point on more than one MPI rank.
+- Fixed mixed matrix layouts in the dense LAPACK screened-interaction path (`use_scalapack_gw_wc = false`), present in v0.5.0 through v0.9.0. The mismatch caused an assertion failure and could give incorrect complex screened interactions when assertions were disabled. The numerical error depends on the input ([#66](https://github.com/AESM-Group/LibRPA/issues/66)).
 - Restored the full-BZ `W(R)` reconstruction for the auxiliary-basis shrink
   path when the k list holds every Brillouin-zone member, which is how the
   FHI-aims reader exports its SCF k-points. Both k-point forms, the reduced
