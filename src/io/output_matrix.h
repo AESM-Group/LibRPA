@@ -15,6 +15,7 @@
 #include "../math/matrix_m.h"
 #include "../math/vector3_order.h"
 #include "../mpi/base_blacs.h"
+#include "../utils/error.h"
 
 namespace librpa_int
 {
@@ -97,8 +98,10 @@ bool write_rspace_matrices_binary(const ap_p_map<std::map<Vector3_Order<int>, ma
                           : std::is_same_v<T, cplxdb> ? 1
                           : std::is_same_v<T, float>  ? 2
                                                       : 3;
-    assert(info.omega.has_value() == (info.kind == RspaceKind::SigcRF));
-    assert(info.run_id != 0);
+    if (info.omega.has_value() != (info.kind == RspaceKind::SigcRF))
+        throw LIBRPA_RUNTIME_ERROR("real-space matrix output: omega must be set exactly for SigcRF");
+    if (info.run_id == 0)
+        throw LIBRPA_RUNTIME_ERROR("real-space matrix output: run_id must be nonzero");
     RspaceFileHeader header;
     header.kind = info.kind;
     header.nprocs = info.nprocs;
@@ -118,7 +121,9 @@ bool write_rspace_matrices_binary(const ap_p_map<std::map<Vector3_Order<int>, ma
         {
             assert(mat.nr() == as_int(basis.get_atom_nb(IJ.first)) &&
                    mat.nc() == as_int(basis.get_atom_nb(IJ.second)));
-            assert(mat.major() == MAJOR::ROW);
+            // The format has no field for the storage order, so a transpose cannot be detected.
+            if (mat.major() != MAJOR::ROW)
+                throw LIBRPA_RUNTIME_ERROR("real-space matrix output: blocks must be row-major");
             const int dims[7] = {R.x,      R.y,     R.z, as_int(IJ.first), as_int(IJ.second),
                                  mat.nr(), mat.nc()};
             ofs.write(reinterpret_cast<const char *>(dims), sizeof(dims));

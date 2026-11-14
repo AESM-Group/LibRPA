@@ -43,6 +43,8 @@ static void put(std::ostream &os, const T &value)
 
 bool write_rspace_header(std::ostream &os, const RspaceFileHeader &header)
 {
+    if (header.kind == RspaceKind::SigcRF && !header.omega.has_value())
+        throw LIBRPA_RUNTIME_ERROR("SigcRF header requires a frequency");
     os.write(RSPACE_MAGIC, sizeof(RSPACE_MAGIC));
     put(os, RSPACE_ENDIAN_MARKER);
     put(os, RSPACE_VERSION);
