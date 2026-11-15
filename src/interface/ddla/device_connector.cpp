@@ -10,12 +10,14 @@
 namespace librpa_int{
 namespace DeviceConnector{
 bool check_device_ptr(void* ptr){
+    if (ptr == nullptr) return false;
 #if defined(LIBRPA_USE_CUDA)
     cudaPointerAttributes attr;
     cudaError_t err = cudaPointerGetAttributes(&attr, ptr);
     
     if (err != cudaSuccess) {
-        std::cerr << "cudaPointerGetAttributes failed: " << cudaGetErrorString(err) << std::endl;
+        // Ordinary host pointers are a supported fallback, not a runtime error.
+        cudaGetLastError();
         return false;
     }
     return (attr.type == cudaMemoryTypeDevice);
@@ -24,7 +26,7 @@ bool check_device_ptr(void* ptr){
     hipError_t status = hipPointerGetAttributes(&attr, ptr);
     
     if (status != hipSuccess) {
-        std::cerr << "Error: " << hipGetErrorString(status) << std::endl;
+        hipGetLastError();
         return false;
     }
     return (attr.memoryType == hipMemoryTypeDevice);
