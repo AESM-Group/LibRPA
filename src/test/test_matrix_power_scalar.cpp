@@ -85,6 +85,48 @@ void check(double eigenvalue, double power, double threshold, double expected)
 }
 }  // namespace
 
+template <typename T>
+void check_native_scalar_empty()
+{
+    Dataset ds{MPI_COMM_WORLD};
+    for (int n : {0, 1})
+    {
+        ArrayDesc aa(ds.blacs_h.ictxt), az(ds.blacs_h.ictxt);
+        aa.init(n, n, 1, 1, ds.blacs_h.nprows - 1, ds.blacs_h.npcols - 1);
+        az.init(n, n, 1, 1, 0, 0);
+        auto a = init_local_mat<std::complex<T>>(aa, MAJOR::COL);
+        auto z = init_local_mat<std::complex<T>>(az, MAJOR::COL);
+        for (T threshold : {T(0), T(5)})
+        {
+            if (n && aa.is_src()) a(0, 0) = T(4);
+            T w = T(-91);
+            size_t filtered = 123;
+            std::vector<T> native(a.size() + 2, T(-917));
+            const auto scaled = LaConnector::power_hemat_la_real<T>(
+                a, aa, z, az, filtered, n ? &w : nullptr, T(.5), threshold,
+                false, "scalapack", nullptr, nullptr, nullptr, native.data() + 1);
+            int bad = native.front() != T(-917) || native.back() != T(-917);
+            if (n == 0)
+            {
+                bad |= filtered != 0 || scaled.size() != 0 || w != T(-91);
+                const auto complex_empty = LaConnector::power_hemat_la<T>(
+                    a, aa, z, az, filtered, nullptr, T(.5));
+                bad |= complex_empty.size() != 0 || filtered != 0;
+            }
+            else
+            {
+                const T expected = threshold > T(4) ? T(0) : T(2);
+                bad |= w != T(4) || filtered != size_t(threshold > T(4));
+                bad |= aa.is_src() && (native[1] != expected || a(0, 0) != expected);
+                bad |= az.is_src() && (z(0, 0) != T(1) || scaled(0, 0) != expected);
+            }
+            int any_bad = 0;
+            MPI_Allreduce(&bad, &any_bad, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+            if (any_bad) throw std::runtime_error("native real scalar/empty output contract failed");
+        }
+    }
+}
+
 // c I + v v^H has eigenvalues c and c + ||v||^2. Filtering c leaves
 // (c + ||v||^2)^power v v^H / ||v||^2, independently of eigenvector phases.
 void check_rank_one(const std::string& method, bool gpu, bool real, double power,
@@ -128,6 +170,7 @@ void check_rank_one(const std::string& method, bool gpu, bool real, double power
         }
     double w[n];
     size_t filtered = 0;
+    std::vector<double> native_output(a.size() + 2, -917.0);
     const auto a_ptr = a.ptr(), z_ptr = z.ptr();
     const auto compute_power = [&](std::complex<double>* d_A = nullptr,
                                    std::complex<double>* d_Z = nullptr,
@@ -136,7 +179,8 @@ void check_rank_one(const std::string& method, bool gpu, bool real, double power
         return real ? LaConnector::power_hemat_la_real(
                           a, ad, z, ad, filtered, w, power, 2.5, gpu, method,
                           reinterpret_cast<double*>(d_A), reinterpret_cast<double*>(d_Z),
-                          reinterpret_cast<double*>(d_scaled))
+                          reinterpret_cast<double*>(d_scaled),
+                          a.size() ? native_output.data() + 1 : nullptr)
                     : LaConnector::power_hemat_la(a, ad, z, ad, filtered, w, power, 2.5, gpu,
                                                  method, d_A, d_Z, d_scaled);
     };
@@ -161,6 +205,13 @@ void check_rank_one(const std::string& method, bool gpu, bool real, double power
         scaled = compute_power();
     if (a.ptr() != a_ptr || z.ptr() != z_ptr)
         throw std::runtime_error("matrix-power output storage was replaced");
+    int native_bad = native_output.front() != -917.0 || native_output.back() != -917.0;
+    if (real)
+        for (size_t i = 0; i < a.size(); ++i)
+            native_bad |= native_output[i + 1] != a.ptr()[i].real();
+    int any_native_bad = 0;
+    MPI_Allreduce(&native_bad, &any_native_bad, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    if (any_native_bad) throw std::runtime_error("native real reconstruction or output canary failed");
     if (filtered != n - 1) throw std::runtime_error("rank-one eigenvalue filtering mismatch");
     std::vector<std::complex<double>> dots(n), global_dots(n);
     for (int j = 0; j < ad.n_loc(); ++j)
@@ -308,6 +359,8 @@ int main(int argc, char** argv)
         check_pheev<double>(method, gpu);
         check_pheev<std::complex<double>>(method, gpu);
         check_real_syev();
+        check_native_scalar_empty<float>();
+        check_native_scalar_empty<double>();
         for (bool real : {false, true})
             for (double power : {0.5, -1.0}) check_rank_one(method, gpu, real, power, linear);
         check(2, 0.5, 0, std::sqrt(2.0));

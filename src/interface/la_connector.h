@@ -483,13 +483,18 @@ matrix_m<std::complex<T>> power_hemat_la(
     std::complex<T>* d_Z = nullptr, std::complex<T>* d_scaled = nullptr);
 
 // Diagonalizes -real(A) and negates eigenvalues, preserving descending order.
+// Optional real_output receives A.size() HOST real elements in A's local
+// layout, directly from reconstruction scratch, including the scalar shortcut.
+// It must have that capacity and be disjoint from A/Z and the returned matrix.
+// Null output disables the copy; empty owners never access it. Existing complex
+// A/Z outputs, filtering/order and weighted-vector return are preserved.
 template <typename T>
 matrix_m<std::complex<T>> power_hemat_la_real(
     matrix_m<std::complex<T>>& A, const ArrayDesc& ad_A,
     matrix_m<std::complex<T>>& Z, const ArrayDesc& ad_Z, size_t& filtered, T* W,
     T power, const T& threshold = -1.e5, bool gpu = false,
     const std::string& method = "scalapack", T* d_A = nullptr,
-    T* d_Z = nullptr, T* d_scaled = nullptr);
+    T* d_Z = nullptr, T* d_scaled = nullptr, T* real_output = nullptr);
 
 }  // namespace LaConnector
 

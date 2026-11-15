@@ -1,6 +1,7 @@
 #include "la_connector.h"
 
 #include <cmath>
+#include <algorithm>
 #include <type_traits>
 
 #include "../utils/profiler.h"
@@ -21,7 +22,7 @@ matrix_m<std::complex<T>> power_hemat_la_impl(
     T power, const T& threshold, bool use_gpu, std::string method,
     std::conditional_t<Real, T, std::complex<T>>* d_A,
     std::conditional_t<Real, T, std::complex<T>>* d_Z,
-    std::conditional_t<Real, T, std::complex<T>>* d_scaled)
+    std::conditional_t<Real, T, std::complex<T>>* d_scaled, T* real_output)
 {
     using Scalar = std::conditional_t<Real, T, std::complex<T>>;
     assert(A_local.is_col_major() && Z_local.is_col_major());
@@ -52,6 +53,12 @@ matrix_m<std::complex<T>> power_hemat_la_impl(
         return std::pow(value, power);
     };
 
+    if (n == 0)
+    {
+        n_filtered = 0;
+        return Z_local.copy();
+    }
+
     // Native PZHEEV's scalar quick return can yield an unnormalized vector.
     // Keep scalar ownership explicit, including different A/Z source ranks.
     if (n == 1)
@@ -65,6 +72,8 @@ matrix_m<std::complex<T>> power_hemat_la_impl(
         scaled.zero_out();
         Z_local.zero_out();
         if (ad_A.is_src()) A_local(0, 0) = {powered, T(0)};
+        if constexpr (Real)
+            if (real_output != nullptr && A_local.size() > 0) real_output[0] = powered;
         if (ad_Z.is_src())
         {
             Z_local(0, 0) = {T(1), T(0)};
@@ -215,6 +224,10 @@ matrix_m<std::complex<T>> power_hemat_la_impl(
     if constexpr (Real)
     {
         for (size_t i = 0; i < A_local.size(); ++i) A_local.ptr()[i] = {a[i], T(0)};
+        // Publish directly from the existing real reconstruction workspace,
+        // while preserving the legacy complex outputs and return value.
+        if (real_output != nullptr && A_local.size() > 0)
+            std::copy_n(a, A_local.size(), real_output);
         // Release real A/Z workspaces before allocating the complex return value.
         std::vector<Scalar>().swap(a_storage);
         std::vector<Scalar>().swap(z_storage);
@@ -234,7 +247,7 @@ matrix_m<std::complex<T>> power_hemat_la(
     std::complex<T>* d_A, std::complex<T>* d_Z, std::complex<T>* d_scaled)
 {
     return power_hemat_la_impl<T, false>(A, ad_A, Z, ad_Z, filtered, W, power, threshold,
-                                        gpu, method, d_A, d_Z, d_scaled);
+                                        gpu, method, d_A, d_Z, d_scaled, nullptr);
 }
 
 template <typename T>
@@ -242,10 +255,10 @@ matrix_m<std::complex<T>> power_hemat_la_real(
     matrix_m<std::complex<T>>& A, const ArrayDesc& ad_A,
     matrix_m<std::complex<T>>& Z, const ArrayDesc& ad_Z, size_t& filtered, T* W,
     T power, const T& threshold, bool gpu, const std::string& method,
-    T* d_A, T* d_Z, T* d_scaled)
+    T* d_A, T* d_Z, T* d_scaled, T* real_output)
 {
     return power_hemat_la_impl<T, true>(A, ad_A, Z, ad_Z, filtered, W, power, threshold,
-                                       gpu, method, d_A, d_Z, d_scaled);
+                                       gpu, method, d_A, d_Z, d_scaled, real_output);
 }
 
 #define INSTANTIATE_POWER(T) \
@@ -255,7 +268,7 @@ template matrix_m<std::complex<T>> power_hemat_la( \
     std::complex<T>*, std::complex<T>*, std::complex<T>*); \
 template matrix_m<std::complex<T>> power_hemat_la_real( \
     matrix_m<std::complex<T>>&, const ArrayDesc&, matrix_m<std::complex<T>>&, \
-    const ArrayDesc&, size_t&, T*, T, const T&, bool, const std::string&, T*, T*, T*);
+    const ArrayDesc&, size_t&, T*, T, const T&, bool, const std::string&, T*, T*, T*, T*);
 
 INSTANTIATE_POWER(float)
 INSTANTIATE_POWER(double)
