@@ -43,7 +43,7 @@ jobs:
         if: matrix.backend == 'HIP'
         run: |
           apt-get install -y hipblas-dev hipsolver-dev rocrand-dev \
-            rccl rocthrust-dev hipcub-dev
+            rccl rccl-dev rocthrust-dev hipcub-dev
 
       - name: Cache third-party archives
         uses: actions/cache@v4
@@ -108,6 +108,11 @@ jobs:
               ;;
             *) echo "Unknown backend: $BACKEND" >&2; exit 1 ;;
           esac
+          # Match the explicitly selected host compiler; an inherited SDK
+          # runtime can otherwise shadow gfortran's required symbol versions.
+          host_runtime=$(dirname "$(readlink -f "$(/usr/bin/gfortran -print-file-name=libgfortran.so)")")
+          export LIBRARY_PATH="$host_runtime${LIBRARY_PATH:+:$LIBRARY_PATH}"
+          export LD_LIBRARY_PATH="$host_runtime${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           cmake "${args[@]}" 2>&1 | tee configure.log
           cmake --build build --parallel 2 2>&1 | tee build.log
           cmake --install build 2>&1 | tee install.log
