@@ -489,6 +489,8 @@ if(LIBRPA_USE_DDLA)
     install(DIRECTORY "${LIBRPA_BUNDLED_DDLA_INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR}/ddla"
       DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
   endif()
+  include(CheckLibDDLACapabilities)
+  librpa_check_ddla_capabilities("${LIBRPA_DDLA_TARGET}")
   string(APPEND LIBRPA_THIRDPARTY_SUMMARY "LibDDLA=${_libddla_status}")
   if(_libddla_status STREQUAL "installed")
     string(APPEND LIBRPA_THIRDPARTY_SUMMARY "(${_libddla_prefix})")

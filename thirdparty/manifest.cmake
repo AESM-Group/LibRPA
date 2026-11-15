@@ -36,7 +36,9 @@ librpa_thirdparty_declare(LibDDLA
   URL "https://github.com/userchba/LibDDLA/archive/1ff05d91559e52cf921ded8ad2aba34217e10f4d.tar.gz"
   ARCHIVE "LibDDLA-1ff05d9.tar.gz"
   ARCHIVE_SHA256 86457772417d10e87b0802a702579e16c3f168daacf4ea3bc756dc023cb2f75a
-  TREE_SHA256 061b65292a66951a53a1f14f3537ea8bb33b26ba6fc27a55ba8b5bf5593ace99
+  PATCHES LibDDLA/0001-consumer-interfaces.patch
+  PRISTINE_SHA256 061b65292a66951a53a1f14f3537ea8bb33b26ba6fc27a55ba8b5bf5593ace99
+  TREE_SHA256 29f4688a05225f08b8248c28d74956d7221e87311858a4e9629b42eea4e72c3c
   LICENSE LGPL-3.0)
 
 librpa_thirdparty_declare(greenX
