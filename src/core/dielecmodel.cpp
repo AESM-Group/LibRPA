@@ -445,7 +445,10 @@ static void print_head_k_contribution(const char *route, const int ik,
 
 static bool is_wing_wfc_probe_kpoint(const Vector3_Order<double> &kfrac)
 {
-    return std::abs(kfrac.x - 0.625) < 1.0e-10 && std::abs(kfrac.y) < 1.0e-10 &&
+    // Probe the Gamma point. A hard-coded 0.625 never occurs on the meshes this
+    // diagnostic is used with, so the probe stayed silent on every 2x2x2 and
+    // 4x4x4 case even though it was enabled.
+    return std::abs(kfrac.x) < 1.0e-10 && std::abs(kfrac.y) < 1.0e-10 &&
            std::abs(kfrac.z) < 1.0e-10;
 }
 
@@ -475,17 +478,35 @@ static void print_wing_cmnk_probe(const char *route, const int mu,
                                   const ArrayDesc &desc_nband_nband,
                                   const matrix_m<std::complex<double>> &C_mnk)
 {
-    if (mu != 0 || !is_wing_wfc_probe_kpoint(kfrac) || !desc_nband_nband.is_src()) return;
-    global::lib_printf(
-        "Wing C_mnk probe: route=%s mu=%d k=(% .12f,% .12f,% .12f) rows=m columns=n\n",
-        route, mu, kfrac.x, kfrac.y, kfrac.z);
-    for (int m = 0; m != C_mnk.nr(); ++m)
+    if (!is_wing_wfc_probe_kpoint(kfrac) || !desc_nband_nband.is_src()) return;
+    // Dump the full matrix once, then one norm line per remaining auxiliary
+    // index. Comparing only mu=0 hides whether a difference is in the Cs
+    // projection or in the per-mu accumulation.
+    if (mu == 0)
     {
-        global::lib_printf("m=%d", m);
-        for (int n = 0; n != C_mnk.nc(); ++n)
-            global::lib_printf(" (% .15e,% .15e)", C_mnk(m, n).real(), C_mnk(m, n).imag());
-        global::lib_printf("\n");
+        global::lib_printf(
+            "Wing C_mnk probe: route=%s mu=%d k=(% .12f,% .12f,% .12f) rows=m columns=n\n",
+            route, mu, kfrac.x, kfrac.y, kfrac.z);
+        for (int m = 0; m != C_mnk.nr(); ++m)
+        {
+            global::lib_printf("m=%d", m);
+            for (int n = 0; n != C_mnk.nc(); ++n)
+                global::lib_printf(" (% .15e,% .15e)", C_mnk(m, n).real(), C_mnk(m, n).imag());
+            global::lib_printf("\n");
+        }
+        return;
     }
+    double norm2 = 0.0;
+    int nonzero = 0;
+    for (int m = 0; m != C_mnk.nr(); ++m)
+        for (int n = 0; n != C_mnk.nc(); ++n)
+        {
+            norm2 += std::norm(C_mnk(m, n));
+            if (std::abs(C_mnk(m, n)) > 1.0e-14) ++nonzero;
+        }
+    global::lib_printf(
+        "Wing C_mnk norm: route=%s mu=%d k=(% .12f,% .12f,% .12f) norm=%.15e nonzero=%d\n",
+        route, mu, kfrac.x, kfrac.y, kfrac.z, std::sqrt(norm2), nonzero);
 }
 
 static void print_wing_cnao_probe(const char *route, const int mu,
