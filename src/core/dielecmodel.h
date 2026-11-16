@@ -546,7 +546,7 @@ matrix_m<std::complex<double>> strict_2d_transform_pw_wc_to_auxiliary_basis(
 ArrayDesc make_rpa_chi0v_wing_desc(const ArrayDesc &desc_body, const int wing_row_offset,
                                    const int wing_rows_loc, const int wing_cols_loc);
 
-// Factor host A=I-body with LAPACK/ScaLAPACK, reuse LU for three wing RHS, and
+// Factor A=I-body once, solve three wing RHS with the same LU factors, and
 // return log(det(A)) plus the replicated Schur matrix I-head-W^H A^-1 W.
 // A is overwritten by LU; wing/head remain unchanged. No inverse is formed.
 std::complex<double> compute_rpa_body_schur(

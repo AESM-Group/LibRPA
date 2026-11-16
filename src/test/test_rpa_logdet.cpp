@@ -161,11 +161,8 @@ int main(int argc, char** argv)
         for (const auto& selected : backends)
         {
             backend = selected;
-            if (selected == "scalapack")
-            {
-                for (int n : {0, 1, 3}) passed &= check_schur_solve(blacs, n);
-                passed &= check_schur_solve(blacs, 3, true);
-            }
+            for (int n : {0, 1, 3}) passed &= check_schur_solve(blacs, n);
+            passed &= check_schur_solve(blacs, 3, true);
             passed &= check_cross_column_pivot(blacs);
             const auto z = std::polar(1.0, TWO_PI / 6.0);
             const auto t = std::polar(1.0, TWO_PI * 0.4);

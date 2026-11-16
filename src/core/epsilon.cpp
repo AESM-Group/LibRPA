@@ -1327,6 +1327,10 @@ CorrEnergy compute_RPA_correlation_blacs_2d(Chi0 &chi0, atpair_k_cplx_mat_t &cou
                 df_headwing->wing_mu_to_lambda(sqrtveig_blacs, desc_nabf_nabf_opt,
                                                n_nonsingular_headwing);
             desc_headwing_response.init_square_blk(n_nonsingular_headwing, n_nonsingular_headwing, 0, 0);
+            desc_headwing_response.set_linear_algorithm(headwing_settings.linear_algorithm);
+#ifdef LIBRPA_USE_DDLA
+            desc_headwing_response.set_ddla_handle(desc_nabf_nabf_opt.ddla_handle());
+#endif
             headwing_response_block =
                 init_local_mat<std::complex<double>>(desc_headwing_response, MAJOR::COL);
         }
@@ -1560,9 +1564,9 @@ complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_
     if (arrdesc_pi.n() != n || !loc_piT.is_col_major())
         throw std::invalid_argument("RPA logdet requires a square column-major distributed matrix");
     if ((solve_rhs == nullptr) != (rhs_desc == nullptr) ||
-        (solve_rhs != nullptr && (arrdesc_pi.use_ddla_linear() || rhs_desc->m() != n ||
+        (solve_rhs != nullptr && (rhs_desc->m() != n ||
          rhs_desc->ictxt() != arrdesc_pi.ictxt() || !solve_rhs->is_col_major())))
-        throw std::invalid_argument("RPA thin RHS requires native LAPACK/ScaLAPACK and matching owning descriptors");
+        throw std::invalid_argument("RPA thin RHS requires matching owning descriptors");
 
     const auto check_info = [&](const char* operation)
     {
@@ -1584,6 +1588,8 @@ complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_
         const auto handle = arrdesc_pi.ddla_handle();
         if (handle == nullptr)
             throw std::invalid_argument("DDLA RPA logdet requires an owning handle");
+        if (rhs_desc != nullptr && rhs_desc->ddla_handle() != handle)
+            throw std::invalid_argument("RPA thin RHS must share the factorization handle");
         struct StageTimer
         {
             StageTimer() { global::profiler.start("rpa_ddla_logdet_and_solve", LIBRPA_VERBOSE_DEBUG); }
@@ -1595,7 +1601,7 @@ complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_
         const size_t count = std::max<size_t>(1, size_t(arrdesc_pi.lld()) * arrdesc_pi.n_loc());
         const bool gpu = ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU;
         ddla::vector<cplxdb> factors(handle, gpu ? count : 0);
-        cplxdb factor_dummy{};
+        cplxdb factor_dummy{}, rhs_dummy{};
         auto* factor_data = gpu ? factors.data() : (loc_piT.size() ? loc_piT.ptr() : &factor_dummy);
         ddla::vector<int> pivots(handle, std::max(1, arrdesc_pi.m_loc()));
         if (gpu && loc_piT.size() != 0)
@@ -1620,6 +1626,21 @@ complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_
                 row_swaps_loc += ipiv[row] != ig % arrdesc_pi.mb() + 1;
         }
         ddla::pdiag_logdet(handle, n, factor_data, arrdesc_pi.desc, ln_det_all);
+        if (solve_rhs != nullptr)
+        {
+            const size_t rhs_count = std::max<size_t>(1, size_t(rhs_desc->lld()) * rhs_desc->n_loc());
+            ddla::vector<cplxdb> device_rhs(handle, gpu ? rhs_count : 0);
+            auto* rhs = gpu ? device_rhs.data() : (solve_rhs->size() ? solve_rhs->ptr() : &rhs_dummy);
+            if (gpu && solve_rhs->size())
+                ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, rhs, solve_rhs->ptr(),
+                                                 solve_rhs->size() * sizeof(cplxdb)));
+            ddla::pgetrs_bpiv(handle, 'L', 'N', n, rhs_desc->n(), factor_data, arrdesc_pi.desc,
+                              pivots.data(), rhs, rhs_desc->desc);
+            if (gpu && solve_rhs->size())
+                ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, solve_rhs->ptr(), rhs,
+                                                 solve_rhs->size() * sizeof(cplxdb)));
+            ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
+        }
         // Preserve the helper's in-place LU output contract on its host matrix.
         if (gpu && loc_piT.size() != 0)
             ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, loc_piT.ptr(), factors.data(),

@@ -4788,6 +4788,10 @@ std::complex<double> diele_func::compute_rpa_trace_log_average(
 
     ArrayDesc desc_body(blacs_h.ictxt);
     desc_body.init_square_blk(desc_response.m() - body_start, desc_response.n() - body_start, 0, 0);
+    desc_body.set_linear_algorithm(desc_response.use_ddla_linear() ? "ddla" : "scalapack");
+#ifdef LIBRPA_USE_DDLA
+    desc_body.set_ddla_handle(desc_response.ddla_handle());
+#endif
     auto body = init_local_mat<std::complex<double>>(desc_body, MAJOR::COL);
     ScalapackConnector::pgemr2d_f(desc_response.m() - body_start, desc_response.n() - body_start,
                                   response_block.ptr(), body_start + 1, body_start + 1,
@@ -4816,6 +4820,10 @@ std::complex<double> diele_func::compute_rpa_trace_log_average(
         desc_body, wing_row_offset, source_wing.nr(), source_wing.nc());
     ArrayDesc rhs_desc(blacs_h.ictxt);
     rhs_desc.init(n_body, 3, desc_body.mb(), 1, 0, 0);
+    rhs_desc.set_linear_algorithm(desc_body.use_ddla_linear() ? "ddla" : "scalapack");
+#ifdef LIBRPA_USE_DDLA
+    rhs_desc.set_ddla_handle(desc_body.ddla_handle());
+#endif
     auto original_wing = init_local_mat<std::complex<double>>(rhs_desc, MAJOR::COL);
     ScalapackConnector::pgemr2d_f(n_body, 3, source_wing.ptr(), wing_row_offset + 1, 1,
                                   source_desc.desc, original_wing.ptr(), 1, 1,
