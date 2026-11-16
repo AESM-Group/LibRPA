@@ -218,8 +218,24 @@ matrix_m<std::complex<T>> power_hemat_la_impl(
                     LapackConnector::scal(ad_Z.m_loc(), weights[j],
                                          scaled + as_size(ad_Z.lld()) * local, 1);
             }
-        LaConnector::pgemm('N', 'C', n, n, n, Scalar(1), z, 1, 1, ad_Z,
-                           scaled, 1, 1, ad_Z, Scalar(0), a, 1, 1, ad_A);
+        // Recreate distribution metadata without copying ELPA handle ownership.
+        ArrayDesc host_ad_A(ad_A.ictxt()), host_ad_Z(ad_Z.ictxt());
+        host_ad_A.init(ad_A.m(), ad_A.n(), ad_A.mb(), ad_A.nb(), ad_A.irsrc(), ad_A.icsrc());
+        host_ad_Z.init(ad_Z.m(), ad_Z.n(), ad_Z.mb(), ad_Z.nb(), ad_Z.irsrc(), ad_Z.icsrc());
+#ifdef LIBRPA_USE_DDLA
+        // Reuse a selected CPU handle; a GPU eigensolver context alone must
+        // not select GPU GEMM for these host reconstruction buffers.
+        if (ad_A.ddla_handle() != nullptr &&
+            ddla::ddlaGetBackend(ad_A.ddla_handle()) == ddla::DdlaBackend::CPU)
+        {
+            host_ad_A.set_ddla_handle(ad_A.ddla_handle());
+            host_ad_Z.set_ddla_handle(ad_Z.ddla_handle());
+            host_ad_A.set_linear_algorithm(ad_A.use_ddla_linear() ? "ddla" : "scalapack");
+            host_ad_Z.set_linear_algorithm(ad_Z.use_ddla_linear() ? "ddla" : "scalapack");
+        }
+#endif
+        LaConnector::pgemm('N', 'C', n, n, n, Scalar(1), z, 1, 1, host_ad_Z,
+                           scaled, 1, 1, host_ad_Z, Scalar(0), a, 1, 1, host_ad_A);
     }
     if constexpr (Real)
     {

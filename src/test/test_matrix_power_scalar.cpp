@@ -130,7 +130,7 @@ void check_native_scalar_empty()
 // c I + v v^H has eigenvalues c and c + ||v||^2. Filtering c leaves
 // (c + ||v||^2)^power v v^H / ||v||^2, independently of eigenvector phases.
 void check_rank_one(const std::string& method, bool gpu, bool real, double power,
-                    const std::string& linear)
+                    const std::string& linear, bool host_with_gpu_handle = false)
 {
     Dataset ds{MPI_COMM_WORLD};
     ArrayDesc ad(ds.blacs_h.ictxt);
@@ -152,6 +152,13 @@ void check_rank_one(const std::string& method, bool gpu, bool real, double power
             handle != (gpu ? ds.blacs_h.ddla_handle : ds.blacs_h.ddla_cpu_handle))
             throw std::runtime_error("outer DDLA handle was not reused");
         ad.set_ddla_handle(handle);
+    }
+#endif
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    if (host_with_gpu_handle)
+    {
+        ds.blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
+        ad.set_ddla_handle(ds.blacs_h.ddla_handle);
     }
 #endif
 #ifdef LIBRPA_USE_ELPA
@@ -363,6 +370,11 @@ int main(int argc, char** argv)
         check_native_scalar_empty<double>();
         for (bool real : {false, true})
             for (double power : {0.5, -1.0}) check_rank_one(method, gpu, real, power, linear);
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (gpu)
+            for (bool real : {false, true})
+                check_rank_one("scalapack", false, real, 0.5, "scalapack", true);
+#endif
         check(2, 0.5, 0, std::sqrt(2.0));
         check(-0.4, 0.5, 0, 0);
         check(4, -1, 0, 0.25);

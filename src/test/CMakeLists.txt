@@ -50,6 +50,10 @@ add_test(NAME test_la_connector_single_rank_subcommunicators
 config_test(test_linear_algebra_options 1)
 if(LIBRPA_USE_DDLA)
   config_test(test_ddla_cpu_connector 4)
+  config_test(test_ddla_empty_connector 4)
+  add_test(NAME test_ddla_empty_connector_serial COMMAND $<TARGET_FILE:test_ddla_empty_connector>)
+  add_test(NAME test_ddla_empty_connector_rectangular
+    COMMAND mpirun -np 2 $<TARGET_FILE:test_ddla_empty_connector>)
   add_test(NAME test_ddla_cpu_connector_serial COMMAND $<TARGET_FILE:test_ddla_cpu_connector>)
   add_test(NAME test_ddla_cpu_connector_rectangular
     COMMAND mpirun -np 2 $<TARGET_FILE:test_ddla_cpu_connector>)
