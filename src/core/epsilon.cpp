@@ -37,7 +37,7 @@
 #include "utils_atomic_basis_blacs.h"
 
 #include "../interface/la_connector.h"
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#ifdef LIBRPA_USE_DDLA
 #include <ddla/ddla_vector.h>
 #endif
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
@@ -1499,12 +1499,11 @@ CorrEnergy compute_RPA_correlation_blacs_2d(Chi0 &chi0, atpair_k_cplx_mat_t &cou
                 // if( ifreq== 0 && comm_h.is_root() )
                 //     print_whole_matrix("pi-2D-loc", coul_chi0_block);
 
-                int *ipiv = new int[desc_nabf_nabf_opt.m_loc() * 10];
+                std::vector<int> ipiv(std::max(1, desc_nabf_nabf_opt.m_loc() + desc_nabf_nabf_opt.mb()));
                 int info;
                 complex<double> ln_det =
-                    compute_pi_det_blacs_2d(coul_chi0_block, desc_nabf_nabf_opt, ipiv, info);
+                    compute_pi_det_blacs_2d(coul_chi0_block, desc_nabf_nabf_opt, ipiv.data(), info);
                 MPI_Allreduce(&trace_pi_loc,&trace_pi,1,MPI_DOUBLE_COMPLEX,MPI_SUM,comm_h.comm);
-                delete[] ipiv;
                 rpa_for_omega_q = trace_pi + ln_det;
             }
             double det_end = omp_get_wtime();
@@ -1553,95 +1552,98 @@ CorrEnergy compute_RPA_correlation_blacs_2d(Chi0 &chi0, atpair_k_cplx_mat_t &cou
 }
 
 
-complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_pi, int *ipiv, int &info)
+complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_pi,
+                                      int *ipiv, int &info)
 {
-    int one = 1;
-    const int range_all = arrdesc_pi.m();
-    int DESCPI_T[9];
-// if(out_pi)
-// {
-//     print_complex_real_matrix("first_pi",pi_freq_q.at(0).at(0));
-//     print_complex_real_matrix("first_loc_piT_mat",loc_piT);
-// }
-#ifdef OPEN_TEST_FOR_LU_DECOMPOSITION
-    printf(
-        "success before pzgetrf_ processid:%d,range_all: %d, loc_piT.nr(): %d, loc_piT.nc(): %d\n",
-        arrdesc_pi.myid(), range_all, loc_piT.nr(), loc_piT.nc());
-#endif
-    double det_begin = omp_get_wtime();
-    // ScalapackConnector::transpose_desc(DESCPI_T, arrdesc_pi.desc);
-    pzgetrf_(&range_all, &range_all, loc_piT.ptr(), &one, &one, arrdesc_pi.desc, ipiv, &info);
-    double trf_end = omp_get_wtime();
-    // ScalapackConnector::pgetrf_f(range_all,range_all,loc_piT.c,one,one,DESCPI_T,ipiv, info);
-    // printf("   after LU myid: %d\n",mpi_comm_global_h.myid);
-    // printf("desc myid: %d,  m n: %d,%d,  mb nb: %d, %d,  loc_m_n: %d, %d, myp: %d,%d, npr,npc:
-    // %d, %d\n",mpi_comm_global_h.myid, arrdesc_pi.m(),arrdesc_pi.n(),
-    // arrdesc_pi.mb(),arrdesc_pi.nb(),
-    // arrdesc_pi.m_loc(),arrdesc_pi.n_loc(),arrdesc_pi.myprow(),arrdesc_pi.mypcol(),arrdesc_pi.nprows(),arrdesc_pi.npcols());
-    complex<double> ln_det_loc(0.0, 0.0);
+    const int n = arrdesc_pi.m();
+    if (arrdesc_pi.n() != n || !loc_piT.is_col_major())
+        throw std::invalid_argument("RPA logdet requires a square column-major distributed matrix");
+
+    const auto check_info = [&]()
+    {
+        // Check on the owning grid before any pivot or diagonal is interpreted.
+        int lowest = 0, highest = 0;
+        MPI_Allreduce(&info, &lowest, 1, MPI_INT, MPI_MIN, arrdesc_pi.comm());
+        MPI_Allreduce(&info, &highest, 1, MPI_INT, MPI_MAX, arrdesc_pi.comm());
+        info = lowest < 0 ? lowest : highest;
+        if (info != 0)
+            throw std::runtime_error("RPA trace-log LU factorization failed with info=" +
+                                     std::to_string(info) + "; no alternative LU method was attempted");
+    };
     complex<double> ln_det_all(0.0, 0.0);
     int row_swaps_loc = 0;
     int row_swaps_all = 0;
-    // complex<double> det_loc(1.0,0.0);
-    // complex<double> det_glo(0.0,0.0);
-    // vector<complex<double>>  det_dig;
-    // vector<complex<double>>  ln_det_dig;
-    // vector<complex<double>>  det_dig_r;
-    // vector<complex<double>>  det_dig_c;
-    // printf(" myid: %d ig=25, locr,locc: %d,
-    // %d)\n",mpi_comm_global_h.myid,arrdesc_pi.indx_g2l_r(25),arrdesc_pi.indx_g2l_c(25));
-    for (int ig = 0; ig != range_all; ig++)
+#ifdef LIBRPA_USE_DDLA
+    if (arrdesc_pi.use_ddla_linear())
     {
-        // int locr=para_mpi.localIndex(ig,row_nblk,para_mpi.nprow,para_mpi.myprow);
-        // int locc=para_mpi.localIndex(ig,col_nblk,para_mpi.npcol,para_mpi.mypcol);
-        int locr = arrdesc_pi.indx_g2l_r(ig);
-        int locc = arrdesc_pi.indx_g2l_c(ig);
-        if (locr >= 0 && locc >= 0)
+        const auto handle = arrdesc_pi.ddla_handle();
+        if (handle == nullptr)
+            throw std::invalid_argument("DDLA RPA logdet requires an owning handle");
+        struct StageTimer
         {
-            // if(ipiv[locr]!=(ig+1))
-            // 	det_loc=-1*det_loc * loc_piT(locc,locr);
-            // else
-            // 	det_loc=det_loc * loc_piT(locc,locr);
-            // det_dig.push_back(loc_piT(locr,locc));
-            // det_dig_r.push_back(locr);
-            // det_dig_c.push_back(locc);
-            // det(A) = det(P) * product U_ii. The sign of Re(U_ii)
-            // does not determine the permutation sign for complex matrices.
-            ln_det_loc += std::log(loc_piT(locr, locc));
-            row_swaps_loc += ipiv[locr] != ig + 1;
+            StageTimer() { global::profiler.start("rpa_ddla_logdet_and_solve", LIBRPA_VERBOSE_DEBUG); }
+            ~StageTimer() { global::profiler.stop("rpa_ddla_logdet_and_solve"); }
+        } stage_timer;
+        global::profiler.start("rpa_ddla_lu_bpiv", LIBRPA_VERBOSE_DEBUG);
+        // Only the backend copy is additional storage; no matrix is replicated.
+        // Keep a bounded dummy on empty owners for the block-LU implementation.
+        const size_t count = std::max<size_t>(1, size_t(arrdesc_pi.lld()) * arrdesc_pi.n_loc());
+        const bool gpu = ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU;
+        ddla::vector<cplxdb> factors(handle, gpu ? count : 0);
+        cplxdb factor_dummy{};
+        auto* factor_data = gpu ? factors.data() : (loc_piT.size() ? loc_piT.ptr() : &factor_dummy);
+        ddla::vector<int> pivots(handle, std::max(1, arrdesc_pi.m_loc()));
+        if (gpu && loc_piT.size() != 0)
+            ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, factors.data(), loc_piT.ptr(),
+                                             loc_piT.size() * sizeof(cplxdb)));
+        LaConnector::pgetrf_bpiv(n, n, factor_data, 1, 1, arrdesc_pi, pivots.data(), info);
+        global::profiler.stop("rpa_ddla_lu_bpiv");
+        check_info();
+        if (arrdesc_pi.m_loc() != 0)
+        {
+            // Pivots are backend-local, replicated along process columns. Copy
+            // exactly the local rows, then count once at each diagonal owner.
+            ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, ipiv, pivots.data(),
+                                             size_t(arrdesc_pi.m_loc()) * sizeof(int)));
+            ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
         }
+        for (int ig = 0; ig < n; ++ig)
+        {
+            const int row = arrdesc_pi.indx_g2l_r(ig);
+            const int col = arrdesc_pi.indx_g2l_c(ig);
+            if (row >= 0 && col >= 0)
+                row_swaps_loc += ipiv[row] != ig % arrdesc_pi.mb() + 1;
+        }
+        ddla::pdiag_logdet(handle, n, factor_data, arrdesc_pi.desc, ln_det_all);
+        // Preserve the helper's in-place LU output contract on its host matrix.
+        if (gpu && loc_piT.size() != 0)
+            ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, loc_piT.ptr(), factors.data(),
+                                             loc_piT.size() * sizeof(cplxdb)));
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
     }
-    double ln_end = omp_get_wtime();
-//     ComplexMatrix det_mm(loc_piT.nr(),loc_piT.nc());
-//     for(int i=0;i!=loc_piT.nr();i++)
-//         for(int j=0;j!=loc_piT.nc();j++)
-//             det_mm(i,j)=loc_piT(i,j);
-//    // sort(det_dig.rbegin(),det_dig.rend());
-//     ComplexMatrix det_dig_mm(det_dig.size(),4);
-//     for(int i=0;i!=det_dig.size();i++)
-//     {
-//         det_dig_mm(i,0) =det_dig_r[i];
-//         det_dig_mm(i,1) =det_dig_c[i];
-//         det_dig_mm(i,2)=det_dig[i];
-//         det_dig_mm(i,3)=ln_det_dig[i];
-//     }
-//     char fn[100];
-//     sprintf(fn, "det_dig_myid_%d.mtx", comm_h.myid);
-//     print_complex_matrix_file("det_dig_loc", det_dig_mm, fn, false);
-
-//     sprintf(fn, "det_mat_myid_%d.mtx", comm_h.myid);
-//     print_complex_matrix_file("det_mat_loc", det_mm, fn, false);
-
-    MPI_Allreduce(&ln_det_loc, &ln_det_all, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, arrdesc_pi.comm());
+    else
+#endif
+    {
+        // Keep standard ScaLAPACK/LAPACK pivots on the conventional path.
+        LaConnector::pgetrf(n, n, loc_piT.ptr(), 1, 1, arrdesc_pi, ipiv, info);
+        check_info();
+        complex<double> ln_det_loc(0.0, 0.0);
+        for (int ig = 0; ig < n; ++ig)
+        {
+            const int row = arrdesc_pi.indx_g2l_r(ig);
+            const int col = arrdesc_pi.indx_g2l_c(ig);
+            if (row >= 0 && col >= 0)
+            {
+                ln_det_loc += std::log(loc_piT(row, col));
+                row_swaps_loc += ipiv[row] != ig + 1;
+            }
+        }
+        MPI_Allreduce(&ln_det_loc, &ln_det_all, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, arrdesc_pi.comm());
+    }
     MPI_Allreduce(&row_swaps_loc, &row_swaps_all, 1, MPI_INT, MPI_SUM, arrdesc_pi.comm());
-    // Choose the principal phase of the complete determinant, not of each signed pivot.
-    const double determinant_phase = ln_det_all.imag() + (row_swaps_all % 2) * (TWO_PI / 2.0);
-    ln_det_all.imag(std::remainder(determinant_phase, TWO_PI));
-    double det_end = omp_get_wtime();
-    // if(comm_h.myid == 0)
-    //     lib_printf("    | Det time   trf: %f   ln: %f   allreduce: %f\n",trf_end-det_begin,ln_end-trf_end, det_end-ln_end);
-    //MPI_Allreduce(&det_loc,&det_glo,1,MPI_DOUBLE_COMPLEX,MPI_PROD,comm_h.comm);
-    //ln_det_all=std::log(det_glo);
+    double phase = std::remainder(ln_det_all.imag() + (row_swaps_all % 2) * (TWO_PI / 2.0), TWO_PI);
+    if (phase <= -TWO_PI / 2.0) phase += TWO_PI;
+    ln_det_all.imag(phase);
     return ln_det_all;
 }
 
@@ -1669,7 +1671,7 @@ cplxdb compute_rpa_response_trace_logdet_blacs_2d(
     }
 
     int info = 0;
-    std::vector<int> ipiv(std::max(1, response_desc.m_loc() * 10));
+    std::vector<int> ipiv(std::max(1, response_desc.m_loc() + response_desc.mb()));
     const cplxdb ln_det = compute_pi_det_blacs_2d(
         identity_minus_response, response_desc, ipiv.data(), info);
     return trace + ln_det;
@@ -1827,7 +1829,6 @@ CorrEnergy compute_RPA_correlation(LibrpaParallelRouting routing, const Chi0 &ch
                     else
                         det_for_rpa = det_for_rpa * identity_minus_pi(ib, ib);
                 }
-                delete[] ipiv;
 
                 complex<double> trace_pi;
                 complex<double> ln_det;

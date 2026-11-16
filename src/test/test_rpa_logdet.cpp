@@ -10,13 +10,23 @@
 
 using namespace librpa_int;
 
+static std::string backend = "scalapack";
+static void select_backend(ArrayDesc& desc, const BlacsCtxtHandler& blacs)
+{
+    desc.set_linear_algorithm(backend == "scalapack" ? "scalapack" : "ddla");
+#ifdef LIBRPA_USE_DDLA
+    desc.set_ddla_handle(backend == "gpu" ? blacs.ddla_handle : blacs.ddla_cpu_handle);
+#endif
+}
+
 static bool check_logdet(const BlacsCtxtHandler& blacs,
                          const std::array<std::complex<double>, 9>& values,
                          const std::complex<double>& expected, const char* label,
-                         const int block_size)
+                         const int block_size, const bool expect_failure = false)
 {
     ArrayDesc desc(blacs);
     desc.init(3, 3, block_size, block_size, 0, 0);
+    select_backend(desc, blacs);
     auto matrix = init_local_mat<std::complex<double>>(desc, MAJOR::COL);
     for (int i = 0; i < 3; ++i)
         for (int j = 0; j < 3; ++j)
@@ -26,7 +36,15 @@ static bool check_logdet(const BlacsCtxtHandler& blacs,
         }
     std::vector<int> pivots(desc.m_loc() + desc.mb());
     int info = 0;
-    const auto actual = compute_pi_det_blacs_2d(matrix, desc, pivots.data(), info);
+    std::complex<double> actual;
+    try { actual = compute_pi_det_blacs_2d(matrix, desc, pivots.data(), info); }
+    catch (const std::runtime_error& error)
+    {
+        if (blacs.myid == 0) std::cout << label << " backend=" << backend
+            << " block_size=" << block_size << " diagnostic=" << error.what() << std::endl;
+        return expect_failure && info > 0;
+    }
+    if (expect_failure) return false;
     const double real_error = std::abs(actual.real() - expected.real());
     const double phase_error = std::abs(std::remainder(actual.imag() - expected.imag(), TWO_PI));
     int rank = 0;
@@ -34,7 +52,8 @@ static bool check_logdet(const BlacsCtxtHandler& blacs,
     if (rank == 0)
         std::cout << label << " block_size=" << block_size << " actual=" << actual
                   << " expected=" << expected << " info=" << info << std::endl;
-    return info == 0 && std::isfinite(real_error) && std::isfinite(phase_error)
+    return info == 0 && actual.imag() > -TWO_PI / 2 && actual.imag() <= TWO_PI / 2
+           && std::isfinite(real_error) && std::isfinite(phase_error)
            && real_error < 1e-12 && phase_error < 1e-12;
 }
 
@@ -46,6 +65,7 @@ static bool check_cross_column_pivot(const BlacsCtxtHandler& blacs)
     const double m[n][n] = {{2., .3, 0., 0.}, {.5, 3., .2, 0.}, {.4, .6, 1., 0.}, {.7, .9, 4., .5}};
     ArrayDesc desc(blacs);
     desc.init(n, n, 2, 2, 0, 0);
+    select_backend(desc, blacs);
     auto response = init_local_mat<std::complex<double>>(desc, MAJOR::COL);
     for (int i = 0; i < n; ++i)
         for (int j = 0; j < n; ++j)
@@ -63,26 +83,45 @@ static bool check_cross_column_pivot(const BlacsCtxtHandler& blacs)
 
 int main(int argc, char** argv)
 {
-    MPI_Init(&argc, &argv);
+    int provided = MPI_THREAD_SINGLE;
+    MPI_Init_thread(&argc, &argv, LIBRPA_MPI_THREAD_LEVEL, &provided);
     bool passed = true;
     {
         BlacsCtxtHandler blacs(MPI_COMM_WORLD);
         blacs.init();
         blacs.set_square_grid();
-        passed &= check_cross_column_pivot(blacs);
-        const auto z = std::polar(1.0, TWO_PI / 6.0);
-        const auto t = std::polar(1.0, TWO_PI * 0.4);
-        for (const int block_size : {1, 2, 3})
+#ifdef LIBRPA_USE_DDLA
+        blacs.init_ddla_handle(ddla::DdlaBackend::CPU);
+        const bool gpu = argc > 1 && std::string(argv[1]) == "--gpu";
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (gpu) blacs.init_ddla_handle(ddla::DdlaBackend::GPU);
+#endif
+        const std::vector<std::string> backends = gpu ? std::vector<std::string>{"gpu"}
+                                                     : std::vector<std::string>{"scalapack", "cpu"};
+#else
+        const std::vector<std::string> backends{"scalapack"};
+#endif
+        for (const auto& selected : backends)
         {
-            // One row swap and z^3=-1 give det=+1, not a phase of pi.
-            passed &= check_logdet(blacs, {0., z, 0., z, 0., 0., 0., 0., z},
-                                   {0., 0.}, "positive_det_with_complex_pivots", block_size);
-            passed &= check_logdet(blacs, {-1., 0., 0., 0., 2., 0., 0., 0., 3.},
-                                   {std::log(6.0), TWO_PI / 2.0}, "negative_determinant", block_size);
-            passed &= check_logdet(blacs, {t, 0., 0., 0., t, 0., 0., 0., t},
-                                   {0., TWO_PI * 0.2}, "complex_determinant", block_size);
-            passed &= check_logdet(blacs, {2., 0., 0., 0., 3., 0., 0., 0., 5.},
-                                   {std::log(30.0), 0.}, "positive_diagonal", block_size);
+            backend = selected;
+            passed &= check_cross_column_pivot(blacs);
+            const auto z = std::polar(1.0, TWO_PI / 6.0);
+            const auto t = std::polar(1.0, TWO_PI * 0.4);
+            for (const int block_size : {1, 2, 3})
+            {
+                // One row swap and z^3=-1 give det=+1, not a phase of pi.
+                passed &= check_logdet(blacs, {0., z, 0., z, 0., 0., 0., 0., z},
+                                       {0., 0.}, "positive_det_with_complex_pivots", block_size,
+                                       selected != "scalapack" && block_size == 1);
+                passed &= check_logdet(blacs, {-1., 0., 0., 0., 2., 0., 0., 0., 3.},
+                                       {std::log(6.0), TWO_PI / 2.0}, "negative_determinant", block_size);
+                passed &= check_logdet(blacs, {t, 0., 0., 0., t, 0., 0., 0., t},
+                                       {0., TWO_PI * 0.2}, "complex_determinant", block_size);
+                passed &= check_logdet(blacs, {2., 0., 0., 0., 3., 0., 0., 0., 5.},
+                                       {std::log(30.0), 0.}, "positive_diagonal", block_size);
+                passed &= check_logdet(blacs, {0., 0., 0., 0., 0., 0., 0., 0., 0.},
+                                       {}, "singular_explicit_failure", block_size, true);
+            }
         }
     }
     MPI_Finalize();
