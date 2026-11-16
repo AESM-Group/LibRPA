@@ -185,7 +185,7 @@ void check_solves_at(const BlacsCtxtHandler& grid, int ia, int ja)
     a[index_a(0, 1)] = T(1); a[index_a(1, 1)] = T(3);
     std::vector<int> pivots(9, -123);
     int info = -999;
-    LaConnector::pgetrf_bpiv(2, 2, a.data(), ia, ja, ad, pivots.data(), info);
+    LaConnector::pgetrf(2, 2, a.data(), ia, ja, ad, pivots.data(), info);
     assert(info == 0 && pivots[ia - 1] == ia + 1 && pivots[ia] == ia + 1);
     for (int i = 0; i < static_cast<int>(pivots.size()); ++i)
         if (i != ia - 1 && i != ia) assert(pivots[i] == -123);
@@ -197,14 +197,14 @@ void check_solves_at(const BlacsCtxtHandler& grid, int ia, int ja)
                 near(a[i + 7 * j], T(-123));
     for (int j = 0; j < n; ++j)
         for (int i = 0; i < n; ++i) a[index_a(i, j)] = T(0);
-    LaConnector::pgetrf_bpiv(n, n, a.data(), ia, ja, ad, pivots.data(), info);
+    LaConnector::pgetrf(n, n, a.data(), ia, ja, ad, pivots.data(), info);
     assert(info == 1);
     for (const auto [rows, cols] : {std::pair<int, int>{0, 2}, {2, 0}})
     {
         const auto before = a;
         std::fill(pivots.begin(), pivots.end(), -123);
         info = -999;
-        LaConnector::pgetrf_bpiv(rows, cols, a.data(), ia, ja, ad, pivots.data(), info);
+        LaConnector::pgetrf(rows, cols, a.data(), ia, ja, ad, pivots.data(), info);
         assert(info == 0 && a == before);
         for (int pivot : pivots) assert(pivot == -123);
     }

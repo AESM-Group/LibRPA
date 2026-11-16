@@ -120,6 +120,58 @@ static void check_grid(MPI_Comm comm, bool gpu)
         require(rejected, "GPU no-op GEMM must retain its selected backend", comm);
     }
 
+    // LU dispatch must also remain coherent on genuinely empty local owners.
+    ddla::vector<int> small_pivots(handle, desc.m_loc());
+    int small_info = -99;
+    upload(a, av);
+    LaConnector::pgetrf(1, 1, a.data(), 1, 1, desc,
+                        small_pivots.data(), small_info);
+    require(small_info == 0, "empty-owner standard LU", comm);
+    ddla::vector<int> block_pivots(handle, desc.m_loc());
+    upload(a, av);
+    LaConnector::pgetrf_bpiv(1, 1, a.data(), 1, 1, desc, block_pivots.data(), small_info);
+    require(small_info == 0, "empty-owner block LU", comm);
+    upload(a, av);
+    LaConnector::pgetrf_nopiv(1, 1, a.data(), 1, 1, desc, small_info);
+    require(small_info == 0, "empty-owner no-pivot LU", comm);
+    // Standard pivots use backend storage and retain global-row values.
+    ArrayDesc lu_desc(grid);
+    lu_desc.init(3, 3, 1, 1, 0, 0);
+    lu_desc.set_linear_algorithm("ddla");
+    lu_desc.set_ddla_handle(handle);
+    const size_t lu_count = size_t(lu_desc.lld()) * lu_desc.n_loc();
+    std::vector<Z> lu_host(lu_count);
+    for (int j = 0; j < lu_desc.n_loc(); ++j)
+    for (int i = 0; i < lu_desc.m_loc(); ++i)
+    {
+        const int row = lu_desc.indx_l2g_r(i), col = lu_desc.indx_l2g_c(j);
+        lu_host[i + lu_desc.lld() * j] = (row + col == 1 || (row == 2 && col == 2)) ? 1. : 0.;
+    }
+    ddla::vector<Z> lu(handle, lu_count);
+    if (lu_count) ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, lu.data(), lu_host.data(), lu_count * sizeof(Z)));
+    ddla::vector<int> pivots(handle, lu_desc.m_loc());
+    int info = -99;
+    LaConnector::pgetrf(3, 3, lu.data(), 1, 1, lu_desc, pivots.data(), info);
+    require(info == 0, "standard LU must factor cross-block swap", comm);
+    std::vector<int> host_pivots(lu_desc.m_loc());
+    if (!host_pivots.empty())
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, host_pivots.data(), pivots.data(),
+                                        host_pivots.size() * sizeof(int)));
+    ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
+    bool pivot_ok = true;
+    for (int i = 0; i < lu_desc.m_loc(); ++i)
+        if (lu_desc.indx_l2g_r(i) == 0)
+            pivot_ok &= host_pivots[i] == 2;
+    require(pivot_ok, "standard LU global pivot convention", comm);
+
+    // Parent arrays may be nonempty while the requested submatrix is absent
+    // locally. Offsets must decide activity, rather than full descriptor sizes.
+    const bool offset_matrix_owner = lu_desc.indx_g2l_r(1) >= 0 && lu_desc.indx_g2l_c(1) >= 0;
+    const bool offset_pivot_owner = lu_desc.indx_g2l_r(1) >= 0;
+    int offset_info = -909;
+    LaConnector::pgetrf(1, 1, offset_matrix_owner ? lu.data() : nullptr, 2, 2, lu_desc,
+                        offset_pivot_owner ? pivots.data() : nullptr, offset_info);
+    require(offset_info == 0, "offset LU permits inactive null A/pivots", comm);
     ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
 }
 

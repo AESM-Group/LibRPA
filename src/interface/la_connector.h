@@ -323,21 +323,19 @@ inline void axpy(
 }
 
 template <typename T>
-inline void pgetrf_bpiv(
+inline void pgetrf(
     const int& m, const int& n,
     T* d_A, const int& ia, const int& ja, const ArrayDesc& array_descA,
-    int* ipiv, // host or device
+    int* ipiv, // selected backend; absolute global one-based rows
     int& info // host
 )
 {
 #ifdef LIBRPA_USE_DDLA
-    if (is_device_array(d_A, array_descA) ||
-        (ia == 1 && ja == 1 && use_ddla_cpu(array_descA)))
+    const auto handle = array_descA.ddla_handle();
+    if ((handle != nullptr && ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU) ||
+        use_ddla_cpu(array_descA))
     {
-        if(ia!=1 || ja!=1){
-            throw std::runtime_error("In LaConnector::pgetrf_bpiv, only support ia=ja=1 for device implementation!");
-        }
-        ddla::pgetrf_bpiv(array_descA.ddla_handle(), m, n, d_A, array_descA.desc, ipiv, info);
+        ddla::pgetrf(array_descA.ddla_handle(), m, n, d_A, ia, ja, array_descA.desc, ipiv, info);
         return;
     }
 #endif
@@ -356,6 +354,43 @@ inline void pgetrf_bpiv(
         }
         ScalapackConnector::pgetrf_f(m, n, d_A, ia, ja, array_descA.desc, ipiv, info);
     }
+}
+
+// DDLA block pivots are 1-based offsets within each diagonal block, replicated
+// across process columns. They are distinct from standard global-row pivots.
+template <typename T>
+inline void pgetrf_bpiv(const int& m, const int& n, T* a, const int& ia, const int& ja,
+                        const ArrayDesc& desc, int* pivots, int& info)
+{
+#ifdef LIBRPA_USE_DDLA
+    const auto handle = desc.ddla_handle();
+    if ((handle != nullptr && ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU) ||
+        use_ddla_cpu(desc))
+    {
+        if (ia != 1 || ja != 1 || desc.ddla_handle() == nullptr)
+            throw std::invalid_argument("DDLA pgetrf_bpiv requires an owning handle and unit offsets");
+        ddla::pgetrf_bpiv(desc.ddla_handle(), m, n, a, desc.desc, pivots, info);
+        return;
+    }
+#endif
+    // Preserve the established non-DDLA LAPACK/ScaLAPACK behavior.
+    pgetrf(m, n, a, ia, ja, desc, pivots, info);
+}
+
+template <typename T>
+inline void pgetrf_nopiv(const int& m, const int& n, T* a, const int& ia, const int& ja,
+                         const ArrayDesc& desc, int& info)
+{
+#ifdef LIBRPA_USE_DDLA
+    if (desc.ddla_handle() != nullptr)
+    {
+        if (ia != 1 || ja != 1)
+            throw std::invalid_argument("DDLA pgetrf_nopiv requires unit offsets");
+        ddla::pgetrf_nopiv(desc.ddla_handle(), m, n, a, desc.desc, info);
+        return;
+    }
+#endif
+    throw std::invalid_argument("pgetrf_nopiv requires a caller-provided DDLA handle");
 }
 
 template <typename T>

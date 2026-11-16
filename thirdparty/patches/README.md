@@ -10,6 +10,7 @@ Each patch retains the upstream license. Upstream submission status for the exis
 | --- | --- |
 | LibRI/0001-current-ddla-api.patch | Use the public GPU capability guard and handle-selected LibDDLA variable-batch calls. |
 | LibDDLA/0001-consumer-interfaces.patch | Backport diagonal log determinants, native mixed variable batches, explicit mixed GEMM workspace, and the mixed single-rank shortcut to the pinned archive. |
+| LibDDLA/0002-backend-lu-pivots.patch | Align standard distributed LU/permutation pivots with the handle backend, including native solve workspaces, bindings and focused tests. |
 | LibComm/0001-wait-for-receive-task.patch | Wait explicitly for the receive task, which avoids the unused-result warning of `std::async`. |
 | ELPA/0001-macos-thread-affinity.patch | Avoid Linux CPU-affinity APIs on macOS. |
 | greenX/0001-librpa-build-integration.patch | Select LibRPA components, use relative install paths, and preserve compiler-specific flags. |
@@ -18,3 +19,16 @@ cereal uses unmodified upstream headers. The LibDDLA patch carries only the
 consumer interfaces and their focused tests; independent working-tree stream
 and eigensolver changes are excluded. Both the pristine and patched source
 trees are checked by the dependency manifest.
+
+For standard distributed `pgetrf`, `pgetrs` and public `plapiv`, pivots are
+host arrays for CPU handles and device arrays for GPU handles; pivot values
+remain one-based global rows, and distributed LU `info` remains on the host.
+External LibDDLA installations must implement this storage contract too.
+The compile/link capability probe checks API availability; unchanged C++
+signatures do not let it distinguish the former host-only GPU-pivot contract.
+
+The second patch adapts the scoped November 16 LibDDLA pivot migration to
+the pinned source after the consumer-interface patch. It preserves this base's
+public `plapiv` workspace preparation and excludes an allocation-failure test
+whose source is absent from the pinned tree. Concurrent eigensolver/resource
+agreement changes from the independent LibDDLA checkout are not imported.

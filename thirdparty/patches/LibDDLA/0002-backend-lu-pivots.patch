@@ -1,0 +1,1670 @@
+--- a/README.md
++++ b/README.md
+@@ -728,6 +728,16 @@
+ public API. `DDLA_LU_PANEL=inplace` (default) or `gather` selects the panel
+ method, and all ranks must use the same setting.
+ 
++`pgetrf`, `pgetrs` and public `plapiv` take pivot arrays in the selected
++backend: host memory for CPU handles and device memory for GPU handles.
++Allocate them with `ddla::vector<int>(handle, local_rows)` (local rows of the
++full factor descriptor). Entries remain one-based global row indices,
++distributed by process row and replicated across process columns. Use
++`ddlaMemcpy` plus synchronization only when host code needs to inspect them.
++`pgesv` owns its pivots in backend workspace. GPU panel/control logic still
++uses small host metadata; no global matrix replica is introduced.
++
++
+ ### Cholesky
+ 
+ | Function | Description |
+--- a/fortran/ddla.f90
++++ b/fortran/ddla.f90
+@@ -273,7 +273,7 @@
+       integer(c_int), value :: n
+       type(c_ptr), value :: a
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(in) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       integer(c_int), intent(in) :: descip(9)
+       type(c_ptr), value :: iwork
+     end function ddla_s_plapiv
+@@ -291,7 +291,7 @@
+       integer(c_int), value :: n
+       type(c_ptr), value :: a
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(in) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       integer(c_int), intent(in) :: descip(9)
+       type(c_ptr), value :: iwork
+     end function ddla_d_plapiv
+@@ -309,7 +309,7 @@
+       integer(c_int), value :: n
+       type(c_ptr), value :: a
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(in) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       integer(c_int), intent(in) :: descip(9)
+       type(c_ptr), value :: iwork
+     end function ddla_c_plapiv
+@@ -327,7 +327,7 @@
+       integer(c_int), value :: n
+       type(c_ptr), value :: a
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(in) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       integer(c_int), intent(in) :: descip(9)
+       type(c_ptr), value :: iwork
+     end function ddla_z_plapiv
+@@ -556,7 +556,7 @@
+       integer(c_int), value :: ia
+       integer(c_int), value :: ja
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(inout) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       integer(c_int), intent(out) :: info
+     end function ddla_s_pgetrf
+ 
+@@ -572,7 +572,7 @@
+       integer(c_int), value :: ia
+       integer(c_int), value :: ja
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(inout) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       integer(c_int), intent(out) :: info
+     end function ddla_d_pgetrf
+ 
+@@ -588,7 +588,7 @@
+       integer(c_int), value :: ia
+       integer(c_int), value :: ja
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(inout) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       integer(c_int), intent(out) :: info
+     end function ddla_c_pgetrf
+ 
+@@ -604,7 +604,7 @@
+       integer(c_int), value :: ia
+       integer(c_int), value :: ja
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(inout) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       integer(c_int), intent(out) :: info
+     end function ddla_z_pgetrf
+ 
+@@ -672,7 +672,7 @@
+       integer(c_int), value :: nrhs
+       type(c_ptr), value :: a
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(in) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       type(c_ptr), value :: b
+       integer(c_int), intent(in) :: descb(9)
+     end function ddla_s_pgetrs
+@@ -689,7 +689,7 @@
+       integer(c_int), value :: nrhs
+       type(c_ptr), value :: a
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(in) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       type(c_ptr), value :: b
+       integer(c_int), intent(in) :: descb(9)
+     end function ddla_d_pgetrs
+@@ -706,7 +706,7 @@
+       integer(c_int), value :: nrhs
+       type(c_ptr), value :: a
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(in) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       type(c_ptr), value :: b
+       integer(c_int), intent(in) :: descb(9)
+     end function ddla_c_pgetrs
+@@ -723,7 +723,7 @@
+       integer(c_int), value :: nrhs
+       type(c_ptr), value :: a
+       integer(c_int), intent(in) :: desca(9)
+-      integer(c_int), intent(in) :: ipiv(*)
++      type(c_ptr), value :: ipiv
+       type(c_ptr), value :: b
+       integer(c_int), intent(in) :: descb(9)
+     end function ddla_z_pgetrs
+--- a/fortran/ddla_c_api.cpp
++++ b/fortran/ddla_c_api.cpp
+@@ -422,38 +422,38 @@
+     });
+ }
+ 
+-extern "C" int ddla_s_plapiv(void* handle, char direc, char rowcol, char pivroc, int m, int n, void* A, const int* descA, const int* ipiv, const int* descIP, void* iwork)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::plapiv<float>(hh, direc, rowcol, pivroc, m, n, static_cast<float*>(A), descA, ipiv, descIP, static_cast<int*>(iwork));
+-        return DDLA_C_STATUS_SUCCESS;
+-    });
+-}
+-
+-extern "C" int ddla_d_plapiv(void* handle, char direc, char rowcol, char pivroc, int m, int n, void* A, const int* descA, const int* ipiv, const int* descIP, void* iwork)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::plapiv<double>(hh, direc, rowcol, pivroc, m, n, static_cast<double*>(A), descA, ipiv, descIP, static_cast<int*>(iwork));
+-        return DDLA_C_STATUS_SUCCESS;
+-    });
+-}
+-
+-extern "C" int ddla_c_plapiv(void* handle, char direc, char rowcol, char pivroc, int m, int n, void* A, const int* descA, const int* ipiv, const int* descIP, void* iwork)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::plapiv<std::complex<float>>(hh, direc, rowcol, pivroc, m, n, static_cast<std::complex<float>*>(A), descA, ipiv, descIP, static_cast<int*>(iwork));
+-        return DDLA_C_STATUS_SUCCESS;
+-    });
+-}
+-
+-extern "C" int ddla_z_plapiv(void* handle, char direc, char rowcol, char pivroc, int m, int n, void* A, const int* descA, const int* ipiv, const int* descIP, void* iwork)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::plapiv<std::complex<double>>(hh, direc, rowcol, pivroc, m, n, static_cast<std::complex<double>*>(A), descA, ipiv, descIP, static_cast<int*>(iwork));
++extern "C" int ddla_s_plapiv(void* handle, char direc, char rowcol, char pivroc, int m, int n, void* A, const int* descA, void* ipiv, const int* descIP, void* iwork)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::plapiv<float>(hh, direc, rowcol, pivroc, m, n, static_cast<float*>(A), descA, static_cast<const int*>(ipiv), descIP, static_cast<int*>(iwork));
++        return DDLA_C_STATUS_SUCCESS;
++    });
++}
++
++extern "C" int ddla_d_plapiv(void* handle, char direc, char rowcol, char pivroc, int m, int n, void* A, const int* descA, void* ipiv, const int* descIP, void* iwork)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::plapiv<double>(hh, direc, rowcol, pivroc, m, n, static_cast<double*>(A), descA, static_cast<const int*>(ipiv), descIP, static_cast<int*>(iwork));
++        return DDLA_C_STATUS_SUCCESS;
++    });
++}
++
++extern "C" int ddla_c_plapiv(void* handle, char direc, char rowcol, char pivroc, int m, int n, void* A, const int* descA, void* ipiv, const int* descIP, void* iwork)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::plapiv<std::complex<float>>(hh, direc, rowcol, pivroc, m, n, static_cast<std::complex<float>*>(A), descA, static_cast<const int*>(ipiv), descIP, static_cast<int*>(iwork));
++        return DDLA_C_STATUS_SUCCESS;
++    });
++}
++
++extern "C" int ddla_z_plapiv(void* handle, char direc, char rowcol, char pivroc, int m, int n, void* A, const int* descA, void* ipiv, const int* descIP, void* iwork)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::plapiv<std::complex<double>>(hh, direc, rowcol, pivroc, m, n, static_cast<std::complex<double>*>(A), descA, static_cast<const int*>(ipiv), descIP, static_cast<int*>(iwork));
+         return DDLA_C_STATUS_SUCCESS;
+     });
+ }
+@@ -566,38 +566,38 @@
+     });
+ }
+ 
+-extern "C" int ddla_s_pgetrf(void* handle, int m, int n, void* A, int ia, int ja, const int* descA, int* ipiv, int* info)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::pgetrf<float>(hh, m, n, static_cast<float*>(A), ia, ja, descA, ipiv, *info);
+-        return DDLA_C_STATUS_SUCCESS;
+-    });
+-}
+-
+-extern "C" int ddla_d_pgetrf(void* handle, int m, int n, void* A, int ia, int ja, const int* descA, int* ipiv, int* info)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::pgetrf<double>(hh, m, n, static_cast<double*>(A), ia, ja, descA, ipiv, *info);
+-        return DDLA_C_STATUS_SUCCESS;
+-    });
+-}
+-
+-extern "C" int ddla_c_pgetrf(void* handle, int m, int n, void* A, int ia, int ja, const int* descA, int* ipiv, int* info)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::pgetrf<std::complex<float>>(hh, m, n, static_cast<std::complex<float>*>(A), ia, ja, descA, ipiv, *info);
+-        return DDLA_C_STATUS_SUCCESS;
+-    });
+-}
+-
+-extern "C" int ddla_z_pgetrf(void* handle, int m, int n, void* A, int ia, int ja, const int* descA, int* ipiv, int* info)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::pgetrf<std::complex<double>>(hh, m, n, static_cast<std::complex<double>*>(A), ia, ja, descA, ipiv, *info);
++extern "C" int ddla_s_pgetrf(void* handle, int m, int n, void* A, int ia, int ja, const int* descA, void* ipiv, int* info)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::pgetrf<float>(hh, m, n, static_cast<float*>(A), ia, ja, descA, static_cast<int*>(ipiv), *info);
++        return DDLA_C_STATUS_SUCCESS;
++    });
++}
++
++extern "C" int ddla_d_pgetrf(void* handle, int m, int n, void* A, int ia, int ja, const int* descA, void* ipiv, int* info)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::pgetrf<double>(hh, m, n, static_cast<double*>(A), ia, ja, descA, static_cast<int*>(ipiv), *info);
++        return DDLA_C_STATUS_SUCCESS;
++    });
++}
++
++extern "C" int ddla_c_pgetrf(void* handle, int m, int n, void* A, int ia, int ja, const int* descA, void* ipiv, int* info)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::pgetrf<std::complex<float>>(hh, m, n, static_cast<std::complex<float>*>(A), ia, ja, descA, static_cast<int*>(ipiv), *info);
++        return DDLA_C_STATUS_SUCCESS;
++    });
++}
++
++extern "C" int ddla_z_pgetrf(void* handle, int m, int n, void* A, int ia, int ja, const int* descA, void* ipiv, int* info)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::pgetrf<std::complex<double>>(hh, m, n, static_cast<std::complex<double>*>(A), ia, ja, descA, static_cast<int*>(ipiv), *info);
+         return DDLA_C_STATUS_SUCCESS;
+     });
+ }
+@@ -638,38 +638,38 @@
+     });
+ }
+ 
+-extern "C" int ddla_s_pgetrs(void* handle, char side, char trans, int n, int nrhs, void* A, const int* descA, const int* ipiv, void* B, const int* descB)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::pgetrs<float>(hh, side, trans, n, nrhs, static_cast<float*>(A), descA, ipiv, static_cast<float*>(B), descB);
+-        return DDLA_C_STATUS_SUCCESS;
+-    });
+-}
+-
+-extern "C" int ddla_d_pgetrs(void* handle, char side, char trans, int n, int nrhs, void* A, const int* descA, const int* ipiv, void* B, const int* descB)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::pgetrs<double>(hh, side, trans, n, nrhs, static_cast<double*>(A), descA, ipiv, static_cast<double*>(B), descB);
+-        return DDLA_C_STATUS_SUCCESS;
+-    });
+-}
+-
+-extern "C" int ddla_c_pgetrs(void* handle, char side, char trans, int n, int nrhs, void* A, const int* descA, const int* ipiv, void* B, const int* descB)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::pgetrs<std::complex<float>>(hh, side, trans, n, nrhs, static_cast<std::complex<float>*>(A), descA, ipiv, static_cast<std::complex<float>*>(B), descB);
+-        return DDLA_C_STATUS_SUCCESS;
+-    });
+-}
+-
+-extern "C" int ddla_z_pgetrs(void* handle, char side, char trans, int n, int nrhs, void* A, const int* descA, const int* ipiv, void* B, const int* descB)
+-{
+-    return ddla_c_run(handle, [&]() -> int {
+-        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
+-        ddla::pgetrs<std::complex<double>>(hh, side, trans, n, nrhs, static_cast<std::complex<double>*>(A), descA, ipiv, static_cast<std::complex<double>*>(B), descB);
++extern "C" int ddla_s_pgetrs(void* handle, char side, char trans, int n, int nrhs, void* A, const int* descA, void* ipiv, void* B, const int* descB)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::pgetrs<float>(hh, side, trans, n, nrhs, static_cast<float*>(A), descA, static_cast<const int*>(ipiv), static_cast<float*>(B), descB);
++        return DDLA_C_STATUS_SUCCESS;
++    });
++}
++
++extern "C" int ddla_d_pgetrs(void* handle, char side, char trans, int n, int nrhs, void* A, const int* descA, void* ipiv, void* B, const int* descB)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::pgetrs<double>(hh, side, trans, n, nrhs, static_cast<double*>(A), descA, static_cast<const int*>(ipiv), static_cast<double*>(B), descB);
++        return DDLA_C_STATUS_SUCCESS;
++    });
++}
++
++extern "C" int ddla_c_pgetrs(void* handle, char side, char trans, int n, int nrhs, void* A, const int* descA, void* ipiv, void* B, const int* descB)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::pgetrs<std::complex<float>>(hh, side, trans, n, nrhs, static_cast<std::complex<float>*>(A), descA, static_cast<const int*>(ipiv), static_cast<std::complex<float>*>(B), descB);
++        return DDLA_C_STATUS_SUCCESS;
++    });
++}
++
++extern "C" int ddla_z_pgetrs(void* handle, char side, char trans, int n, int nrhs, void* A, const int* descA, void* ipiv, void* B, const int* descB)
++{
++    return ddla_c_run(handle, [&]() -> int {
++        const ddla::DdlaHandle_t hh = static_cast<ddla::DdlaHandle_t>(handle);
++        ddla::pgetrs<std::complex<double>>(hh, side, trans, n, nrhs, static_cast<std::complex<double>*>(A), descA, static_cast<const int*>(ipiv), static_cast<std::complex<double>*>(B), descB);
+         return DDLA_C_STATUS_SUCCESS;
+     });
+ }
+--- a/fortran/gen_bindings.py
++++ b/fortran/gen_bindings.py
+@@ -31,7 +31,8 @@
+ #   sr     scalar of the REAL type of the matrix type (herk/her2k)
+ #   pm_io  backend pointer, written
+ #   pm_i   backend pointer, read-only
+-#   ph_in  host int array, read-only (ipiv of pgetrf/plapiv)
++#   ph_in  host int array, read-only
++#   pi_io / pi_i backend integer array, written / read-only
+ #   ph_io  host int array, written
+ #   pt     host array of the matrix type, written (pgeqrf tau)
+ #   d      ScaLAPACK int[9] descriptor, read-only
+@@ -49,7 +50,7 @@
+                        ("pm_io","B"),("d","descB")], {}),
+     ("plapiv", "all4", [("h","handle"),("c","direc"),("c","rowcol"),("c","pivroc"),
+                         ("i","m"),("i","n"),("pm_io","A"),("d","descA"),
+-                        ("ph_in","ipiv"),("d","descIP"),("pi_io","iwork")], {}),
++                        ("pi_i","ipiv"),("d","descIP"),("pi_io","iwork")], {}),
+     ("pswap", "all4", [("h","handle"),("i","N"),("pm_io","A"),("i","ia"),("i","ja"),
+                        ("d","descA"),("i","inca"),("pm_io","B"),("i","ib"),("i","jb"),
+                        ("d","descB"),("i","incb")], {}),
+@@ -59,11 +60,11 @@
+                          ("i","ja"),("d","descA"),("i","root"),("pm_i","src"),("i","ldsrc")], {}),
+     # ---------------- distributed: LU family ----------------
+     ("pgetrf", "all4", [("h","handle"),("i","m"),("i","n"),("pm_io","A"),("i","ia"),
+-                        ("i","ja"),("d","descA"),("ph_io","ipiv"),("ip","info")], {}),
++                        ("i","ja"),("d","descA"),("pi_io","ipiv"),("ip","info")], {}),
+     ("pgetrf_nopiv", "all4", [("h","handle"),("i","m"),("i","n"),("pm_io","A"),
+                               ("d","descA"),("ip","info")], {}),
+     ("pgetrs", "all4", [("h","handle"),("c","side"),("c","trans"),("i","n"),("i","nrhs"),
+-                        ("pm_io","A"),("d","descA"),("ph_in","ipiv"),
++                        ("pm_io","A"),("d","descA"),("pi_i","ipiv"),
+                         ("pm_io","B"),("d","descB")], {}),
+     ("pgetrs_nopiv", "all4", [("h","handle"),("c","side"),("c","trans"),("i","n"),("i","nrhs"),
+                               ("pm_io","A"),("d","descA"),("pm_io","B"),("d","descB")], {}),
+--- a/include/ddla/ddla.h
++++ b/include/ddla/ddla.h
+@@ -356,7 +356,8 @@
+  * @param handle Handle owning the process grid and stream.
+  * @param A     Pointer in the selected backend to distributed matrix A.
+  * @param descA   ScaLAPACK int[9] descriptor for A.
+- * @param ipiv    Host array of pivot indices (1-based, length >= m).
++ * @param ipiv    Backend array of 1-based pivot indices, indexed by local rows of descIP.
++ *                Host memory for CPU handles, device memory for GPU handles.
+  * @param descIP  ScaLAPACK int[9] descriptor for the pivot vector
+  *                (same row distribution as A).
+  * @param iwork   Workspace (unused, pass nullptr).
+@@ -470,7 +471,8 @@
+  * @param ia      First selected global row (one-based).
+  * @param ja      First selected global column (one-based).
+  * @param descA    ScaLAPACK int[9] descriptor for A (mb == nb required).
+- * @param ipiv     Host row-distributed pivots indexed by local descriptor row; values are
++ * @param ipiv     Pivot array in the selected backend (host for CPU, device for GPU),
++ *                 distributed by local descriptor row; values are
+  *                absolute global one-based pivot rows. Other entries stay unchanged.
+  * @param info     0 on success; >0 is the failing one-based position within the selected submatrix (early stop).
+  */
+@@ -479,7 +481,7 @@
+     const DdlaHandle_t& handle,
+     int m, int n,
+     T* A, int ia, int ja, const int* descA,
+-    int* ipiv, // host
++    int* ipiv, // selected backend
+     int& info  // host
+ );
+ 
+@@ -530,7 +532,7 @@
+  * @param A     Pointer in the selected backend to LU factors (from pgetrf).
+  * @param handle  Handle owning the process grid and stream.
+  * @param descA   ScaLAPACK int[9] descriptor for A.
+- * @param ipiv    Host pivot array from pgetrf.
++ * @param ipiv    Pivot array from pgetrf in the selected backend (host for CPU, device for GPU).
+  * @param B     Pointer in the selected backend to RHS / solution B (input/output).
+  * @param descB   ScaLAPACK int[9] descriptor for B (same MB as A; rows for
+  *                side 'L' / columns for side 'R' distributed like A's).
+@@ -540,7 +542,7 @@
+     const DdlaHandle_t& handle,
+     char side, char trans, int n, int nrhs,
+     T* A, const int* descA,
+-    const int* ipiv, // host
++    const int* ipiv, // selected backend
+     T* B, const int* descB
+ );
+ 
+--- a/python/README.md
++++ b/python/README.md
+@@ -140,3 +140,14 @@
+ `DDLA_TEST_GPU_COMMUNICATION=1` only in an allocation with one assigned GPU per
+ rank to enable the GPU setter/getter test; it switches policies without probing
+ GPU-aware MPI with device traffic.
++
++## LU pivot storage
++
++`pgetrf` returns `(A, pivots, info)`. CPU pivots remain a NumPy int32 array;
++GPU pivots are a `ddla.PivotVector` owned by the selected backend. Pass that
++object directly to `pgetrs`, or call `pivots.to_host()` to inspect its values.
++Create reusable storage with `ddla.PivotVector(handle, A.m_loc + A.mb)` and
++release it with `pivots.close()` before destroying the handle. Values remain
++one-based global row indices, indexed by locally owned descriptor rows.
++The low-level C/Fortran interfaces now also require backend pivot pointers;
++Fortran callers pass `c_loc(host_pivots)` for CPU or a device `c_ptr` for GPU.
+--- a/python/ddla/__init__.py
++++ b/python/ddla/__init__.py
+@@ -40,6 +40,7 @@
+ from .backend import Backend, Communication, Handle
+ from .layout import ProcessorLayout
+ from .matrix import DistributedMatrix
++from .pivots import PivotVector
+ from .ops import (
+     pgemm,
+     pgetrf,
+@@ -75,6 +76,7 @@
+     "Handle",
+     "ProcessorLayout",
+     "DistributedMatrix",
++    "PivotVector",
+     # Distributed Linear Algebra Operations
+     "pgemm",
+     "pgetrf",
+--- a/python/ddla/_c_api.py
++++ b/python/ddla/_c_api.py
+@@ -350,7 +350,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_char, ctypes.c_char, ctypes.c_char, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("plapiv", "s")] = _fn
+-    _ROUTINE_ARGS[("plapiv", "s")] = [('h', 'handle'), ('c', 'direc'), ('c', 'rowcol'), ('c', 'pivroc'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('d', 'descA'), ('ph_in', 'ipiv'), ('d', 'descIP'), ('pi_io', 'iwork')]
++    _ROUTINE_ARGS[("plapiv", "s")] = [('h', 'handle'), ('c', 'direc'), ('c', 'rowcol'), ('c', 'pivroc'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('d', 'descA'), ('pi_i', 'ipiv'), ('d', 'descIP'), ('pi_io', 'iwork')]
+ except AttributeError:
+     pass
+ 
+@@ -360,7 +360,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_char, ctypes.c_char, ctypes.c_char, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("plapiv", "d")] = _fn
+-    _ROUTINE_ARGS[("plapiv", "d")] = [('h', 'handle'), ('c', 'direc'), ('c', 'rowcol'), ('c', 'pivroc'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('d', 'descA'), ('ph_in', 'ipiv'), ('d', 'descIP'), ('pi_io', 'iwork')]
++    _ROUTINE_ARGS[("plapiv", "d")] = [('h', 'handle'), ('c', 'direc'), ('c', 'rowcol'), ('c', 'pivroc'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('d', 'descA'), ('pi_i', 'ipiv'), ('d', 'descIP'), ('pi_io', 'iwork')]
+ except AttributeError:
+     pass
+ 
+@@ -370,7 +370,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_char, ctypes.c_char, ctypes.c_char, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("plapiv", "c")] = _fn
+-    _ROUTINE_ARGS[("plapiv", "c")] = [('h', 'handle'), ('c', 'direc'), ('c', 'rowcol'), ('c', 'pivroc'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('d', 'descA'), ('ph_in', 'ipiv'), ('d', 'descIP'), ('pi_io', 'iwork')]
++    _ROUTINE_ARGS[("plapiv", "c")] = [('h', 'handle'), ('c', 'direc'), ('c', 'rowcol'), ('c', 'pivroc'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('d', 'descA'), ('pi_i', 'ipiv'), ('d', 'descIP'), ('pi_io', 'iwork')]
+ except AttributeError:
+     pass
+ 
+@@ -380,7 +380,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_char, ctypes.c_char, ctypes.c_char, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("plapiv", "z")] = _fn
+-    _ROUTINE_ARGS[("plapiv", "z")] = [('h', 'handle'), ('c', 'direc'), ('c', 'rowcol'), ('c', 'pivroc'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('d', 'descA'), ('ph_in', 'ipiv'), ('d', 'descIP'), ('pi_io', 'iwork')]
++    _ROUTINE_ARGS[("plapiv", "z")] = [('h', 'handle'), ('c', 'direc'), ('c', 'rowcol'), ('c', 'pivroc'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('d', 'descA'), ('pi_i', 'ipiv'), ('d', 'descIP'), ('pi_io', 'iwork')]
+ except AttributeError:
+     pass
+ 
+@@ -510,7 +510,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("pgetrf", "s")] = _fn
+-    _ROUTINE_ARGS[("pgetrf", "s")] = [('h', 'handle'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('i', 'ia'), ('i', 'ja'), ('d', 'descA'), ('ph_io', 'ipiv'), ('ip', 'info')]
++    _ROUTINE_ARGS[("pgetrf", "s")] = [('h', 'handle'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('i', 'ia'), ('i', 'ja'), ('d', 'descA'), ('pi_io', 'ipiv'), ('ip', 'info')]
+ except AttributeError:
+     pass
+ 
+@@ -520,7 +520,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("pgetrf", "d")] = _fn
+-    _ROUTINE_ARGS[("pgetrf", "d")] = [('h', 'handle'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('i', 'ia'), ('i', 'ja'), ('d', 'descA'), ('ph_io', 'ipiv'), ('ip', 'info')]
++    _ROUTINE_ARGS[("pgetrf", "d")] = [('h', 'handle'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('i', 'ia'), ('i', 'ja'), ('d', 'descA'), ('pi_io', 'ipiv'), ('ip', 'info')]
+ except AttributeError:
+     pass
+ 
+@@ -530,7 +530,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("pgetrf", "c")] = _fn
+-    _ROUTINE_ARGS[("pgetrf", "c")] = [('h', 'handle'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('i', 'ia'), ('i', 'ja'), ('d', 'descA'), ('ph_io', 'ipiv'), ('ip', 'info')]
++    _ROUTINE_ARGS[("pgetrf", "c")] = [('h', 'handle'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('i', 'ia'), ('i', 'ja'), ('d', 'descA'), ('pi_io', 'ipiv'), ('ip', 'info')]
+ except AttributeError:
+     pass
+ 
+@@ -540,7 +540,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("pgetrf", "z")] = _fn
+-    _ROUTINE_ARGS[("pgetrf", "z")] = [('h', 'handle'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('i', 'ia'), ('i', 'ja'), ('d', 'descA'), ('ph_io', 'ipiv'), ('ip', 'info')]
++    _ROUTINE_ARGS[("pgetrf", "z")] = [('h', 'handle'), ('i', 'm'), ('i', 'n'), ('pm_io', 'A'), ('i', 'ia'), ('i', 'ja'), ('d', 'descA'), ('pi_io', 'ipiv'), ('ip', 'info')]
+ except AttributeError:
+     pass
+ 
+@@ -590,7 +590,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_char, ctypes.c_char, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("pgetrs", "s")] = _fn
+-    _ROUTINE_ARGS[("pgetrs", "s")] = [('h', 'handle'), ('c', 'side'), ('c', 'trans'), ('i', 'n'), ('i', 'nrhs'), ('pm_io', 'A'), ('d', 'descA'), ('ph_in', 'ipiv'), ('pm_io', 'B'), ('d', 'descB')]
++    _ROUTINE_ARGS[("pgetrs", "s")] = [('h', 'handle'), ('c', 'side'), ('c', 'trans'), ('i', 'n'), ('i', 'nrhs'), ('pm_io', 'A'), ('d', 'descA'), ('pi_i', 'ipiv'), ('pm_io', 'B'), ('d', 'descB')]
+ except AttributeError:
+     pass
+ 
+@@ -600,7 +600,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_char, ctypes.c_char, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("pgetrs", "d")] = _fn
+-    _ROUTINE_ARGS[("pgetrs", "d")] = [('h', 'handle'), ('c', 'side'), ('c', 'trans'), ('i', 'n'), ('i', 'nrhs'), ('pm_io', 'A'), ('d', 'descA'), ('ph_in', 'ipiv'), ('pm_io', 'B'), ('d', 'descB')]
++    _ROUTINE_ARGS[("pgetrs", "d")] = [('h', 'handle'), ('c', 'side'), ('c', 'trans'), ('i', 'n'), ('i', 'nrhs'), ('pm_io', 'A'), ('d', 'descA'), ('pi_i', 'ipiv'), ('pm_io', 'B'), ('d', 'descB')]
+ except AttributeError:
+     pass
+ 
+@@ -610,7 +610,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_char, ctypes.c_char, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("pgetrs", "c")] = _fn
+-    _ROUTINE_ARGS[("pgetrs", "c")] = [('h', 'handle'), ('c', 'side'), ('c', 'trans'), ('i', 'n'), ('i', 'nrhs'), ('pm_io', 'A'), ('d', 'descA'), ('ph_in', 'ipiv'), ('pm_io', 'B'), ('d', 'descB')]
++    _ROUTINE_ARGS[("pgetrs", "c")] = [('h', 'handle'), ('c', 'side'), ('c', 'trans'), ('i', 'n'), ('i', 'nrhs'), ('pm_io', 'A'), ('d', 'descA'), ('pi_i', 'ipiv'), ('pm_io', 'B'), ('d', 'descB')]
+ except AttributeError:
+     pass
+ 
+@@ -620,7 +620,7 @@
+     _fn.restype = ctypes.c_int
+     _fn.argtypes = [ctypes.c_void_p, ctypes.c_char, ctypes.c_char, ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p]
+     _TYPED_ROUTINES[("pgetrs", "z")] = _fn
+-    _ROUTINE_ARGS[("pgetrs", "z")] = [('h', 'handle'), ('c', 'side'), ('c', 'trans'), ('i', 'n'), ('i', 'nrhs'), ('pm_io', 'A'), ('d', 'descA'), ('ph_in', 'ipiv'), ('pm_io', 'B'), ('d', 'descB')]
++    _ROUTINE_ARGS[("pgetrs", "z")] = [('h', 'handle'), ('c', 'side'), ('c', 'trans'), ('i', 'n'), ('i', 'nrhs'), ('pm_io', 'A'), ('d', 'descA'), ('pi_i', 'ipiv'), ('pm_io', 'B'), ('d', 'descB')]
+ except AttributeError:
+     pass
+ 
+--- a/python/ddla/ops.py
++++ b/python/ddla/ops.py
+@@ -3,6 +3,8 @@
+ import ctypes
+ from typing import Optional, Tuple, Union
+ from .matrix import DistributedMatrix
++from .backend import Backend
++from .pivots import PivotVector
+ from ._c_api import (
+     lib, check_status, to_scalar,
+     ddla_c_float_complex, ddla_c_double_complex
+@@ -55,41 +57,58 @@
+     check_status(st, f"ddla_{A.type_char}_pgemm")
+     return C
+ 
+-def pgetrf(A: DistributedMatrix, ipiv: Optional[np.ndarray] = None) -> Tuple[DistributedMatrix, np.ndarray, int]:
+-    """Distributed LU factorization with partial pivoting: A = P * L * U."""
++def _pivot_storage(A, ipiv):
+     if ipiv is None:
+-        ipiv = np.zeros(A.m_loc + A.mb, dtype=np.int32)
++        ipiv = (np.zeros(A.m_loc + A.mb, dtype=np.int32)
++                if A.handle.backend == Backend.CPU else PivotVector(A.handle, A.m_loc + A.mb))
++    if isinstance(ipiv, PivotVector):
++        if ipiv.handle is not A.handle or len(ipiv) < A.m_loc or ipiv._closed:
++            raise ValueError("pivots need matching handle, sufficient local rows and live storage")
++        return ipiv, ipiv.data_ptr
++    if A.handle.backend != Backend.CPU:
++        raise TypeError("GPU LU pivots must use ddla.PivotVector(handle, local_rows + mb)")
++    if (not isinstance(ipiv, np.ndarray) or ipiv.dtype != np.int32 or ipiv.ndim != 1
++            or not ipiv.flags.c_contiguous or not ipiv.flags.writeable or ipiv.size < A.m_loc):
++        raise ValueError("CPU pivots need a contiguous, writable int32 vector covering local rows")
++    return ipiv, ipiv.ctypes.data
++
++
++def pgetrf(A: DistributedMatrix, ipiv=None):
++    """Factor A in place; pivots are NumPy on CPU and PivotVector on GPU."""
++    ipiv, pivot_ptr = _pivot_storage(A, ipiv)
+     info = ctypes.c_int(0)
+     func = getattr(lib, f"ddla_{A.type_char}_pgetrf")
+     st = func(
+         A.handle.ptr, A.m, A.n, ctypes.c_void_p(A.data_ptr), 1, 1,
+-        ctypes.c_void_p(A.desc.ctypes.data), ctypes.c_void_p(ipiv.ctypes.data),
+-        ctypes.byref(info)
++        ctypes.c_void_p(A.desc.ctypes.data), ctypes.c_void_p(pivot_ptr), ctypes.byref(info)
+     )
+     check_status(st, f"ddla_{A.type_char}_pgetrf")
+     return A, ipiv, info.value
+ 
+-def pgetrs(A: DistributedMatrix, B: DistributedMatrix, ipiv: np.ndarray,
+-           trans: str = 'N') -> DistributedMatrix:
+-    """Solve distributed linear system op(A) * X = B using LU factors from pgetrf."""
++
++def pgetrs(A: DistributedMatrix, B: DistributedMatrix, ipiv, trans: str = 'N') -> DistributedMatrix:
++    """Solve using the backend pivot vector returned by pgetrf."""
++    if ipiv is None:
++        raise TypeError("pgetrs requires the pivots returned by pgetrf")
++    ipiv, pivot_ptr = _pivot_storage(A, ipiv)
+     t = _to_char_bytes(trans)
+     func = getattr(lib, f"ddla_{A.type_char}_pgetrs")
+     st = func(
+         A.handle.ptr, b'L', t, A.n, B.n,
+         ctypes.c_void_p(A.data_ptr), ctypes.c_void_p(A.desc.ctypes.data),
+-        ctypes.c_void_p(ipiv.ctypes.data),
+-        ctypes.c_void_p(B.data_ptr), ctypes.c_void_p(B.desc.ctypes.data)
++        ctypes.c_void_p(pivot_ptr), ctypes.c_void_p(B.data_ptr), ctypes.c_void_p(B.desc.ctypes.data)
+     )
+     check_status(st, f"ddla_{A.type_char}_pgetrs")
+     return B
+ 
+-def pgesv(A: DistributedMatrix, B: DistributedMatrix,
+-          ipiv: Optional[np.ndarray] = None) -> Tuple[DistributedMatrix, np.ndarray, int]:
+-    """Solve distributed linear system A * X = B with partial pivoting (computes LU then solves)."""
++
++def pgesv(A: DistributedMatrix, B: DistributedMatrix, ipiv=None):
++    """Factor and solve; retain pivots in the selected backend."""
+     A, ipiv, info = pgetrf(A, ipiv=ipiv)
+     if info == 0:
+         pgetrs(A, B, ipiv, trans='N')
+     return B, ipiv, info
++
+ 
+ def ppotrf(A: DistributedMatrix, uplo: str = 'L') -> Tuple[DistributedMatrix, int]:
+     """Distributed Cholesky factorization of a symmetric/Hermitian positive-definite matrix."""
+--- /dev/null
++++ b/python/ddla/pivots.py
+@@ -0,0 +1,67 @@
++"""Backend-resident integer pivots for distributed LU."""
++import numpy as np
++from .backend import Backend
++
++
++class PivotVector:
++    """Own an int32 pivot vector on the handle's CPU or GPU backend.
++
++    Entries use the matrix descriptor's local row indexing. Keep this object
++    alive through factorization and solves, and close it before the handle.
++    """
++    def __init__(self, handle, size):
++        self.handle = handle
++        self.size = int(size)
++        self._closed = False
++        if self.size < 0:
++            raise ValueError("pivot vector size must be nonnegative")
++        self._device_ptr = None
++        self._host = None
++        if handle.backend == Backend.CPU:
++            self._host = np.zeros(self.size, dtype=np.int32)
++            self.data_ptr = self._host.ctypes.data
++        else:
++            self._device_ptr = handle.malloc(self.size * 4) if self.size else None
++            self.data_ptr = self._device_ptr or 0
++            if self.size:
++                handle.memset(self.data_ptr, 0, self.size * 4)
++
++    def __len__(self):
++        return self.size
++
++    def to_host(self):
++        if self._closed:
++            raise ValueError("pivot vector is closed")
++        if self._host is not None:
++            return self._host.copy()
++        result = np.empty(self.size, dtype=np.int32)
++        if self.size:
++            self.handle.memcpy(result, self.data_ptr, result.nbytes)
++            self.handle.synchronize()
++        return result
++
++    def from_host(self, values):
++        if self._closed:
++            raise ValueError("pivot vector is closed")
++        source = np.ascontiguousarray(values, dtype=np.int32)
++        if source.shape != (self.size,):
++            raise ValueError("pivot vector shape mismatch")
++        if self._host is not None:
++            self._host[:] = source
++        elif self.size:
++            self.handle.memcpy(self.data_ptr, source, source.nbytes)
++            self.handle.synchronize()  # The temporary host source may now be released.
++
++    def close(self):
++        if self._device_ptr is not None:
++            self.handle.free(self._device_ptr)
++            self._device_ptr = None
++        self._host = None
++        self.data_ptr = 0
++        self._closed = True
++
++    def __del__(self):
++        try:
++            self.close()
++        except Exception:
++            pass
+--- a/src/LU/lu_panel.cpp
++++ b/src/LU/lu_panel.cpp
+@@ -190,10 +190,11 @@
+     assert(std::size_t(2)*std::size_t(std::max(1,local_cols))*sizeof(T) <= pool_bytes);
+     T* const rows = reinterpret_cast<T*>(pool);
+     T* const recv = rows+std::max(1,local_cols);
++    const int first = indx_g2l_r(desc, h, ia);
++    if (first >= 0)
++        store_pivots<Backend>(h, width, meta + 1, ipiv + first);
+     for (int k=0; k<width; ++k) {
+         const int r = ia+k, pivot = meta[k+1]-1;
+-        const int il = indx_g2l_r(desc,h,r);
+-        if (il >= 0) ipiv[il] = pivot+1;
+         detail::swap_rows<Backend,T>(h, A, desc, r, first_col, A, desc, pivot, first_col,
+                                      left, rows, recv);
+         detail::swap_rows<Backend,T>(h, A, desc, r, right, A, desc, pivot, right,
+--- a/src/LU/lu_panel.h
++++ b/src/LU/lu_panel.h
+@@ -13,6 +13,8 @@
+ 
+ #include "lu_internal.h"
+ #include "ddla_desc.h"
++#include "pgetf2_kernels.h"
++#include <cstring>
+ 
+ #include <algorithm>
+ #include <cstddef>
+@@ -24,10 +26,25 @@
+ // one definition of that sequence, so the bytes a size function counts are the bytes a run carves.
+ // ---------------------------------------------------------------------------
+ 
++// Store the panel's pivot control data in the selected backend. GPU kernel
++// arguments own the small batch, so the caller can immediately reuse its host buffer.
++template <DdlaBackend Backend>
++void store_pivots(const DdlaHandle_t& handle, int count, const int* source, int* destination)
++{
++    if (count == 0) return;
++    if constexpr (Backend == DdlaBackend::CPU) {
++        std::memcpy(destination, source, std::size_t(count) * sizeof(int));
++    } else {
++#if DDLA_HAS_GPU
++        detail::pgetf2_store_pivots(handle, count, source, destination);
++#endif
++    }
++}
++
+ // Inner subpanel width: at most 32 columns, at most half a descriptor block.
+ inline int inner_width(int nb)
+ {
+-    return std::min(32, std::max(1, nb / 2));
++    return std::min(detail::kLuPivotBatch, std::max(1, nb / 2));
+ }
+ 
+ // Width of the inner subpanel that starts k columns into a width-wide panel whose first row is row0 (zero-based).
+--- a/src/LU/pgesv.cpp
++++ b/src/LU/pgesv.cpp
+@@ -42,8 +42,8 @@
+     });
+ }
+ 
+-// Component 2: host bytes of [ the pivots (local rows of A's leading n x n block) | the rest ], backend bytes of
+-// the rest; the factorization and the solve run one after the other on the rest, so it is the larger of the two.
++// Component 2: backend bytes of [ local pivots | reusable factor/solve scratch ].
++// Host scratch is the larger factor/solve requirement, including GPU pivot control staging.
+ template <typename T>
+ void pgesv_workspace_size(const DdlaHandle_t& handle, bool gather, char side, char trans, int n, int nrhs,
+                           T* A, const int* array_descA, const int* array_descB,
+@@ -56,8 +56,8 @@
+     std::size_t factor_backend = 0, factor_host = 0, solve_backend = 0, solve_host = 0;
+     pgetrf_workspace_size<T>(handle, gather, n, n, A, 1, 1, array_descA, &factor_backend, &factor_host);
+     pgetrs_workspace_size<T>(handle, side, trans, n, nrhs, array_descA, array_descB, &solve_backend, &solve_host);
+-    *backend_bytes = std::max(factor_backend, solve_backend);
+-    *host_bytes = detail::padded_bytes<int>(std::size_t(local_rows)) + std::max(factor_host, solve_host);
++    *backend_bytes = detail::padded_bytes<int>(std::size_t(local_rows)) + std::max(factor_backend, solve_backend);
++    *host_bytes = std::max(factor_host, solve_host);
+ }
+ 
+ // Component 3.
+@@ -72,15 +72,15 @@
+         // The scratch, in the order pgesv_workspace_size counts it.
+         const int local_rows = num_loc(n, array_descA[DDLA_MB_], handle->myprow_, array_descA[DDLA_RSRC_],
+                                        handle->nprows_);
+-        char* hw = static_cast<char*>(host_work);
+-        int* const ipiv = detail::take<int>(hw, std::size_t(local_rows));
+-        const std::size_t used = std::size_t(hw - static_cast<char*>(host_work));
+-        assert(used <= host_bytes);
++        char* work = static_cast<char*>(backend_work);
++        int* const ipiv = detail::take<int>(work, std::size_t(local_rows));
++        const std::size_t used = std::size_t(work - static_cast<char*>(backend_work));
++        assert(used <= backend_bytes);
+         pgetrf_run<Backend, T>(handle, gather, n, n, A, 1, 1, array_descA, ipiv, info,
+-                               backend_work, backend_bytes, hw, host_bytes - used);
++                               work, backend_bytes - used, host_work, host_bytes);
+         if (info != 0 || nrhs == 0) return;
+         pgetrs_run<Backend, T>(handle, side, trans, n, nrhs, A, array_descA, ipiv, B, array_descB,
+-                               backend_work, backend_bytes, hw, host_bytes - used);
++                               work, backend_bytes - used, host_work, host_bytes);
+     } catch (...) {
+         // Retire queued host reads before the caller reuses or releases scratch.
+         if (ddlaGetBackend(handle) == DdlaBackend::GPU)
+--- a/src/LU/pgetf2.cpp
++++ b/src/LU/pgetf2.cpp
+@@ -118,6 +118,8 @@
+     void* const pivot_workspace = w;
+     assert(std::size_t(w-static_cast<char*>(backend_work)) <= backend_bytes);
+     assert(jl < 0 || width <= std::max(1,swap_count));
++    assert(width <= detail::kLuPivotBatch);
++    std::array<int, detail::kLuPivotBatch> selected{};
+     for (int k=0; k<width; ++k) {
+         const int owner_row = indxg2p(row0+k,nb,desc[DDLA_RSRC_],nprows);
+         const int i = num_loc(row0+k,nb,myprow,desc[DDLA_RSRC_],nprows);
+@@ -145,7 +147,7 @@
+         MPI_CHECK(MPI_Bcast(pivot_message.data(),static_cast<int>(pivot_message.size()),MPI_BYTE,owner_col,h->row_comm));
+         std::memcpy(&max_row, pivot_message.data(), sizeof(max_row));
+         std::memcpy(&max_value, pivot_message.data() + sizeof(max_row), sizeof(max_value));
+-        if (myprow == owner_row) ipiv[i] = max_row+1;
++        selected[k] = max_row + 1;
+         if (swap_count > 0)
+             detail::swap_rows<Backend,T>(h, A, desc, row0+k, swap_begin,
+                                          A, desc, max_row, swap_begin,
+@@ -165,6 +167,9 @@
+             }
+         }
+     }
++    const int first = indx_g2l_r(desc, h, row0);
++    if (first >= 0)
++        store_pivots<Backend>(h, info > 0 ? info : width, selected.data(), ipiv + first);
+     if (info != 0) DDLA_CHECK(ddlaSynchronize(h));
+ }
+ 
+--- a/src/LU/pgetf2_kernels.cpp
++++ b/src/LU/pgetf2_kernels.cpp
+@@ -3,6 +3,8 @@
+ #include "ddla_stream.h"
+ 
+ #include <climits>
++#include <cassert>
++#include <cstring>
+ #include <algorithm>
+ #include <complex>
+ #include <type_traits>
+@@ -10,6 +12,22 @@
+ namespace ddla::detail {
+ 
+ namespace {
++
++struct PivotBatch {
++    int values[kLuPivotBatch];
++};
++
++__global__ void store_pivots_kernel(int count, PivotBatch batch, int* destination)
++{
++    if (threadIdx.x < count) destination[threadIdx.x] = batch.values[threadIdx.x];
++}
++
++__global__ void copy_pivots_kernel(int count, const int* source, int* destination, int offset)
++{
++    for (std::size_t i = blockIdx.x * blockDim.x + threadIdx.x; i < std::size_t(count);
++         i += std::size_t(gridDim.x) * blockDim.x)
++        destination[i] = source[i] + offset;
++}
+ 
+ constexpr int kPivotThreads = 256;
+ constexpr int kUpdateThreads = 256;
+@@ -179,6 +197,24 @@
+ 
+ } // namespace
+ 
++void pgetf2_store_pivots(const DdlaHandle_t& handle, int count, const int* host_pivots, int* pivots)
++{
++    assert(count >= 0 && count <= kLuPivotBatch);
++    if (count == 0) return;
++    PivotBatch batch{};
++    std::memcpy(batch.values, host_pivots, std::size_t(count) * sizeof(int));
++    store_pivots_kernel<<<1, kLuPivotBatch, 0, static_cast<gpuStream_t>(handle->stream)>>>(count, batch, pivots);
++    GPU_CHECK(gpuGetLastError());
++}
++
++void pgetf2_copy_pivots(const DdlaHandle_t& handle, int count, const int* source, int* destination, int offset)
++{
++    if (count == 0) return;
++    const int blocks = static_cast<int>(std::min<std::size_t>((std::size_t(count) + 255) / 256, 65535));
++    copy_pivots_kernel<<<blocks, 256, 0, static_cast<gpuStream_t>(handle->stream)>>>(count, source, destination, offset);
++    GPU_CHECK(gpuGetLastError());
++}
++
+ template <typename T>
+ std::size_t pgetf2_pivot_workspace_size()
+ {
+--- a/src/LU/pgetf2_kernels.h
++++ b/src/LU/pgetf2_kernels.h
+@@ -6,6 +6,12 @@
+ #include "ddla_connector.h"
+ 
+ namespace ddla::detail {
++
++constexpr int kLuPivotBatch = 32;
++// Copy a bounded host pivot batch through kernel arguments; no host pointer is retained.
++void pgetf2_store_pivots(const DdlaHandle_t& handle, int count, const int* host_pivots, int* pivots);
++// Backend-to-backend prefix copy with conversion to descriptor-global row indices.
++void pgetf2_copy_pivots(const DdlaHandle_t& handle, int count, const int* source, int* destination, int offset);
+ 
+ template <typename T>
+ std::size_t pgetf2_pivot_workspace_size();
+--- a/src/LU/pgetrf.cpp
++++ b/src/LU/pgetrf.cpp
+@@ -107,9 +107,14 @@
+             // Preserve the distributed interface's untouched pivot suffix on
+             // singular input, although the local vendor continues factoring.
+             const int count=info>0?std::min(k,info):(info==0?k:0);
+-            DDLA_CHECK(ddlaMemcpy(handle,ipiv+ia-1,piv,std::size_t(count)*sizeof(int)));
+-            if constexpr (Backend == DdlaBackend::GPU) DDLA_CHECK(ddlaSynchronize(handle));
+-            for (int i=0;i<count;++i) ipiv[ia-1+i]+=ia-1;
++            if constexpr (Backend == DdlaBackend::CPU) {
++                for (int i = 0; i < count; ++i) ipiv[ia - 1 + i] = piv[i] + ia - 1;
++            } else {
++#if DDLA_HAS_GPU
++                detail::pgetf2_copy_pivots(handle, count, piv, ipiv + ia - 1, ia - 1);
++                DDLA_CHECK(ddlaSynchronize(handle));
++#endif
++            }
+             return;
+         }
+         int nprows, npcols, myprow, mypcol;
+--- a/src/LU/pgetrs.cpp
++++ b/src/LU/pgetrs.cpp
+@@ -2,6 +2,7 @@
+ #include <ddla/ddla_vector.h>
+ #include "ddla_desc.h"
+ #include <algorithm>
++#include <cassert>
+ #include <complex>
+ #include <cstddef>
+ #include <vector>
+@@ -46,18 +47,24 @@
+                                           array_descA, array_descB, &solve_bytes, host_bytes);
+     plapiv_impl::plapiv_workspace_size<T>(handle, nrhs, array_descB, &pivot_bytes);
+     *backend_bytes = std::max(solve_bytes, pivot_bytes);
++    *host_bytes += plapiv_impl::pivot_host_bytes(handle, n, array_descA);
+ }
+ 
+ // Component 3.
+ template<DdlaBackend Backend,class T>
+ void pgetrs_run(const DdlaHandle_t& handle, char side, char trans, int n, int nrhs,
+                 T* A, const int* array_descA,
+-                const int* ipiv, // host
++                const int* ipiv, // selected backend
+                 T* B, const int* array_descB,
+                 void* backend_work, std::size_t backend_bytes, void* host_work, std::size_t host_bytes)
+ {
+     try {
+         if(n==0 || nrhs==0)return;
++        const std::size_t pivot_bytes = plapiv_impl::pivot_host_bytes(handle, n, array_descA);
++        assert(pivot_bytes <= host_bytes);
++        ipiv = plapiv_impl::stage_pivots(handle, n, array_descA, ipiv, host_work, pivot_bytes);
++        if (pivot_bytes != 0) host_work = static_cast<char*>(host_work) + pivot_bytes;
++        host_bytes -= pivot_bytes;
+ 
+         // Descriptors may describe matrices larger than the logical sub-matrix
+         // (leading-block); only the leading n columns of A and the corresponding
+@@ -123,7 +130,7 @@
+ void pgetrs(
+     const DdlaHandle_t& handle, char side, char trans, int n, int nrhs,
+     T* A, const int* array_descA,
+-    const int* ipiv, // host
++    const int* ipiv, // selected backend
+     T* B, const int* array_descB
+ )
+ {
+--- a/src/LU/pgetrs_impl.h
++++ b/src/LU/pgetrs_impl.h
+@@ -41,7 +41,7 @@
+ void pgetrs_workspace_size(const DdlaHandle_t& handle, char side, char trans, int n, int nrhs,
+                            const int* descA, const int* descB, std::size_t* backend_bytes, std::size_t* host_bytes);
+ 
+-// Component 3: the permutation of B (plapiv_run, ipiv in host memory) and the two triangular solves (ptrtrs_run).
++// Component 3: stage backend pivots for host control, apply plapiv_run, then run the two triangular solves.
+ template <DdlaBackend Backend, typename T>
+ void pgetrs_run(const DdlaHandle_t& handle, char side, char trans, int n, int nrhs,
+                 T* A, const int* descA, const int* ipiv, T* B, const int* descB,
+@@ -101,8 +101,8 @@
+ bool pgesv_check(const DdlaHandle_t& handle, char side, char trans, int n, int nrhs,
+                  const void* A, const int* descA, const int* descB);
+ 
+-// Component 2: n x nrhs.  Backend: the larger of pgetrf's and pgetrs's; host: [ the pivots (local rows of A's
+-// leading n x n block) | the larger of pgetrf's and pgetrs's ].  A is what pgetrf's vendor query is made with.
++// Component 2: backend local pivots plus the larger factor/solve workspace;
++// host scratch is the larger requirement of the two routines.
+ // n == 0 needs nothing.
+ template <typename T>
+ void pgesv_workspace_size(const DdlaHandle_t& handle, bool gather, char side, char trans, int n, int nrhs,
+--- a/src/PBLAS/plapiv.cpp
++++ b/src/PBLAS/plapiv.cpp
+@@ -4,6 +4,7 @@
+ #include <algorithm>
+ #include <cassert>
+ #include <stdexcept>
++#include <vector>
+ #include "BLAS/blas_impl.h"
+ #include "ddla_connector.h"
+ #include "ddla_stream.h"
+@@ -58,6 +59,26 @@
+     *backend_bytes = std::size_t(std::max(length_rowcol_R, length_rowcol_C)) * sizeof(T);
+ }
+ 
++std::size_t pivot_host_bytes(const DdlaHandle_t& handle, int m, const int* descIP)
++{
++    if (handle->backend != DdlaBackend::GPU || m <= 1) return 0;
++    return detail::padded_bytes<int>(num_loc(m - 1, descIP[DDLA_MB_], handle->myprow_,
++                                            descIP[DDLA_RSRC_], handle->nprows_));
++}
++
++const int* stage_pivots(const DdlaHandle_t& handle, int m, const int* descIP,
++                        const int* ipiv, void* host_work, std::size_t host_bytes)
++{
++    if (handle->backend != DdlaBackend::GPU || m <= 1) return ipiv;
++    const int count = num_loc(m - 1, descIP[DDLA_MB_], handle->myprow_, descIP[DDLA_RSRC_], handle->nprows_);
++    assert(pivot_host_bytes(handle, m, descIP) <= host_bytes);
++    if (count > 0) {
++        DDLA_CHECK(ddlaMemcpy(handle, host_work, ipiv, std::size_t(count) * sizeof(int)));
++        DDLA_CHECK(ddlaSynchronize(handle));
++    }
++    return static_cast<const int*>(host_work);
++}
++
+ // Component 3.
+ template <DdlaBackend Backend, typename T>
+ void plapiv_run(const DdlaHandle_t& handle, char direc, char rowcol,
+@@ -66,8 +87,8 @@
+                 void* backend_work, [[maybe_unused]] std::size_t backend_bytes)
+ {
+     try {
++        if (m <= 1 || n <= 0) return;
+         if(handle->nprocs==1) {
+-            if(m<=1 || n<=0)return;
+             const int ld=array_descA[DDLA_LLD_];
+             const int first=direc=='F'?0:m-2, end=direc=='F'?m-1:-1, step=direc=='F'?1:-1;
+             for(int i=first;i!=end;i+=step) {
+@@ -197,10 +218,15 @@
+ {
+     (void)iwork;
+     plapiv_impl::plapiv_check<Backend>(handle, direc, rowcol, pivroc, m, n, array_descA, array_descIP);
+-    std::size_t backend_bytes = 0;
++    if (m <= 1 || n <= 0) return;
++    std::size_t backend_bytes = 0, host_bytes = 0;
+     plapiv_impl::plapiv_workspace_size<T>(handle, n, array_descA, &backend_bytes);
++    host_bytes = plapiv_impl::pivot_host_bytes(handle, m, array_descIP);
+     vector<char> work(handle, backend_bytes);
+-    plapiv_impl::plapiv_run<Backend, T>(handle, direc, rowcol, m, n, A, array_descA, ipiv, array_descIP,
++    std::vector<char> host_pivots(host_bytes);
++    const int* host_ipiv = plapiv_impl::stage_pivots(handle, m, array_descIP, ipiv,
++                                                    host_pivots.data(), host_bytes);
++    plapiv_impl::plapiv_run<Backend, T>(handle, direc, rowcol, m, n, A, array_descA, host_ipiv, array_descIP,
+                                         work.data(), backend_bytes);
+ }
+ 
+--- a/src/PBLAS/plapiv_impl.h
++++ b/src/PBLAS/plapiv_impl.h
+@@ -26,7 +26,13 @@
+ void plapiv_workspace_size(const DdlaHandle_t& handle, int n, const int* array_descA,
+                            std::size_t* backend_bytes);
+ 
+-// Component 3: the pivoting.  No validation, no allocation.  `iwork` of the
++// Host control staging for backend-resident public pivot arrays. Only the
++// leading m-1 global entries are read; the existing raw swap engine needs host indices.
++std::size_t pivot_host_bytes(const DdlaHandle_t& handle, int m, const int* descIP);
++const int* stage_pivots(const DdlaHandle_t& handle, int m, const int* descIP,
++                        const int* ipiv, void* host_work, std::size_t host_bytes);
++
++// Component 3: the pivoting, with HOST pivot control metadata.  No validation, no allocation.  `iwork` of the
+ // public routine is unused and has no counterpart here.
+ template <DdlaBackend Backend, typename T>
+ void plapiv_run(const DdlaHandle_t& handle, char direc, char rowcol,
+--- a/tests/CMakeLists.txt
++++ b/tests/CMakeLists.txt
+@@ -253,6 +253,8 @@
+     endif()
+ endforeach()
+ add_test_executable(test_api_grid_pgetrf)
++add_test_executable(test_lu_backend_pivots)
++target_include_directories(test_lu_backend_pivots PRIVATE "${PROJECT_SOURCE_DIR}/src")
+ add_test_executable(test_api_grid_pgetrs)
+ add_test_executable(test_api_grid_pgesv)
+ add_test_executable(test_api_grid_pgetrf_nopiv)
+--- a/tests/benchmark_lu_common.h
++++ b/tests/benchmark_lu_common.h
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #ifndef DDLA_BENCHMARK_LU_COMMON_H
+ #define DDLA_BENCHMARK_LU_COMMON_H
+ 
+@@ -90,7 +91,9 @@
+         int db[DDLA_DLEN_];DDLA_CHECK(ddlaDescInit(db,h,n,nrhs,o.nb,o.nb,0,0));
+         auto rhs=make_local<T>(h,db,[&](int i,int j){return reference[i+j*n];});
+         DeviceBuffer<T> b(h,rhs.size());upload(h,b.ptr,rhs);
+-        ddla::pgetrs(h,'L','N',n,nrhs,device_A,desc,piv.data(),b.ptr,db);
++        ddla::vector<int> backend_piv(h,piv.size());
++        DDLA_CHECK(ddlaMemcpy(h,backend_piv.data(),piv.data(),piv.size()*sizeof(int)));
++        ddla::pgetrs(h,'L','N',n,nrhs,device_A,desc,backend_piv.data(),b.ptr,db);
+         check_ddla_sync(h);auto sol=download(h,b.ptr,rhs.size());
+         solve_error=local_max_error(h,db,sol,[](int i,int j){return probe<T>(i,j);});
+         MPI_CHECK(MPI_Allreduce(MPI_IN_PLACE,&solve_error,1,MPI_DOUBLE,MPI_MAX,ddlaGetCommunicator(h)));
+@@ -118,6 +121,7 @@
+     }
+     sum(h,reference);
+     std::vector<int> ipiv(std::max(1,ddla_test::m_loc(h,desc)),-1);
++    ddla::vector<int> backend_ipiv(h, ipiv.size());
+     std::array<std::vector<double>,2> samples;
+     std::array<std::array<double,3>,2> errors{};
+     std::string routine=full?"pgetrf":"pgetf2";
+@@ -127,14 +131,14 @@
+             const char* mode=method?"gather":"inplace";
+             if(o.mode!="both" && o.mode!=mode)continue;
+             setenv("DDLA_LU_PANEL",mode,1);
+-            upload(h,a.ptr,initial);std::fill(ipiv.begin(),ipiv.end(),-1);check_ddla_sync(h);
++            upload(h,a.ptr,initial);std::fill(ipiv.begin(),ipiv.end(),-1);DDLA_CHECK(ddlaMemcpy(h,backend_ipiv.data(),ipiv.data(),ipiv.size()*sizeof(int)));check_ddla_sync(h);
+             MPI_CHECK(MPI_Barrier(ddlaGetCommunicator(h)));
+             #if defined(DDLA_USE_CUDA)
+             if(std::getenv("DDLA_BENCH_PROFILE")) GPU_CHECK(cudaProfilerStart());
+ #endif
+             int info=-1;const double begin=MPI_Wtime();
+-            if(full)ddla::pgetrf(h,n,n,a.ptr, 1, 1,desc,ipiv.data(),info);
+-            else ddla::pgetf2<ddla_test::execution_backend>(h,n,n,width,a.ptr, 1, 1,desc,ipiv.data(),info);
++            if(full)ddla::pgetrf(h,n,n,a.ptr, 1, 1,desc,backend_ipiv.data(),info);
++            else ddla::pgetf2<ddla_test::execution_backend>(h,n,n,width,a.ptr, 1, 1,desc,backend_ipiv.data(),info);
+             check_ddla_sync(h);double elapsed=MPI_Wtime()-begin;
+ #if defined(DDLA_USE_CUDA)
+             if(std::getenv("DDLA_BENCH_PROFILE")) GPU_CHECK(cudaProfilerStop());
+@@ -148,8 +152,11 @@
+                     <<" grid="<<benchmark_cli::grid_name(o.grid)<<" matrix="<<o.matrix<<" method="<<mode
+                     <<" rep="<<iteration-o.warmups<<" time_s="<<elapsed<<std::endl;
+             }
+-            if(iteration==o.warmups+o.grid.repeats-1)
++            if(iteration==o.warmups+o.grid.repeats-1) {
++                DDLA_CHECK(ddlaMemcpy(h,ipiv.data(),backend_ipiv.data(),ipiv.size()*sizeof(int)));
++                check_ddla_sync(h);
+                 errors[method]=check(h,n,width,desc,a.ptr,ipiv,reference,o,full,initial.size());
++            }
+         }
+     }
+     if(rank==0)for(int method=0;method<2;++method)if(!samples[method].empty()) {
+--- a/tests/benchmark_plapiv.cpp
++++ b/tests/benchmark_plapiv.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "test_backend.h"
+ #include <algorithm>
+ #include <complex>
+@@ -67,9 +68,13 @@
+             ipiv[iloc] = k + 1;
+     }
+ 
++    ddla::vector<int> backend_ipiv(handle, ipiv.size());
++    DDLA_CHECK(ddlaMemcpy(handle, backend_ipiv.data(), ipiv.data(), ipiv.size() * sizeof(int)));
++    DDLA_CHECK(ddlaSynchronize(handle));
++
+     MPI_Barrier(handle->comm);
+     const double start = MPI_Wtime();
+-    plapiv(handle, direc, rowcol, 'C', m, n, d_A, desc, ipiv.data(), desc, nullptr);
++    plapiv(handle, direc, rowcol, 'C', m, n, d_A, desc, backend_ipiv.data(), desc, nullptr);
+     DDLA_CHECK(ddlaSynchronize(handle));
+     MPI_Barrier(handle->comm);
+     const double elapsed = MPI_Wtime() - start;
+--- a/tests/benchmark_solve_side.cpp
++++ b/tests/benchmark_solve_side.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "test_backend.h"
+ #include <algorithm>
+ #include <complex>
+@@ -141,7 +142,7 @@
+     const int b_cols = (side == 'L') ? nrhs : n;
+     fill_local(b_rows, b_cols, descB, d_B, handle, [&](int i, int j){ return rhs_value(i, j, n); });
+ 
+-    std::vector<int> ipiv(ddla_test::m_loc(handle, descA));
++    ddla::vector<int> ipiv(handle, ddla_test::m_loc(handle, descA));
+     int info = -1;
+     pgetrf(handle, n, n, d_A, 1, 1, descA, ipiv.data(), info);
+     DDLA_CHECK(ddlaSynchronize(handle));
+--- a/tests/test_api_grid_pgetf2.cpp
++++ b/tests/test_api_grid_pgetf2.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "test_backend.h"
+ #include "api_grid_test_common.h"
+ #include "LU/lu_internal.h"
+@@ -51,8 +52,12 @@
+     check_ddla_sync(handle);
+ 
+     std::vector<int> ipiv(ddla_test::m_loc(handle, desc), -1);
++    ddla::vector<int> backend_ipiv(handle, ipiv.size());
++    DDLA_CHECK(ddlaMemcpy(handle, backend_ipiv.data(), ipiv.data(), ipiv.size() * sizeof(int)));
+     int info = -1;
+-    ddla::pgetf2<ddla_test::execution_backend>(handle, desc[DDLA_M_], desc[DDLA_N_], panel_width, d_A.ptr, 1, 1, desc, ipiv.data(), info);
++    ddla::pgetf2<ddla_test::execution_backend>(handle, desc[DDLA_M_], desc[DDLA_N_], panel_width, d_A.ptr, 1, 1, desc, backend_ipiv.data(), info);
++    DDLA_CHECK(ddlaMemcpy(handle, ipiv.data(), backend_ipiv.data(), ipiv.size() * sizeof(int)));
++    check_ddla_sync(handle);
+ 
+     const std::string label = std::string("pgetf2(handle, ") + scalar_name<T>()
+                             + "/" + case_name + ")";
+@@ -90,8 +95,12 @@
+     check_ddla_sync(handle);
+ 
+     std::vector<int> ipiv(ddla_test::m_loc(handle, desc), -1);
++    ddla::vector<int> backend_ipiv(handle, ipiv.size());
++    DDLA_CHECK(ddlaMemcpy(handle, backend_ipiv.data(), ipiv.data(), ipiv.size() * sizeof(int)));
+     int info = -1;
+-    ddla::pgetf2<ddla_test::execution_backend>(handle, desc[DDLA_M_], desc[DDLA_N_], 1, d_A.ptr, 1, 1, desc, ipiv.data(), info);
++    ddla::pgetf2<ddla_test::execution_backend>(handle, desc[DDLA_M_], desc[DDLA_N_], 1, d_A.ptr, 1, 1, desc, backend_ipiv.data(), info);
++    DDLA_CHECK(ddlaMemcpy(handle, ipiv.data(), backend_ipiv.data(), ipiv.size() * sizeof(int)));
++    check_ddla_sync(handle);
+     check_ddla_sync(handle);
+     const auto out = download(handle, d_A.ptr, h_A.size());
+ 
+--- a/tests/test_api_grid_pgetrf.cpp
++++ b/tests/test_api_grid_pgetrf.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "api_grid_test_common.h"
+ 
+ using namespace api_grid_test;
+@@ -21,7 +22,7 @@
+         upload(handle, d_singular.ptr, h_singular);
+         check_ddla_sync(handle);
+ 
+-        std::vector<int> singular_ipiv(ddla_test::m_loc(handle, descA), -1);
++        ddla::vector<int> singular_ipiv(handle, ddla_test::m_loc(handle, descA));
+         int singular_info = -1;
+         ddla::pgetrf(handle, n, n, d_singular.ptr, 1, 1, descA, singular_ipiv.data(), singular_info);
+         require_close(handle, "pgetrf(handle, singular info)",
+@@ -37,7 +38,7 @@
+     upload(handle, d_B.ptr, h_B);
+     check_ddla_sync(handle);
+ 
+-    std::vector<int> ipiv(ddla_test::m_loc(handle, descA));
++    ddla::vector<int> ipiv(handle, ddla_test::m_loc(handle, descA));
+     int info = -1;
+     ddla::pgetrf(handle, n, n, d_A.ptr, 1, 1, descA, ipiv.data(), info);
+     if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
+--- a/tests/test_api_grid_pgetrs.cpp
++++ b/tests/test_api_grid_pgetrs.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "api_grid_test_common.h"
+ 
+ using namespace api_grid_test;
+@@ -28,7 +29,7 @@
+         upload(handle, d_B.ptr, h_B);
+         check_ddla_sync(handle);
+ 
+-        std::vector<int> ipiv(ddla_test::m_loc(handle, descA));
++        ddla::vector<int> ipiv(handle, ddla_test::m_loc(handle, descA));
+         int info = -1;
+         ddla::pgetrf(handle, n, n, d_A.ptr, 1, 1, descA, ipiv.data(), info);
+         if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
+@@ -48,7 +49,7 @@
+     // to write at local index -1).
+     int nprows = 0, npcols = 0;
+     ddlaGetGridDims(handle, nprows, npcols);
+-    std::vector<int> ipiv(std::max(1, ddla_test::m_loc(handle, descA)), 1);
++    ddla::vector<int> ipiv(handle, std::max(1, ddla_test::m_loc(handle, descA)));
+     auto reject = [&](char side, int rsrc, int csrc, const std::string& what){
+         const int b_rows = (side == 'L') ? n : nrhs;
+         const int b_cols = (side == 'L') ? nrhs : n;
+--- a/tests/test_api_grid_plapiv.cpp
++++ b/tests/test_api_grid_plapiv.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "api_grid_test_common.h"
+ 
+ using namespace api_grid_test;
+@@ -81,7 +82,9 @@
+     upload(handle, d_A.ptr, h_A);
+     check_ddla_sync(handle);
+ 
+-    ddla::plapiv(handle, direc, rowcol, 'C', m, n, d_A.ptr, desc, ipiv.data(), desc, nullptr);
++    ddla::vector<int> backend_ipiv(handle, ipiv.size());
++    DDLA_CHECK(ddlaMemcpy(handle, backend_ipiv.data(), ipiv.data(), ipiv.size() * sizeof(int)));
++    ddla::plapiv(handle, direc, rowcol, 'C', m, n, d_A.ptr, desc, backend_ipiv.data(), desc, nullptr);
+     auto out = download(handle, d_A.ptr, h_A.size());
+ 
+     const auto G = make_global(m, n, value);
+@@ -125,7 +128,9 @@
+     upload(handle, d_B.ptr, h_B);
+     check_ddla_sync(handle);
+ 
+-    ddla::plapiv(handle, direc, 'C', 'C', m, n_seg, d_B.ptr, descB, ipiv.data(), descIP, nullptr);
++    ddla::vector<int> backend_ipiv(handle, ipiv.size());
++    DDLA_CHECK(ddlaMemcpy(handle, backend_ipiv.data(), ipiv.data(), ipiv.size() * sizeof(int)));
++    ddla::plapiv(handle, direc, 'C', 'C', m, n_seg, d_B.ptr, descB, backend_ipiv.data(), descIP, nullptr);
+     auto out = download(handle, d_B.ptr, h_B.size());
+ 
+     // Global column-swap reference over the n_seg x m matrix (row-major).
+--- a/tests/test_api_grid_subcomm_lu.cpp
++++ b/tests/test_api_grid_subcomm_lu.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "test_backend.h"
+ #include "api_grid_test_common.h"
+ #include "LU/lu_internal.h"
+@@ -80,7 +81,7 @@
+ 
+         run_factorization_case(handle, "subcomm pgetrf",
+             [&](Complex* d_A, const int* descA, int& info){
+-                std::vector<int> ipiv(std::max(1, ddla_test::m_loc(handle, descA)));
++                ddla::vector<int> ipiv(handle, std::max(1, ddla_test::m_loc(handle, descA)));
+                 ddla::pgetrf(handle, descA[DDLA_M_], descA[DDLA_N_], d_A, 1, 1, descA, ipiv.data(), info);
+             });
+ 
+--- a/tests/test_api_grid_submatrix.cpp
++++ b/tests/test_api_grid_submatrix.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "api_grid_test_common.h"
+ 
+ #include <type_traits>
+@@ -240,7 +241,7 @@
+             DeviceBuffer<Complex> d_A(handle, h_A.size());
+             upload(handle, d_A.ptr, h_A);
+             check_ddla_sync(handle);
+-            std::vector<int> ipiv(ddla_test::m_loc(handle, descA_ex));
++            ddla::vector<int> ipiv(handle, ddla_test::m_loc(handle, descA_ex));
+             int info = -1;
+             ddla::pgetrf(handle, n, n, d_A.ptr, 1, 1, descA_ex, ipiv.data(), info);
+             if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
+@@ -251,7 +252,7 @@
+             DeviceBuffer<Complex> d_A(handle, h_A.size());
+             upload(handle, d_A.ptr, h_A);
+             check_ddla_sync(handle);
+-            std::vector<int> ipiv(ddla_test::m_loc(handle, descA_p));
++            ddla::vector<int> ipiv(handle, ddla_test::m_loc(handle, descA_p));
+             int info = -1;
+             ddla::pgetrf(handle, n, n, d_A.ptr, 1, 1, descA_p, ipiv.data(), info);
+             if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
+@@ -292,7 +293,7 @@
+             upload(handle, d_A.ptr, h_A);
+             upload(handle, d_B.ptr, h_B);
+             check_ddla_sync(handle);
+-            std::vector<int> ipiv(ddla_test::m_loc(handle, descA_ex));
++            ddla::vector<int> ipiv(handle, ddla_test::m_loc(handle, descA_ex));
+             int info = -1;
+             ddla::pgetrf(handle, n, n, d_A.ptr, 1, 1, descA_ex, ipiv.data(), info);
+             if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
+@@ -307,7 +308,7 @@
+             upload(handle, d_A.ptr, h_A);
+             upload(handle, d_B.ptr, h_B);
+             check_ddla_sync(handle);
+-            std::vector<int> ipiv(ddla_test::m_loc(handle, descA_p));
++            ddla::vector<int> ipiv(handle, ddla_test::m_loc(handle, descA_p));
+             int info = -1;
+             ddla::pgetrf(handle, n, n, d_A.ptr, 1, 1, descA_p, ipiv.data(), info);
+             if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
+@@ -496,7 +497,9 @@
+                 DeviceBuffer<Complex> d_A(handle, h_A.size());
+                 upload(handle, d_A.ptr, h_A);
+                 check_ddla_sync(handle);
+-                ddla::plapiv(handle, direc, rowcol, 'C', m, seg, d_A.ptr, desc_ex, ipiv.data(), desc_ex, nullptr);
++                ddla::vector<int> backend_ipiv(handle, ipiv.size());
++                DDLA_CHECK(ddlaMemcpy(handle, backend_ipiv.data(), ipiv.data(), ipiv.size() * sizeof(int)));
++                ddla::plapiv(handle, direc, rowcol, 'C', m, seg, d_A.ptr, desc_ex, backend_ipiv.data(), desc_ex, nullptr);
+                 exact_out = download(handle, d_A.ptr, h_A.size());
+             }
+             {
+@@ -509,7 +512,9 @@
+                 DeviceBuffer<Complex> d_A(handle, h_A.size());
+                 upload(handle, d_A.ptr, h_A);
+                 check_ddla_sync(handle);
+-                ddla::plapiv(handle, direc, rowcol, 'C', m, seg, d_A.ptr, desc_p, ipiv.data(), desc_p, nullptr);
++                ddla::vector<int> backend_ipiv(handle, ipiv.size());
++                DDLA_CHECK(ddlaMemcpy(handle, backend_ipiv.data(), ipiv.data(), ipiv.size() * sizeof(int)));
++                ddla::plapiv(handle, direc, rowcol, 'C', m, seg, d_A.ptr, desc_p, backend_ipiv.data(), desc_p, nullptr);
+                 auto out = download(handle, d_A.ptr, h_A.size());
+                 check_leading_block(handle, name, desc_ex, desc_p,
+                                     exact_out, out, m, m, 1e-12);
+--- a/tests/test_backend_solvers.cpp
++++ b/tests/test_backend_solvers.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "backend_api.h" // Internal-only wrong-backend implementation checks.
+ // ---------------------------------------------------------------------------
+ // test_backend_solvers exercises handle-driven distributed LU, Cholesky,
+@@ -104,7 +105,7 @@
+             {   // pgetrf + pgetrs
+                 DeviceBuffer<T> dA(h, h_A.size()), dB(h, h_B.size());
+                 fresh(dA, dB);
+-                std::vector<int> ipiv(ddla_test::m_loc(h, descA) + 1, 0);
++                ddla::vector<int> ipiv(h, ddla_test::m_loc(h, descA) + 1);
+                 int info = -1;
+                 ddla::pgetrf(h, n, n, dA.ptr, 1, 1, descA, ipiv.data(), info);
+                 if (info != 0) MPI_Abort(ddlaGetCommunicator(h), 1);
+@@ -161,7 +162,7 @@
+         DeviceBuffer<T> dA(h, h_A.size());
+         upload(h, dA.ptr, h_A);
+         check_ddla_sync(h);
+-        std::vector<int> ipiv(ddla_test::m_loc(h, descA) + 1, -1);
++        ddla::vector<int> ipiv(h, ddla_test::m_loc(h, descA) + 1);
+         int info = -1;
+         ddla::pgetrf(h, n, n, dA.ptr, 1, 1, descA, ipiv.data(), info);
+         require_close(h, tag_of(B, "pgetrf", ty, "singular info"), std::abs(info - (zero_at + 1)), 0.0);
+@@ -453,7 +454,7 @@
+     std::vector<double> local(local_size(h, desc), 1.0);
+     DeviceBuffer<double> d(h, local.size());
+     int info = 0;
+-    std::vector<int> ipiv(ddla_test::m_loc(h, desc) + 1, 0);
++    ddla::vector<int> ipiv(h, ddla_test::m_loc(h, desc) + 1);
+     bool threw = false;
+     try { ddla::pgetrf<Wrong>(h, n, n, d.ptr, 1, 1, desc, ipiv.data(), info); } catch (const std::runtime_error&) { threw = true; }
+     bool threw2 = false;
+@@ -510,8 +511,10 @@
+     both("pdam", [&](bool bad) { ddla::pdam(h, 1.0, a.ptr, desc, bad ? n + 1 : n); });
+     both("pswap", [&](bool bad) {
+         ddla::pswap(h, 4, a.ptr, 1, 1, desc, bad ? 5 : 1, b.ptr, 1, 1, desc, 1); });
++    ddla::vector<int> backend_ipiv(h, ipiv.size());
++    DDLA_CHECK(ddlaMemcpy(h, backend_ipiv.data(), ipiv.data(), ipiv.size() * sizeof(int)));
+     both("plapiv", [&](bool bad) {
+-        ddla::plapiv(h, bad ? 'X' : 'F', 'R', 'C', 1, n, a.ptr, desc, ipiv.data(), desc, nullptr); });
++        ddla::plapiv(h, bad ? 'X' : 'F', 'R', 'C', 1, n, a.ptr, desc, backend_ipiv.data(), desc, nullptr); });
+     both("ptrtrs", [&](bool bad) {
+         ddla::ptrtrs(h, bad ? 'X' : 'L', 'L', 'N', 'N', 1, 1, a.ptr, desc, b.ptr, desc); });
+     both("ptrmm", [&](bool bad) {
+--- /dev/null
++++ b/tests/test_lu_backend_pivots.cpp
+@@ -0,0 +1,94 @@
++#include "api_grid_test_common.h"
++#include <ddla/ddla_vector.h>
++#include <cstring>
++#include <type_traits>
++#if DDLA_HAS_GPU
++#include "gpu/gpu.h"
++#endif
++
++using namespace api_grid_test;
++namespace {
++template<class T> T scalar(double re, double im = 0)
++{
++    if constexpr (std::is_floating_point_v<T>) return T(re);
++    else return T(typename T::value_type(re), typename T::value_type(im));
++}
++template<class T> T value(int i, int j)
++{
++    const int row = (i + 7) % 41;
++    return scalar<T>(row == j ? 5 : .002 * (row - j), .001 * (row + j));
++}
++template<class T> T expected(int i, int j) { return scalar<T>(.03 * (i + 1), .02 * (j + 1)); }
++template<class T> T op_value(char trans, int i, int j)
++{
++    const T result = trans == 'N' ? value<T>(i, j) : value<T>(j, i);
++    if constexpr (!std::is_floating_point_v<T>) return trans == 'C' ? std::conj(result) : result;
++    else return result;
++}
++template<class T> void cases(const DdlaHandle_t& h)
++{
++    constexpr int n = 41, nrhs = 3, nb = 4, guard = 11, poison = -731;
++    int pr, pc; ddlaGetGridDims(h, pr, pc);
++    int da[DDLA_DLEN_]; DDLA_CHECK(ddlaDescInit(da, h, n, n, nb, nb, pr - 1, pc - 1));
++    da[DDLA_LLD_] += 3;
++    const auto input = make_local<T>(h, da, value<T>);
++    DeviceBuffer<T> a(h, input.size());
++    const int local_rows = ddla_test::m_loc(h, da);
++    std::vector<int> initial(local_rows + 2 * guard, poison);
++    ddla::vector<int> pivots(h, initial.size());
++    for (const char* policy : {"inplace", "gather"}) {
++        setenv("DDLA_LU_PANEL", policy, 1);
++        upload(h, a.ptr, input);
++        DDLA_CHECK(ddlaMemcpy(h, pivots.data(), initial.data(), initial.size() * sizeof(int)));
++        int info = -1;
++        pgetrf<T>(h, n, n, a.ptr, 1, 1, da, pivots.data() + guard, info);
++        require_close(h, "backend LU info", info, 0);
++        const auto factored_pivots = download(h, pivots.data(), pivots.size());
++        bool good = true;
++        for (int i = 0; i < guard; ++i)
++            good = good && factored_pivots[i] == poison && factored_pivots[guard + local_rows + i] == poison;
++        for (int i = 0; i < local_rows; ++i)
++            good = good && factored_pivots[guard + i] >= indx_l2g_r(da, h, i) + 1 && factored_pivots[guard + i] <= n;
++        require_close(h, "backend pivot values and guards", good ? 0 : 1, 0);
++        for (char side : {'L', 'R'}) for (char trans : {'N', 'T', 'C'}) {
++            const int rows = side == 'L' ? n : nrhs, cols = side == 'L' ? nrhs : n;
++            int db[DDLA_DLEN_]; DDLA_CHECK(ddlaDescInit(db, h, rows, cols, nb, nb, pr - 1, pc - 1));
++            auto rhs = make_local<T>(h, db, [&](int i, int j) {
++                T sum{};
++                for (int k = 0; k < n; ++k)
++                    sum += side == 'L' ? op_value<T>(trans, i, k) * expected<T>(k, j)
++                                       : expected<T>(i, k) * op_value<T>(trans, k, j);
++                return sum;
++            });
++            DeviceBuffer<T> b(h, rhs.size()); upload(h, b.ptr, rhs);
++            // No host pivot upload or reconstruction between factorization and solves.
++            pgetrs<T>(h, side, trans, n, nrhs, a.ptr, da, pivots.data() + guard, b.ptr, db);
++            const auto result = download(h, b.ptr, rhs.size());
++            const auto want = make_local<T>(h, db, expected<T>);
++            double error = 0;
++            for (std::size_t i = 0; i < result.size(); ++i) error = std::max(error, double(std::abs(result[i] - want[i])));
++            const bool single = std::is_same_v<T, float> || std::is_same_v<T, std::complex<float>>;
++            require_close(h, "backend pivot chained solve", error, single ? 2e-4 : 2e-11);
++        }
++        const auto after = download(h, pivots.data(), pivots.size());
++        require_close(h, "solves preserve backend pivots and guards", after == factored_pivots ? 0 : 1, 0);
++    }
++}
++void check(const DdlaHandle_t& h, const Shape&)
++{
++    const char* env = std::getenv("DDLA_LU_PANEL");
++    const bool had_policy = env != nullptr;
++    const std::string saved = env ? env : "";
++#if DDLA_HAS_GPU
++    if (ddlaGetBackend(h) == DdlaBackend::GPU) {
++        gpuStream_t stream = nullptr;
++        GPU_CHECK(gpuStreamCreateWithFlags(&stream, gpuStreamNonBlocking));
++        DDLA_CHECK(ddlaSetStream(h, stream)); // Ownership transfers to the handle.
++    }
++#endif
++    cases<float>(h); cases<double>(h); cases<std::complex<float>>(h); cases<std::complex<double>>(h);
++    if (had_policy) setenv("DDLA_LU_PANEL", saved.c_str(), 1);
++    else unsetenv("DDLA_LU_PANEL");
++}
++}
++int main(int argc, char** argv) { return run_grid_test(argc, argv, "test_lu_backend_pivots", check); }
+--- a/tests/test_lu_gather.cpp
++++ b/tests/test_lu_gather.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "api_grid_test_common.h"
+ #include "LU/lu_internal.h"
+ #include "mpi_datatype.h"
+@@ -89,9 +90,12 @@
+     auto host=make_local<T>(h,desc,value);
+     DeviceBuffer<T> d(h,host.size()); upload(h,d.ptr,host);
+     std::vector<int> piv(std::max(1,ddla_test::m_loc(h,desc)),-1);
++    ddla::vector<int> backend_piv(h, piv.size());
++    DDLA_CHECK(ddlaMemcpy(h, backend_piv.data(), piv.data(), piv.size() * sizeof(int)));
+     int info=-1;
+-    if(routine==0) ddla::pgetf2<B>(h,m-start,n-start,width,d.ptr,row_shift+start+1,col_shift+start+1,desc,piv.data(),info);
+-    else ddla::pgetrf(h,m,n,d.ptr,row_shift+1,col_shift+1,desc,piv.data(),info);
++    if(routine==0) ddla::pgetf2<B>(h,m-start,n-start,width,d.ptr,row_shift+start+1,col_shift+start+1,desc,backend_piv.data(),info);
++    else ddla::pgetrf(h,m,n,d.ptr,row_shift+1,col_shift+1,desc,backend_piv.data(),info);
++    DDLA_CHECK(ddlaMemcpy(h, piv.data(), backend_piv.data(), piv.size() * sizeof(int)));
+     check_ddla_sync(h);
+     auto out=download(h,d.ptr,host.size());
+     hash_bytes(out.data(),out.size()*sizeof(T)); hash_bytes(piv.data(),piv.size()*sizeof(int));hash_bytes(&info,sizeof(info));
+@@ -218,9 +222,11 @@
+     int desc[DDLA_DLEN_];DDLA_CHECK(ddlaDescInit(desc,h,4,4,2,2,0,0));
+     auto initial=make_local<double>(h,desc,[](int i,int j){return i==j?1.0:0.0;});
+     DeviceBuffer<double> a(h,initial.size());std::vector<int> piv(std::max(1,ddla_test::m_loc(h,desc)),-1);
++    ddla::vector<int> backend_piv(h, piv.size());
++    DDLA_CHECK(ddlaMemcpy(h, backend_piv.data(), piv.data(), piv.size() * sizeof(int)));
+     auto call=[&](int routine,int m,int n,int width,int& info,int ia=1,int ja=1) {
+-        if(routine==0)ddla::pgetf2<B>(h,m,n,width,a.ptr,ia,ja,desc,piv.data(),info);
+-        else ddla::pgetrf(h,m,n,a.ptr,ia,ja,desc,piv.data(),info);
++        if(routine==0)ddla::pgetf2<B>(h,m,n,width,a.ptr,ia,ja,desc,backend_piv.data(),info);
++        else ddla::pgetrf(h,m,n,a.ptr,ia,ja,desc,backend_piv.data(),info);
+     };
+     upload(h,a.ptr,initial);
+     for(int routine=0;routine<2;++routine) {
+@@ -241,7 +247,7 @@
+         }
+         for(int storage=0;storage<2;++storage) {
+             double* ap=rank==0 && storage==0?nullptr:a.ptr;
+-            int* pp=rank==0 && storage==1?nullptr:piv.data();
++            int* pp=rank==0 && storage==1?nullptr:backend_piv.data();
+             bool caught=false;int info=-1;
+             try {
+                 if(routine==0)ddla::pgetf2<B,double>(h,4,4,1,ap,1,1,desc,pp,info);
+@@ -278,7 +284,7 @@
+     auto b0=make_local<double>(h,dB,[](int i,int j){return 1.0+i+j;});
+     DeviceBuffer<double> a(h,a0.size()),b(h,b0.size());
+     const std::size_t npiv=std::size_t(std::max(1,ddla_test::m_loc(h,dA)));
+-    std::vector<int> ipiv(npiv,1);
++    ddla::vector<int> ipiv(h, npiv);
+     DeviceBuffer<int> blockpiv(h,npiv);
+     upload(h,blockpiv.ptr,std::vector<int>(npiv,1));
+     enum {GETRS,GETRS_NOPIV,GETRS_BPIV,GESV,GESV_NOPIV,GESV_BPIV,GETRF_NOPIV,GETRF_BPIV,ROUTINES};
+--- a/tests/test_pgetrf_bpiv.cpp
++++ b/tests/test_pgetrf_bpiv.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "test_backend.h"
+ #include <cassert>
+ #include "LU/lu_internal.h"
+@@ -35,7 +36,7 @@
+     std::complex<double> *d_A, *d_A_copy;
+     int *d_ipiv;
+     
+-    std::vector<int>ipiv(ddla_test::m_loc(ddla_handle, matrix_desc));
++    ddla::vector<int> ipiv(ddla_handle, ddla_test::m_loc(ddla_handle, matrix_desc));
+     ddla_handle->check_memory();
+     MPI_Barrier(MPI_COMM_WORLD);
+ 
+--- a/tests/test_pgetrf_nopiv.cpp
++++ b/tests/test_pgetrf_nopiv.cpp
+@@ -1,3 +1,4 @@
++#include <ddla/ddla_vector.h>
+ #include "test_backend.h"
+ #include <cassert>
+ #include "LU/lu_internal.h"
+@@ -56,7 +57,7 @@
+     DDLA_CHECK(ddlaSynchronize(ddla_handle));
+     MPI_Barrier(MPI_COMM_WORLD);
+ 
+-    std::vector<int> ipiv(ddla_test::m_loc(ddla_handle, matrix_desc));
++    ddla::vector<int> ipiv(ddla_handle, ddla_test::m_loc(ddla_handle, matrix_desc));
+ 
+     // 1) pgetrf (partial pivoting)
+     int info_piv = -1;
+--- a/tests/test_workspace_factorizations.cpp
++++ b/tests/test_workspace_factorizations.cpp
+@@ -65,9 +65,9 @@
+         // The size query must leave A as it found it (the previous iteration's panel run factored A).
+         const auto before=download(h,a.ptr,initial.size());
+         workspace_test::Scope qs(true);std::size_t bb=0,hb=0;lu_impl::pgetrf_workspace_size<T>(h,gather,n,n,a.ptr,1,1,da,&bb,&hb);query_clean(h,qs.finish());same(h,before,download(h,a.ptr,initial.size()));Guarded work(h,bb,hb);
+-        for(int repeat=0;repeat<2;++repeat){upload(h,a.ptr,initial);upload(h,ref.ptr,initial);std::fill(piv.begin(),piv.end(),-17);std::fill(pivref.begin(),pivref.end(),-17);int got=-1,want=-1;pgetrf<T>(h,n,n,ref.ptr,1,1,da,pivref.data(),want);workspace_test::Scope run;lu_impl::pgetrf_run<B,T>(h,gather,n,n,a.ptr,1,1,da,piv.data(),got,work.backend(),bb,work.host(),hb);run_clean(h,run.finish());same(h,download(h,ref.ptr,initial.size()),download(h,a.ptr,initial.size()));require_close(h,"LU info and pivots",got==want&&piv==pivref?0:1,0);work.verify();}
++        for(int repeat=0;repeat<2;++repeat){upload(h,a.ptr,initial);upload(h,ref.ptr,initial);std::fill(piv.begin(),piv.end(),-17);std::fill(pivref.begin(),pivref.end(),-17);upload(h,dp.ptr,piv);upload(h,dpr.ptr,pivref);int got=-1,want=-1;pgetrf<T>(h,n,n,ref.ptr,1,1,da,dpr.ptr,want);workspace_test::Scope run;lu_impl::pgetrf_run<B,T>(h,gather,n,n,a.ptr,1,1,da,dp.ptr,got,work.backend(),bb,work.host(),hb);run_clean(h,run.finish());same(h,download(h,ref.ptr,initial.size()),download(h,a.ptr,initial.size()));require_close(h,"LU info and pivots",got==want&&download(h,dp.ptr,piv.size())==download(h,dpr.ptr,pivref.size())?0:1,0);work.verify();}
+         workspace_test::Scope ps(true);std::size_t pb=0,ph=0;lu_impl::pgetf2_workspace_size<T>(h,gather,n,n,nb,a.ptr,1,1,da,1,&pb,&ph);query_clean(h,ps.finish());Guarded panelwork(h,pb,ph);
+-        upload(h,a.ptr,initial);upload(h,ref.ptr,initial);int got=0,want=0;pgetf2<B,T>(h,n,n,nb,ref.ptr,1,1,da,pivref.data(),want);workspace_test::Scope pr;lu_impl::pgetf2_run<B,T>(h,gather,n,n,nb,a.ptr,1,1,da,piv.data(),got,1,panelwork.backend(),pb,panelwork.host(),ph);run_clean(h,pr.finish());same(h,download(h,ref.ptr,initial.size()),download(h,a.ptr,initial.size()));panelwork.verify();
++        upload(h,a.ptr,initial);upload(h,ref.ptr,initial);int got=0,want=0;pgetf2<B,T>(h,n,n,nb,ref.ptr,1,1,da,dpr.ptr,want);workspace_test::Scope pr;lu_impl::pgetf2_run<B,T>(h,gather,n,n,nb,a.ptr,1,1,da,dp.ptr,got,1,panelwork.backend(),pb,panelwork.host(),ph);run_clean(h,pr.finish());same(h,download(h,ref.ptr,initial.size()),download(h,a.ptr,initial.size()));panelwork.verify();
+     }
+     for(bool bpiv:{false,true}){
+         workspace_test::Scope qs(true);std::size_t bb=0,hb=0;if(bpiv)lu_impl::pgetrf_bpiv_workspace_size<T>(h,n,n,a.ptr,da,&bb,&hb);else lu_impl::pgetrf_nopiv_workspace_size<T>(h,n,n,da,&bb);query_clean(h,qs.finish());Guarded work(h,bb,hb);
+@@ -120,7 +120,7 @@
+ {
+     int d[DDLA_DLEN_];DDLA_CHECK(ddlaDescInit(d,h,1,1,3,3,h->nprows_-1,h->npcols_-1));
+     const auto input=make_local<T>(h,d,[](int,int){return T(4);});DeviceBuffer<T> a(h,input.size());upload(h,a.ptr,input);
+-    std::vector<int> piv(num_loc(1,3,h->myprow_,d[DDLA_RSRC_],h->nprows_),-1);
++    ddla::vector<int> piv(h,num_loc(1,3,h->myprow_,d[DDLA_RSRC_],h->nprows_));
+     for(bool gather:{false,true}){
+         std::size_t bb=0,hb=0;lu_impl::pgetrf_workspace_size<T>(h,gather,1,1,a.ptr,1,1,d,&bb,&hb);Guarded w(h,bb,hb);
+         for(int pass=0;pass<2;++pass){upload(h,a.ptr,input);int info=-1;workspace_test::Scope run;lu_impl::pgetrf_run<B,T>(h,gather,1,1,a.ptr,1,1,d,piv.data(),info,w.backend(),bb,w.host(),hb);run_clean(h,run.finish());require_close(h,"zero-local-extent LU info",info,0);same(h,input,download(h,a.ptr,input.size()));w.verify();}
+--- a/tests/test_workspace_pblas.cpp
++++ b/tests/test_workspace_pblas.cpp
+@@ -187,11 +187,14 @@
+     }
+     std::vector<int> piv(ddla_test::m_loc(h,x.d));
+     for(std::size_t i=0;i<piv.size();++i){const int global=indx_l2g_r(x.d,h,int(i));piv[i]=global==0?n:global+1;}
++    ddla::vector<int> backend_piv(h, piv.size());
++    DDLA_CHECK(ddlaMemcpy(h, backend_piv.data(), piv.data(), piv.size()*sizeof(int)));
++    check_ddla_sync(h);
+     for(char rc:{'R','C'})
+         exercise(x,"PBLAS host permutation reuse",[&]{plapiv_impl::plapiv_check<B>(h,'F',rc,'C',n,nrhs,x.d,x.d);},
+             [&](std::size_t* bb,std::size_t* hb){*hb=0;plapiv_impl::plapiv_workspace_size<T>(h,nrhs,x.d,bb);},
+             [&](void* w,std::size_t wb,void*,std::size_t){plapiv_impl::plapiv_run<B,T>(h,'F',rc,n,nrhs,x.a.ptr,x.d,piv.data(),x.d,w,wb);},
+-            [&]{plapiv<T>(h,'F',rc,'C',n,nrhs,x.a.ptr,x.d,piv.data(),x.d,nullptr);});
++            [&]{plapiv<T>(h,'F',rc,'C',n,nrhs,x.a.ptr,x.d,backend_piv.data(),x.d,nullptr);});
+     // Scratch-free APIs deliberately have no size-query stage.
+     x.reset(0);const int order=pdam_impl::pdam_check<B>(h,n,x.d);
+     workspace_test::Scope pdam_scope;pdam_impl::pdam_run<B,T,T>(h,order,T(2),x.a.ptr,x.d);
