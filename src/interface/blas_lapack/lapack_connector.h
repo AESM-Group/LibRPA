@@ -512,6 +512,20 @@ public:
         zgetrf_(&m, &n, A, &lda, ipiv, &info);
     }
 
+    // Raw column-major solve reusing GETRF factors and one-based pivots.
+    static inline void getrs_f(char trans, int n, int nrhs, const float *a, int lda,
+                               const int *ipiv, float *b, int ldb, int &info)
+    { sgetrs_(&trans, &n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void getrs_f(char trans, int n, int nrhs, const double *a, int lda,
+                               const int *ipiv, double *b, int ldb, int &info)
+    { dgetrs_(&trans, &n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void getrs_f(char trans, int n, int nrhs, const std::complex<float> *a, int lda,
+                               const int *ipiv, std::complex<float> *b, int ldb, int &info)
+    { cgetrs_(&trans, &n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void getrs_f(char trans, int n, int nrhs, const std::complex<double> *a, int lda,
+                               const int *ipiv, std::complex<double> *b, int ldb, int &info)
+    { zgetrs_(&trans, &n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+
     static inline void getri(const int &n, float *A, const int &lda, int *ipiv, float *work, const int &lwork, int &info)
     {
         float *a_fort = transpose(A, n, lda);

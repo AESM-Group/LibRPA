@@ -221,6 +221,19 @@ extern "C"
                   std::complex<double> *A, const int *IA, const int *JA, const int *DESCA,
                   int *ipiv, int *info);
 
+    void psgetrs_(const char *trans, const int *n, const int *nrhs, const float *a,
+                  const int *ia, const int *ja, const int *desca, const int *ipiv,
+                  float *b, const int *ib, const int *jb, const int *descb, int *info);
+    void pdgetrs_(const char *trans, const int *n, const int *nrhs, const double *a,
+                  const int *ia, const int *ja, const int *desca, const int *ipiv,
+                  double *b, const int *ib, const int *jb, const int *descb, int *info);
+    void pcgetrs_(const char *trans, const int *n, const int *nrhs, const std::complex<float> *a,
+                  const int *ia, const int *ja, const int *desca, const int *ipiv,
+                  std::complex<float> *b, const int *ib, const int *jb, const int *descb, int *info);
+    void pzgetrs_(const char *trans, const int *n, const int *nrhs, const std::complex<double> *a,
+                  const int *ia, const int *ja, const int *desca, const int *ipiv,
+                  std::complex<double> *b, const int *ib, const int *jb, const int *descb, int *info);
+
     void pdgesv_(const int* n, const int* nrhs, double* a, const int* ia, const int* ja,
                  const int* desca, int* ipiv, double* b, const int* ib, const int* jb,
                  const int* descb, int* info);

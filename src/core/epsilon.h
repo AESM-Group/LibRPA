@@ -157,7 +157,9 @@ atom_mapping<std::map<Vector3_Order<int>, matrix_m<std::complex<double>>>>::pair
 
 
 
-cplxdb compute_pi_det_blacs_2d(Matz &loc_piT, const librpa_int::ArrayDesc &arrdesc_pi, int *ipiv, int &info);
+cplxdb compute_pi_det_blacs_2d(Matz &loc_piT, const librpa_int::ArrayDesc &arrdesc_pi,
+                              int *ipiv, int &info, Matz* solve_rhs = nullptr,
+                              const ArrayDesc* rhs_desc = nullptr);
 cplxdb compute_rpa_response_trace_logdet_blacs_2d(
     const Matz &response, const librpa_int::ArrayDesc &response_desc);
 

@@ -454,8 +454,6 @@ public:
     SternheimerRpaHeadwingInput get_sternheimer_rpa_headwing_input(
         int ifreq, const RpaHeadwingSettings &settings) const;
 
-    void construct_rpa_trace_log_schur(const int ifreq, ArrayDesc &desc_body,
-                                       int wing_row_offset = 0);
     ArrayDesc get_body_inv(matrix_m<std::complex<double>> &chi0_block,
                            ArrayDesc &desc_nabf_nabf_opt);
     void construct_L(const int ifreq, ArrayDesc &desc_body);
@@ -547,6 +545,13 @@ matrix_m<std::complex<double>> strict_2d_transform_pw_wc_to_auxiliary_basis(
 
 ArrayDesc make_rpa_chi0v_wing_desc(const ArrayDesc &desc_body, const int wing_row_offset,
                                    const int wing_rows_loc, const int wing_cols_loc);
+
+// Factor host A=I-body with LAPACK/ScaLAPACK, reuse LU for three wing RHS, and
+// return log(det(A)) plus the replicated Schur matrix I-head-W^H A^-1 W.
+// A is overwritten by LU; wing/head remain unchanged. No inverse is formed.
+std::complex<double> compute_rpa_body_schur(
+    Matz& identity_minus_body, const ArrayDesc& body_desc,
+    const Matz& wing, const ArrayDesc& wing_desc, const Matz& head, Matz& schur);
 
 bool rpa_headwing_matrix_matches_descriptor(const matrix_m<std::complex<double>> &matrix,
                                               const ArrayDesc &descriptor,

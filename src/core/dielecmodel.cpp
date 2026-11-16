@@ -47,7 +47,8 @@ using RI::Communicate_Tensors_Map_Judge::comm_map2;
 using RI::Communicate_Tensors_Map_Judge::comm_map2_first;
 
 std::complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_pi, int *ipiv,
-                                             int &info);
+                                             int &info, Matz* solve_rhs = nullptr,
+                                             const ArrayDesc* rhs_desc = nullptr);
 
 std::vector<HeadwingFourierTarget> build_headwing_full_bz_fourier_targets(
     const std::vector<Vector3_Order<double>> &kfrac_list)
@@ -3685,94 +3686,6 @@ void invert_headwing_body_with_identity_solve(
     }
 }
 
-void diele_func::construct_rpa_trace_log_schur(const int ifreq, ArrayDesc &desc_body,
-                                               const int wing_row_offset)
-{
-    using global::profiler;
-
-    profiler.start("cal_rpa_chi0v_schur");
-    if (ifreq < 0 || static_cast<std::size_t>(ifreq) >= head.size() ||
-        static_cast<std::size_t>(ifreq) >= wing.size())
-    {
-        std::ostringstream oss;
-        oss << "RPA chi0*v head/wing data unavailable for ifreq=" << ifreq
-            << " (head_size=" << head.size() << ", wing_size=" << wing.size() << ")";
-        throw std::runtime_error(oss.str());
-    }
-
-    const auto chi0v_head = get_rpa_chi0v_head(ifreq);
-    const auto chi0v_wing = get_rpa_chi0v_wing(ifreq);
-    const int n_body = desc_body.m();
-
-    this->Lind.resize(3, 3, MAJOR::COL);
-    this->bw.resize(n_body, 3, MAJOR::COL);
-    this->wb.resize(3, n_body, MAJOR::COL);
-
-    const auto desc_wing_opt =
-        make_rpa_chi0v_wing_desc(desc_body, wing_row_offset, chi0v_wing.nr(), chi0v_wing.nc());
-
-    ArrayDesc desc_lam_3(blacs_h);
-    desc_lam_3.init_square_blk(n_body, 3, 0, 0);
-
-    ArrayDesc desc_3_lam(blacs_h);
-    desc_3_lam.init_square_blk(3, n_body, 0, 0);
-
-    ArrayDesc desc_3_3(blacs_h);
-    desc_3_3.init_square_blk(3, 3, 0, 0);
-
-    auto lam_3 = init_local_mat<complex<double>>(desc_lam_3, MAJOR::COL);
-    auto _3_lam = init_local_mat<complex<double>>(desc_3_lam, MAJOR::COL);
-    auto schur_correction = init_local_mat<complex<double>>(desc_3_3, MAJOR::COL);
-
-    ScalapackConnector::pgemm_f('N', 'N', n_body, 3, n_body, 1.0, body_inv.ptr(), 1, 1,
-                                desc_body.desc, chi0v_wing.ptr(), 1 + wing_row_offset, 1,
-                                desc_wing_opt.desc, 0.0, lam_3.ptr(), 1, 1, desc_lam_3.desc);
-    ScalapackConnector::pgemm_f('C', 'N', 3, 3, n_body, 1.0, chi0v_wing.ptr(), 1 + wing_row_offset,
-                                1, desc_wing_opt.desc, lam_3.ptr(), 1, 1, desc_lam_3.desc, 0.0,
-                                schur_correction.ptr(), 1, 1, desc_3_3.desc);
-    ScalapackConnector::pgemm_f('C', 'N', 3, n_body, n_body, 1.0, chi0v_wing.ptr(),
-                                1 + wing_row_offset, 1, desc_wing_opt.desc, body_inv.ptr(), 1, 1,
-                                desc_body.desc, 0.0, _3_lam.ptr(), 1, 1, desc_3_lam.desc);
-
-    for (int i = 0; i != 3; ++i)
-    {
-        const int loc_i = desc_3_3.indx_g2l_r(i);
-        for (int ilambda = 0; ilambda < n_body; ++ilambda)
-        {
-            int loc_ilambda = desc_lam_3.indx_g2l_r(ilambda);
-            const int loc_ibw = desc_lam_3.indx_g2l_c(i);
-            if (loc_ibw >= 0 && loc_ilambda >= 0)
-                this->bw(ilambda, i) = lam_3(loc_ilambda, loc_ibw);
-
-            loc_ilambda = desc_3_lam.indx_g2l_c(ilambda);
-            const int loc_iwb = desc_3_lam.indx_g2l_r(i);
-            if (loc_iwb >= 0 && loc_ilambda >= 0)
-                this->wb(i, ilambda) = _3_lam(loc_iwb, loc_ilambda);
-
-            MPI_Allreduce(MPI_IN_PLACE, &bw(ilambda, i), 1, MPI_DOUBLE_COMPLEX, MPI_SUM,
-                          comm_h.comm);
-            MPI_Allreduce(MPI_IN_PLACE, &wb(i, ilambda), 1, MPI_DOUBLE_COMPLEX, MPI_SUM,
-                          comm_h.comm);
-        }
-
-        for (int j = 0; j != 3; ++j)
-        {
-            const int loc_j = desc_3_3.indx_g2l_c(j);
-            std::complex<double> correction = 0.0;
-            if (loc_i >= 0 && loc_j >= 0)
-            {
-                correction = schur_correction(loc_i, loc_j);
-            }
-            MPI_Allreduce(MPI_IN_PLACE, &correction, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, comm_h.comm);
-
-            this->Lind(i, j) = -chi0v_head(i, j) - correction;
-            if (i == j) this->Lind(i, j) += 1.0;
-        }
-    }
-
-    profiler.stop("cal_rpa_chi0v_schur");
-}
-
 void diele_func::get_Leb_points()
 {
     if (use_2d_dielectric)
@@ -4789,6 +4702,49 @@ void diele_func::rewrite_strict_2d_wc(matrix_m<std::complex<double>> &chi0_block
     this->body_inv.clear();
 }
 
+std::complex<double> compute_rpa_body_schur(
+    Matz& identity_minus_body, const ArrayDesc& body_desc,
+    const Matz& wing, const ArrayDesc& wing_desc, const Matz& head, Matz& schur)
+{
+    struct StageTimer
+    {
+        StageTimer() { global::profiler.start("rpa_body_schur", LIBRPA_VERBOSE_DEBUG); }
+        ~StageTimer() { global::profiler.stop("rpa_body_schur"); }
+    } stage_timer;
+    if (wing_desc.ictxt() != body_desc.ictxt() ||
+        wing_desc.m() != body_desc.m() || wing_desc.n() != 3 || head.nr() != 3 || head.nc() != 3)
+        throw std::invalid_argument("RPA Schur requires matching body/three-column wing descriptors and 3x3 head");
+    if (body_desc.m() == 0)
+    {
+        schur = head.copy();
+        schur *= -1.;
+        for (int i = 0; i < 3; ++i) schur(i, i) += 1.;
+        return {0., 0.};
+    }
+    auto solved_wing = wing.copy();
+    std::vector<int> pivots(std::max(1, body_desc.m_loc() + body_desc.mb()));
+    int info = 0;
+    const auto logdet = compute_pi_det_blacs_2d(
+        identity_minus_body, body_desc, pivots.data(), info, &solved_wing, &wing_desc);
+    ArrayDesc correction_desc(body_desc.ictxt());
+    correction_desc.init(3, 3, wing_desc.nb(), wing_desc.nb(), 0, 0);
+    auto correction = init_local_mat<std::complex<double>>(correction_desc, MAJOR::COL);
+    // Only W^H A^-1 W is needed. A may be complex and nonsymmetric.
+    ScalapackConnector::pgemm_f('C', 'N', 3, 3, body_desc.m(), 1., wing.ptr(), 1, 1,
+                                wing_desc.desc, solved_wing.ptr(), 1, 1, wing_desc.desc,
+                                0., correction.ptr(), 1, 1, correction_desc.desc);
+    schur.resize(3, 3, MAJOR::COL);
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+        {
+            const int row = correction_desc.indx_g2l_r(i), col = correction_desc.indx_g2l_c(j);
+            std::complex<double> value = row >= 0 && col >= 0 ? correction(row, col) : 0.;
+            MPI_Allreduce(MPI_IN_PLACE, &value, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, body_desc.comm());
+            schur(i, j) = (i == j ? 1. : 0.) - head(i, j) - value;
+        }
+    return logdet;
+}
+
 std::complex<double> diele_func::compute_rpa_trace_log_average(
     matrix_m<std::complex<double>> &response_block, const int ifreq, ArrayDesc &desc_response,
     const RpaHeadwingSettings &settings)
@@ -4830,7 +4786,7 @@ std::complex<double> diele_func::compute_rpa_trace_log_average(
         throw std::logic_error(oss.str());
     }
 
-    ArrayDesc desc_body(blacs_h);
+    ArrayDesc desc_body(blacs_h.ictxt);
     desc_body.init_square_blk(desc_response.m() - body_start, desc_response.n() - body_start, 0, 0);
     auto body = init_local_mat<std::complex<double>>(desc_body, MAJOR::COL);
     ScalapackConnector::pgemr2d_f(desc_response.m() - body_start, desc_response.n() - body_start,
@@ -4848,24 +4804,25 @@ std::complex<double> diele_func::compute_rpa_trace_log_average(
     std::complex<double> trace_body = 0.0;
     MPI_Allreduce(&trace_body_loc, &trace_body, 1, MPI_DOUBLE_COMPLEX, MPI_SUM, comm_h.comm);
 
-    auto identity_minus_body = body.copy();
-    identity_minus_body *= -1.0;
-    for (int i = 0; i != desc_body.m(); ++i)
+    const int n_body = desc_body.m();
+    body *= -1.0;
+    for (int i = 0; i < n_body; ++i)
     {
-        const int ilo = desc_body.indx_g2l_r(i);
-        const int jlo = desc_body.indx_g2l_c(i);
-        if (ilo >= 0 && jlo >= 0) identity_minus_body(ilo, jlo) += 1.0;
+        const int row = desc_body.indx_g2l_r(i), col = desc_body.indx_g2l_c(i);
+        if (row >= 0 && col >= 0) body(row, col) += 1.;
     }
-
-    auto identity_minus_body_for_logdet = identity_minus_body.copy();
-    int info = 0;
-    std::vector<int> ipiv(std::max(1, desc_body.m_loc() * 10));
-    std::complex<double> logdet_body =
-        compute_pi_det_blacs_2d(identity_minus_body_for_logdet, desc_body, ipiv.data(), info);
-
-    this->body_inv = identity_minus_body.copy();
-    invert_scalapack(this->body_inv, desc_body);
-    construct_rpa_trace_log_schur(ifreq, desc_body, wing_row_offset);
+    const auto source_wing = get_rpa_chi0v_wing(ifreq);
+    const auto source_desc = make_rpa_chi0v_wing_desc(
+        desc_body, wing_row_offset, source_wing.nr(), source_wing.nc());
+    ArrayDesc rhs_desc(blacs_h.ictxt);
+    rhs_desc.init(n_body, 3, desc_body.mb(), 1, 0, 0);
+    auto original_wing = init_local_mat<std::complex<double>>(rhs_desc, MAJOR::COL);
+    ScalapackConnector::pgemr2d_f(n_body, 3, source_wing.ptr(), wing_row_offset + 1, 1,
+                                  source_desc.desc, original_wing.ptr(), 1, 1,
+                                  rhs_desc.desc, blacs_h.ictxt);
+    const auto chi0v_head = get_rpa_chi0v_head(ifreq);
+    const auto logdet_body = compute_rpa_body_schur(body, desc_body, original_wing, rhs_desc,
+                                                  chi0v_head, this->Lind);
 
     this->vol_gamma = rpa_headwing_gamma_cell_volume(pbc_, settings.use_2d_dielectric);
 

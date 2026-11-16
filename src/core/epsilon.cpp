@@ -1553,13 +1553,18 @@ CorrEnergy compute_RPA_correlation_blacs_2d(Chi0 &chi0, atpair_k_cplx_mat_t &cou
 
 
 complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_pi,
-                                      int *ipiv, int &info)
+                                      int *ipiv, int &info, Matz* solve_rhs,
+                                      const ArrayDesc* rhs_desc)
 {
     const int n = arrdesc_pi.m();
     if (arrdesc_pi.n() != n || !loc_piT.is_col_major())
         throw std::invalid_argument("RPA logdet requires a square column-major distributed matrix");
+    if ((solve_rhs == nullptr) != (rhs_desc == nullptr) ||
+        (solve_rhs != nullptr && (arrdesc_pi.use_ddla_linear() || rhs_desc->m() != n ||
+         rhs_desc->ictxt() != arrdesc_pi.ictxt() || !solve_rhs->is_col_major())))
+        throw std::invalid_argument("RPA thin RHS requires native LAPACK/ScaLAPACK and matching owning descriptors");
 
-    const auto check_info = [&]()
+    const auto check_info = [&](const char* operation)
     {
         // Check on the owning grid before any pivot or diagonal is interpreted.
         int lowest = 0, highest = 0;
@@ -1567,7 +1572,7 @@ complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_
         MPI_Allreduce(&info, &highest, 1, MPI_INT, MPI_MAX, arrdesc_pi.comm());
         info = lowest < 0 ? lowest : highest;
         if (info != 0)
-            throw std::runtime_error("RPA trace-log LU factorization failed with info=" +
+            throw std::runtime_error(std::string("RPA trace-log ") + operation + " failed with info=" +
                                      std::to_string(info) + "; no alternative LU method was attempted");
     };
     complex<double> ln_det_all(0.0, 0.0);
@@ -1598,7 +1603,7 @@ complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_
                                              loc_piT.size() * sizeof(cplxdb)));
         LaConnector::pgetrf_bpiv(n, n, factor_data, 1, 1, arrdesc_pi, pivots.data(), info);
         global::profiler.stop("rpa_ddla_lu_bpiv");
-        check_info();
+        check_info("LU factorization");
         if (arrdesc_pi.m_loc() != 0)
         {
             // Pivots are backend-local, replicated along process columns. Copy
@@ -1626,7 +1631,17 @@ complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_
     {
         // Keep standard ScaLAPACK/LAPACK pivots on the conventional path.
         LaConnector::pgetrf(n, n, loc_piT.ptr(), 1, 1, arrdesc_pi, ipiv, info);
-        check_info();
+        check_info("LU factorization");
+        if (solve_rhs != nullptr)
+        {
+            if (LaConnector::is_single_rank_grid(arrdesc_pi))
+                LapackConnector::getrs_f('N', n, rhs_desc->n(), loc_piT.ptr(),
+                    arrdesc_pi.lld(), ipiv, solve_rhs->ptr(), rhs_desc->lld(), info);
+            else
+                ScalapackConnector::pgetrs_f('N', n, rhs_desc->n(), loc_piT.ptr(), 1, 1,
+                    arrdesc_pi.desc, ipiv, solve_rhs->ptr(), 1, 1, rhs_desc->desc, info);
+            check_info("LU solve");
+        }
         complex<double> ln_det_loc(0.0, 0.0);
         for (int ig = 0; ig < n; ++ig)
         {

@@ -81,6 +81,63 @@ static bool check_cross_column_pivot(const BlacsCtxtHandler& blacs)
     return std::isfinite(std::abs(actual)) && std::abs(actual - expected) < 1e-10;
 }
 
+static bool check_schur_solve(const BlacsCtxtHandler& blacs, int n, bool swap_rows = false)
+{
+    ArrayDesc ad(blacs), wd(blacs);
+    ad.init(n, n, 2, 2, 0, 0);
+    wd.init(n, 3, 2, 1, 0, 0);
+    select_backend(ad, blacs); select_backend(wd, blacs);
+    auto a = init_local_mat<std::complex<double>>(ad, MAJOR::COL);
+    auto w = init_local_mat<std::complex<double>>(wd, MAJOR::COL);
+    Matz head(3, 3, MAJOR::COL), schur;
+    // W=A*X with an independently prescribed X. A is deliberately complex and
+    // nonsymmetric; the Schur oracle is I-H-W^H X, with no reference inverse.
+    const auto av = [swap_rows](int i, int j) {
+        if (swap_rows && i < 2) i = 1 - i;
+        return i == j ? std::complex<double>(2. + i, .2 * (i + 1))
+                      : std::complex<double>(.11 * (1 + i), -.07 * (1 + j));
+    };
+    const auto xv = [](int i, int j) { return std::complex<double>(.1 * (i + 1) + .02 * j, -.04 * i + .07 * j); };
+    const auto wv = [&](int i, int j) {
+        std::complex<double> result{};
+        for (int k = 0; k < n; ++k) result += av(i, k) * xv(k, j);
+        return result;
+    };
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j)
+        {
+            const int row = ad.indx_g2l_r(i), col = ad.indx_g2l_c(j);
+            if (row >= 0 && col >= 0) a(row, col) = av(i, j);
+        }
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < 3; ++j)
+        {
+            const int row = wd.indx_g2l_r(i), col = wd.indx_g2l_c(j);
+            if (row >= 0 && col >= 0) w(row, col) = wv(i, j);
+        }
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j) head(i, j) = {.01 * (i + 1), -.02 * j};
+    const auto actual = compute_rpa_body_schur(a, ad, w, wd, head, schur);
+    std::complex<double> determinant = 1.;
+    if (n == 1) determinant = av(0, 0);
+    if (n == 3)
+        determinant = av(0, 0) * (av(1, 1) * av(2, 2) - av(1, 2) * av(2, 1)) -
+                      av(0, 1) * (av(1, 0) * av(2, 2) - av(1, 2) * av(2, 0)) +
+                      av(0, 2) * (av(1, 0) * av(2, 1) - av(1, 1) * av(2, 0));
+    double error = std::abs(actual - std::log(determinant));
+    for (int i = 0; i < 3; ++i)
+        for (int j = 0; j < 3; ++j)
+        {
+            std::complex<double> expected = (i == j ? 1. : 0.) - head(i, j);
+            for (int k = 0; k < n; ++k) expected -= std::conj(wv(k, i)) * xv(k, j);
+            error = std::max(error, std::abs(schur(i, j) - expected));
+        }
+    MPI_Allreduce(MPI_IN_PLACE, &error, 1, MPI_DOUBLE, MPI_MAX, blacs.comm());
+    if (blacs.myid == 0) std::cout << "Schur known-solution oracle backend=" << backend
+        << " n=" << n << " swapped=" << swap_rows << " error=" << error << std::endl;
+    return std::isfinite(error) && error < 2e-12;
+}
+
 int main(int argc, char** argv)
 {
     int provided = MPI_THREAD_SINGLE;
@@ -104,6 +161,11 @@ int main(int argc, char** argv)
         for (const auto& selected : backends)
         {
             backend = selected;
+            if (selected == "scalapack")
+            {
+                for (int n : {0, 1, 3}) passed &= check_schur_solve(blacs, n);
+                passed &= check_schur_solve(blacs, 3, true);
+            }
             passed &= check_cross_column_pivot(blacs);
             const auto z = std::polar(1.0, TWO_PI / 6.0);
             const auto t = std::polar(1.0, TWO_PI * 0.4);

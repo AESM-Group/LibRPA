@@ -459,6 +459,27 @@ public:
         pzgetrf_(&m, &n, a, &ia, &ja, desca, ipiv, &info);
     }
 
+    static inline void pgetrs_f(const char &trans, const int &n, const int &nrhs,
+                                const float *a, const int &ia, const int &ja,
+                                const int *desca, const int *ipiv, float *b,
+                                const int &ib, const int &jb, const int *descb, int &info)
+    { psgetrs_(&trans, &n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info); }
+    static inline void pgetrs_f(const char &trans, const int &n, const int &nrhs,
+                                const double *a, const int &ia, const int &ja,
+                                const int *desca, const int *ipiv, double *b,
+                                const int &ib, const int &jb, const int *descb, int &info)
+    { pdgetrs_(&trans, &n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info); }
+    static inline void pgetrs_f(const char &trans, const int &n, const int &nrhs,
+                                const std::complex<float> *a, const int &ia, const int &ja,
+                                const int *desca, const int *ipiv, std::complex<float> *b,
+                                const int &ib, const int &jb, const int *descb, int &info)
+    { pcgetrs_(&trans, &n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info); }
+    static inline void pgetrs_f(const char &trans, const int &n, const int &nrhs,
+                                const std::complex<double> *a, const int &ia, const int &ja,
+                                const int *desca, const int *ipiv, std::complex<double> *b,
+                                const int &ib, const int &jb, const int *descb, int &info)
+    { pzgetrs_(&trans, &n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info); }
+
     static inline void pgesv_f(const int &n, const int &nrhs, double *a,
                                const int &ia, const int &ja, const int *desca, int *ipiv,
                                double *b, const int &ib, const int &jb,
