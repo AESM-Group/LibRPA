@@ -517,12 +517,11 @@ typedef struct
      *   Requires auxiliary l-shell metadata and the ScaLAPACK Wc path.
      *   Supported for three-dimensional G0W0 and G0W0 band calculations only.
      *
-     * Standalone G0W0/cRPA/QSGW drivers also accept preset 6. G0W0 differentiates
-     * original H/S/r; QSGW differentiates its complete current native-baseline
-     * Hamiltonian. Both resolve to numerical option 3 for analytic head and wing.
-     * This requires replace_w_head and use_scalapack_gw_wc.
-     * API callers supply velocity or numerical H/S/r blocks and select 3/4;
-     * they must not pass driver preset 6 into a numerical options struct.
+     * The standalone driver selects the velocity source with `option_velocity`:
+     * `pyatb` reads an external velocity matrix, `native` differentiates the
+     * real-space H/S/r blocks. QSGW uses its own `qsgw_headwing_velocity`
+     * selector with the `reference`, `rotate_reference`, and `current_hr`
+     * conventions. API callers supply velocity or numerical H/S/r blocks.
      *
      * @par Default
      * 0

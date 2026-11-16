@@ -114,7 +114,7 @@ static void prepare_g0w0_native_velocity(bool prepare_optical = true)
 
 void driver::prepare_crpa_optical_velocity()
 {
-    if (driver_params.g0w0_headwing_velocity == "native")
+    if (driver_params.option_velocity == "native")
     {
         prepare_g0w0_native_velocity(false);
         return;
@@ -752,7 +752,7 @@ void driver::task_g0w0()
         (need_wing || opts.option_dielect_func == 4);
     if (compute_headwing)
     {
-        if (driver_params.g0w0_headwing_velocity == "native")
+        if (driver_params.option_velocity == "native")
             prepare_g0w0_native_velocity();
         else
             read_headwing_input(driver_params.input_dir, need_wing);

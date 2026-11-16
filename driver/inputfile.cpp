@@ -292,19 +292,23 @@ static void validate_input_parameters()
     }
     if (task == "g0w0" || task == "g0w0_band" || task == "crpa")
     {
-        if (params.g0w0_headwing_velocity != "file" && params.g0w0_headwing_velocity != "native")
-            throw std::runtime_error("g0w0_headwing_velocity must be file or native");
-        if (params.g0w0_headwing_velocity == "native")
+        if (params.option_velocity != "pyatb" && params.option_velocity != "native")
+            throw std::runtime_error("option_velocity must be pyatb or native");
+        if (params.option_velocity == "native")
         {
+            // Every analytic head/wing option differentiates the real-space
+            // operators, so all three of them accept the native source.
             if (driver::opts.replace_w_head != LIBRPA_SWITCH_ON ||
-                (driver::opts.option_dielect_func != 3 && driver::opts.option_dielect_func != 4))
+                (driver::opts.option_dielect_func != 3 && driver::opts.option_dielect_func != 4 &&
+                 driver::opts.option_dielect_func != 53))
                 throw std::runtime_error(
-                    "G0W0 native velocity requires replace_w_head and option_dielect_func = 3 or "
-                    "4");
-            if (driver::opts.option_dielect_func == 3 &&
+                    "native option_velocity requires replace_w_head and option_dielect_func = "
+                    "3, 4, or 53");
+            if ((driver::opts.option_dielect_func == 3 ||
+                 driver::opts.option_dielect_func == 53) &&
                 driver::opts.use_scalapack_gw_wc != LIBRPA_SWITCH_ON)
                 throw std::runtime_error(
-                    "G0W0 native velocity with option_dielect_func = 3 requires "
+                    "option_velocity = native with option_dielect_func = 3 or 53 requires "
                     "use_scalapack_gw_wc = true to consume analytic wings");
             if (params.g0w0_fn_hr.empty() || params.g0w0_fn_sr.empty() || params.g0w0_fn_rr.empty())
                 throw std::runtime_error(
@@ -322,7 +326,7 @@ static void validate_input_parameters()
                     "G0W0 native velocity needs the complete AO x band wavefunction frame of "
                     "every k point, which k-point-parallel distribution does not retain; "
                     "set use_kpara_scf_eigvec = false, or select "
-                    "g0w0_headwing_velocity = file to read an external velocity matrix");
+                    "option_velocity = pyatb to read an external velocity matrix");
             const bool use_symmetry = driver::opts.use_symmetry_rpa == LIBRPA_SWITCH_ON ||
                                       driver::opts.use_symmetry_gw == LIBRPA_SWITCH_ON ||
                                       driver::opts.use_symmetry_exx == LIBRPA_SWITCH_ON;
@@ -552,7 +556,7 @@ void parse_inputfile_to_params(const std::string &fn)
     }
     if (task_normalized == "g0w0" || task_normalized == "g0w0_band" || task_normalized == "crpa")
     {
-        parse_qsgw_string(parser, "g0w0_headwing_velocity", driver_params.g0w0_headwing_velocity);
+        parse_qsgw_string(parser, "option_velocity", driver_params.option_velocity);
         parse_qsgw_string(parser, "g0w0_fn_hr", driver_params.g0w0_fn_hr);
         parse_qsgw_string(parser, "g0w0_fn_hr_spin1", driver_params.g0w0_fn_hr_spin1);
         parse_qsgw_string(parser, "g0w0_fn_sr", driver_params.g0w0_fn_sr);
@@ -841,36 +845,6 @@ void parse_inputfile_to_params(const std::string &fn)
 
     // Option 6 selects native G0W0/cRPA velocity or per-update QSGW current-HR
     // velocity. Each uses the existing numerical option-3 head/wing method.
-    requested_option_dielect_func = opts.option_dielect_func;
-    if (opts.option_dielect_func == 6)
-    {
-        const bool is_g0w0 = task_normalized == "g0w0" || task_normalized == "g0w0_band";
-        const bool is_qsgw = task_normalized == "qsgw";
-        const bool is_crpa = task_normalized == "crpa";
-        if (!is_g0w0 && !is_qsgw && !is_crpa)
-            throw std::runtime_error(
-                "option_dielect_func = 6 is only supported for g0w0, g0w0_band, qsgw, or crpa");
-        if (opts.replace_w_head != LIBRPA_SWITCH_ON)
-            throw std::runtime_error("option_dielect_func = 6 requires replace_w_head = true");
-        if (opts.use_scalapack_gw_wc != LIBRPA_SWITCH_ON)
-            throw std::runtime_error(
-                "option_dielect_func = 6 requires use_scalapack_gw_wc = true to consume analytic "
-                "wings");
-        const std::string velocity_key =
-            is_qsgw ? "qsgw_headwing_velocity" : "g0w0_headwing_velocity";
-        const std::string native_mode = is_qsgw ? "current_hr" : "native";
-        std::string &velocity_mode =
-            is_qsgw ? driver_params.qsgw_headwing_velocity : driver_params.g0w0_headwing_velocity;
-        std::string assigned_velocity;
-        if (get_last_assigned_value(parser, velocity_key, assigned_velocity) &&
-            velocity_mode != native_mode)
-            throw std::runtime_error("option_dielect_func = 6 selects " + velocity_key + " = " +
-                                     native_mode + " and conflicts with " + velocity_key + " = " +
-                                     velocity_mode);
-        velocity_mode = native_mode;
-        opts.option_dielect_func = 3;
-    }
-
     validate_input_parameters();
 }
 

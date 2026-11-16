@@ -516,18 +516,8 @@ void read_headwing_input(const string &dir_path, bool need_wing,
     // Auxiliary head/wing bundle: a directory carrying its own k-point table,
     // mean-field occupations/eigenvalues, band eigenvectors and velocity matrix
     // for a k-grid that may be larger than the active LibRPA k-list.
-    // `headwing_bundle/` is the current name; `pyatb_librpa_df/` is the legacy
-    // name of the same layout and stays readable so existing datasets keep
-    // working unchanged (legacy directory, deprecated).
     const string bundle_root = path_as_directory(dir_path);
-    std::string headwing_bundle_dir = bundle_root + "headwing_bundle/";
-    if (!path_exists((headwing_bundle_dir + "velocity_matrix").c_str()))
-    {
-        const string legacy_bundle_dir = bundle_root + "pyatb_librpa_df/";
-        if (path_exists((legacy_bundle_dir + "velocity_matrix").c_str()))
-            headwing_bundle_dir = legacy_bundle_dir;
-    }
-    const string &bundle_dir = headwing_bundle_dir;
+    const string bundle_dir = bundle_root + "pyatb_librpa_df/";
     const string bundle_velocity = bundle_dir + "velocity_matrix";
     auto bundle_ctx = driver_reader_context();
     bundle_ctx.params.prefix_eigvecs_scf = "KS_eigenvector";
@@ -680,7 +670,7 @@ void read_headwing_input(const string &dir_path, bool need_wing,
     // Legacy: retained for datasets whose auxiliary optical bundle provides a
     // full-BZ wavefunction/velocity set on a k-grid larger than the active
     // symmetry-reduced LibRPA k-list. Consolidated when those datasets gain
-    // H(R)/S(R)/r(R) and can switch to g0w0_headwing_velocity = native.
+    // H(R)/S(R)/r(R) and can switch to option_velocity = native.
     if (path_exists(bundle_velocity.c_str()) && wants_headwing_symmetry &&
         scf_nk != pds->pbc.get_n_cells_bvk() && kfrac_bundle.size() != active_kfrac_list.size())
     {

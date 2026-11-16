@@ -1,7 +1,6 @@
 use_spinor_wfc = true
-option_dielect_func_requested = 6
-option_dielect_func_effective = 3
-g0w0_headwing_velocity = native
+option_velocity = native
+option_dielect_func = 3
 use_symmetry_exx = true
 use_symmetry_gw = true
 use_symmetry_rpa = true

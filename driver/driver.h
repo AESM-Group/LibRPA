@@ -281,7 +281,7 @@ struct DriverParams
     //! @par Status
     //! Experimental
     //! @since Unreleased
-    std::string g0w0_headwing_velocity;
+    std::string option_velocity;
 
     //! Original DFT H(R) CSR for spin 0, relative to input_dir or absolute.
     //! @par Default
@@ -939,7 +939,6 @@ extern librpa::Options opts;
 
 // Original dielectric-method request for driver diagnostics, before preset
 // resolution. This is not an input keyword or a numerical API option.
-extern int requested_option_dielect_func;
 
 // TODO: consider move to public API
 std::string format_runtime_options(const librpa::Options &opts) noexcept;

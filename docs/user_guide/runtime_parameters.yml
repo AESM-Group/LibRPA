@@ -277,20 +277,17 @@ blocks:
   - heading: G0W0 native velocity
     text: |
       The standalone `g0w0` driver and its `g0w0_band` alias can construct analytic
-      head/wing velocity from the original DFT H(R), S(R), and r(R). The driver
-      preset `option_dielect_func = 6` selects native velocity and then resolves
-      to the existing numerical option 3. It requires `replace_w_head = true` and
-      `use_scalapack_gw_wc = true`. An omitted velocity
-      selector becomes `native`; explicit `native` is accepted and explicit
-      `file` is rejected. The log records requested option 6 and effective
-      option 3. QSGW also supports option 6 with its `current_hr` velocity
-      convention, described below. Standalone cRPA also accepts option 6 and
-      reuses these native velocity fields for its constrained optical calculation.
-      Other tasks reject option 6. Direct
-      library/API callers use option 3 with the public velocity setter or
+      head/wing velocity from the original DFT H(R), S(R), and r(R).
+      `option_velocity` selects the source for every analytic head/wing option
+      (`option_dielect_func = 3, 4, 53`): `pyatb` (default) reads an external
+      velocity matrix, `native` differentiates the real-space operators supplied
+      through `g0w0_fn_hr`, `g0w0_fn_sr`, and `g0w0_fn_rr`. Native velocity with
+      option 3 or 53 requires `replace_w_head = true` and
+      `use_scalapack_gw_wc = true`. QSGW keeps its own
+      `qsgw_headwing_velocity` selector with the `reference`,
+      `rotate_reference`, and `current_hr` conventions, described below.
+      Direct library/API callers use option 3 with the public velocity setter or
       `librpa_prepare_native_velocity`.
-      Existing options 3 and 4 still accept `g0w0_headwing_velocity = native`;
-      their default `file` uses the existing velocity reader.
       The native path retains the loaded SCF energies,
       wavefunctions, and occupations and does not solve a second eigenproblem.
       It requires complete AO-spinor/band frames. Scalar input uses a uniform
@@ -303,7 +300,7 @@ blocks:
       eigenvectors are disabled on that IBZ route. See the native head/wing example in
       [Driver Usage](driver_usage.md#native-g0w0-headwing-velocity).
     fields:
-      - driver.g0w0_headwing_velocity
+      - driver.option_velocity
       - driver.g0w0_fn_hr
       - driver.g0w0_fn_hr_spin1
       - driver.g0w0_fn_sr
@@ -333,22 +330,18 @@ blocks:
       `prefix_coul_hartree` and unwrapped binary-v1 `prefix_lri_coeff_hartree`
       inputs matched to the selected auxiliary basis. Ordinary GW full/cut
       Coulomb matrices and folded coefficients remain unchanged.
-      `option_dielect_func = 6` selects
-      `qsgw_headwing_velocity = current_hr` and resolves to existing numerical
-      option 3: rebuild velocity from the current native-baseline Hamiltonian
-      in the entering E/C frame, then rebuild analytic head/wing using the live
-      E/C/f and the body frequency nodes. Previous head/wing data are cleared
-      before each rebuild. This needs dimensionless `qsgw_fn_sr` and Bohr
-      `qsgw_fn_rr`, plus matching native `hrs1_nao.csr` in Ry (and
-      `hrs2_nao.csr` for two physical collinear channels). The native DFT
-      baseline and complete current correction use the same reconstruction
-      as formal HR export; no velocity file is needed.
-      The preset requires `replace_w_head = true` and `use_scalapack_gw_wc = true`.
-      An omitted selector or explicit `current_hr` is
-      accepted; explicit `reference` or `rotate_reference` is rejected.
-      The log records requested option 6 and effective option 3.
-      Existing option 3 with `current_hr` remains equivalent; option 3/4 with
-      other supported velocity conventions keeps its existing behavior.
+      `qsgw_headwing_velocity = current_hr` rebuilds velocity from the current
+      native-baseline Hamiltonian in the entering E/C frame, then rebuilds
+      analytic head/wing using the live E/C/f and the body frequency nodes.
+      Previous head/wing data are cleared before each rebuild. This needs
+      dimensionless `qsgw_fn_sr` and Bohr `qsgw_fn_rr`, plus matching native
+      `hrs1_nao.csr` in Ry (and `hrs2_nao.csr` for two physical collinear
+      channels). The native DFT baseline and complete current correction use the
+      same reconstruction as formal HR export; no velocity file is needed.
+      The convention requires `replace_w_head = true`; with option 3 it also
+      requires `use_scalapack_gw_wc = true`. Option 3 with `current_hr` and
+      option 4 (head only) are both supported; option 3/4 with `reference` or
+      `rotate_reference` keeps its existing behavior.
       This is an experimental full, unshifted mesh path with complete square
       AO-spinor/state frames and replicated wavefunctions. SOC uses one physical
       channel and two components with full-dimension S/r. Explicit magnetic

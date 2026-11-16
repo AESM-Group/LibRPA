@@ -369,7 +369,7 @@
       <validate name="Native velocity, two-point IBZ and active magnetic restoration"
                 file_test="librpa/librpa.out"
                 file_refr="runtime_route.txt"
-                regex="^(use_spinor_wfc = true|option_dielect_func_requested = 6|option_dielect_func_effective = 3|g0w0_headwing_velocity = native|use_symmetry_(?:exx|gw|rpa) = true|\| number of k-points\s+: 2|(?:Head|Wing) symmetry restore for analytic (?:head|wing): active \(all symmetry restore checks passed\)\.)$"
+                regex="^(use_spinor_wfc = true|option_dielect_func = 3|option_velocity = native|use_symmetry_(?:exx|gw|rpa) = true|\| number of k-points\s+: 2|(?:Head|Wing) symmetry restore for analytic (?:head|wing): active \(all symmetry restore checks passed\)\.)$"
                 comparison="cmp_text.equal"
       />
       <validate name="Complete complex Cartesian head, all six frequencies"
