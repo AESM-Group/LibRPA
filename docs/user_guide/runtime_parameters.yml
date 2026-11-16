@@ -36,7 +36,6 @@ blocks:
       - driver.i_state_low
       - driver.i_state_high
       - driver.output_hamgnn
-      - driver.use_pyatb
       - driver.output_gw_spec_func
       - driver.sf_omega_start
       - driver.sf_omega_end
@@ -280,8 +279,8 @@ blocks:
       The standalone `g0w0` driver and its `g0w0_band` alias can construct analytic
       head/wing velocity from the original DFT H(R), S(R), and r(R). The driver
       preset `option_dielect_func = 6` selects native velocity and then resolves
-      to the existing numerical option 3. It requires `replace_w_head = true`,
-      `use_scalapack_gw_wc = true`, and `use_pyatb = false`. An omitted velocity
+      to the existing numerical option 3. It requires `replace_w_head = true` and
+      `use_scalapack_gw_wc = true`. An omitted velocity
       selector becomes `native`; explicit `native` is accepted and explicit
       `file` is rejected. The log records requested option 6 and effective
       option 3. QSGW also supports option 6 with its `current_hr` velocity
@@ -344,8 +343,8 @@ blocks:
       `hrs2_nao.csr` for two physical collinear channels). The native DFT
       baseline and complete current correction use the same reconstruction
       as formal HR export; no velocity file is needed.
-      The preset requires `replace_w_head = true`, `use_scalapack_gw_wc = true`,
-      and `use_pyatb = false`. An omitted selector or explicit `current_hr` is
+      The preset requires `replace_w_head = true` and `use_scalapack_gw_wc = true`.
+      An omitted selector or explicit `current_hr` is
       accepted; explicit `reference` or `rotate_reference` is rejected.
       The log records requested option 6 and effective option 3.
       Existing option 3 with `current_hr` remains equivalent; option 3/4 with

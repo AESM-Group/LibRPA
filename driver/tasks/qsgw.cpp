@@ -191,10 +191,6 @@ void driver::task_qsgw()
 {
     using namespace librpa_int;
     using namespace global;
-    if (driver_params.use_pyatb)
-        throw LIBRPA_RUNTIME_ERROR(
-            "QSGW independent PyATB head updates are unsupported; use the same-grid velocity "
-            "input");
     if (driver_params.constants_choice == "aims" && driver_params.qsgw_vxc_basis != "state")
         throw LIBRPA_RUNTIME_ERROR("FHI-aims QSGW Vxc requires the KS-state basis");
     const auto* handler = h.get_c_handler();

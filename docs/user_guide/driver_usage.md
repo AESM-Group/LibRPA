@@ -151,15 +151,14 @@ g0w0_fn_sr = OUT.ABACUS/data-SR-sparse_SPIN0.csr
 g0w0_fn_rr = OUT.ABACUS/data-rR-sparse.csr
 g0w0_hr_unit = Ry
 g0w0_rr_unit = Bohr
-use_pyatb = false
 use_kpara_scf_eigvec = false
 use_symmetry_rpa = false
 use_symmetry_gw = false
 use_symmetry_exx = false
 ```
 
-Option 6 requires `replace_w_head = true`, `use_scalapack_gw_wc = true`, and
-`use_pyatb = false`. It selects `g0w0_headwing_velocity = native` when the selector
+Option 6 requires `replace_w_head = true` and `use_scalapack_gw_wc = true`.
+It selects `g0w0_headwing_velocity = native` when the selector
 is omitted; an explicit `native` is also accepted, while an explicit `file` is
 rejected. The driver log records requested option 6 and effective numerical
 option 3. Other tasks reject option 6. Direct library/API callers must use
@@ -192,7 +191,11 @@ Hermiticity residuals against 1e-4 eV, and the imaginary velocity diagonal again
 they do not certify material or basis convergence.
 
 For options 3 and 4, the default `g0w0_headwing_velocity = file` preserves the
-existing reader. Option 6 does not change either existing prescription. With
+existing reader: it looks for a velocity matrix produced by an external optical
+code. When ABACUS writes the real-space H(R), S(R) and r(R) blocks, prefer
+`g0w0_headwing_velocity = native` (or the option 6 preset) — LibRPA then
+differentiates those blocks itself and no external velocity file is needed.
+Option 6 does not change either existing prescription. With
 `output_level = debug`, either path writes `g0w0_velocity.csv` and
 `g0w0_headwing.csv` under `output_dir`, containing complete complex velocity, head
 and auxiliary-wing arrays. The head/wing snapshot is written before Wc consumes the

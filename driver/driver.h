@@ -408,13 +408,6 @@ struct DriverParams
     //! Experimental
     bool output_hamgnn;
 
-    //! Use PyATB mean-field data for dielectric head/wing calculations.
-    //! @par Default
-    //! false
-    //! @par Status
-    //! Experimental
-    bool use_pyatb;
-
     //! Output GW spectral-function data.
     //! @par Default
     //! false

@@ -67,7 +67,6 @@ DriverParams::DriverParams():
     i_state_low(0),
     i_state_high(default_i_state_high),
     output_hamgnn(false),
-    use_pyatb(false),
     output_gw_spec_func(false),
     sf_omega_start(0.0),
     sf_omega_end(1.0),
@@ -206,7 +205,6 @@ std::string DriverParams::format()
             normal_pair(output_energy_qp),
             normal_pair(output_gw_spec_func),
             normal_pair(output_hamgnn),
-            normal_pair(use_pyatb),
         };
     for (const auto &[k, v]: bool_params)
         ss << k << " = " << std::boolalpha << v << std::endl;

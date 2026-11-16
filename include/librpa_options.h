@@ -520,7 +520,7 @@ typedef struct
      * Standalone G0W0/cRPA/QSGW drivers also accept preset 6. G0W0 differentiates
      * original H/S/r; QSGW differentiates its complete current native-baseline
      * Hamiltonian. Both resolve to numerical option 3 for analytic head and wing.
-     * This requires replace_w_head and use_scalapack_gw_wc, and use_pyatb=false.
+     * This requires replace_w_head and use_scalapack_gw_wc.
      * API callers supply velocity or numerical H/S/r blocks and select 3/4;
      * they must not pass driver preset 6 into a numerical options struct.
      *

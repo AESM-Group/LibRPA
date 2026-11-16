@@ -314,10 +314,15 @@ static void validate_input_parameters()
                 throw std::runtime_error("g0w0_hr_unit must be Ha, Ry, or eV");
             if (params.g0w0_rr_unit != "Bohr" && params.g0w0_rr_unit != "Angstrom")
                 throw std::runtime_error("g0w0_rr_unit must be Bohr or Angstrom");
+            // Native velocity needs the complete AO x band frame of every k point to
+            // build the eigenframe. k-point-parallel distribution keeps only a
+            // subset of k points per rank and cannot supply that frame.
             if (driver::opts.use_kpara_scf_eigvec == LIBRPA_SWITCH_ON)
                 throw std::runtime_error(
-                    "G0W0 native velocity requires undistributed AO/band wavefunction blocks; "
-                    "set use_kpara_scf_eigvec = false");
+                    "G0W0 native velocity needs the complete AO x band wavefunction frame of "
+                    "every k point, which k-point-parallel distribution does not retain; "
+                    "set use_kpara_scf_eigvec = false, or select "
+                    "g0w0_headwing_velocity = file to read an external velocity matrix");
             const bool use_symmetry = driver::opts.use_symmetry_rpa == LIBRPA_SWITCH_ON ||
                                       driver::opts.use_symmetry_gw == LIBRPA_SWITCH_ON ||
                                       driver::opts.use_symmetry_exx == LIBRPA_SWITCH_ON;
@@ -325,8 +330,6 @@ static void validate_input_parameters()
                 throw std::runtime_error(
                     "Scalar G0W0 native velocity requires a full-BZ input without symmetry "
                     "reduction");
-            if (params.use_pyatb)
-                throw std::runtime_error("G0W0 native velocity requires use_pyatb = false");
         }
     }
     if (params.crpa_enabled && task != "qsgw" && task != "g0w0" && task != "g0w0_band")
@@ -434,9 +437,6 @@ static void validate_input_parameters()
             !std::isfinite(params.qsgw_convergence_tolerance_ev))
             throw std::runtime_error(
                 "qsgw_convergence_tolerance_ev must be finite and positive");
-        if (params.use_pyatb)
-            throw std::runtime_error(
-                "QSGW independent PyATB head updates are unsupported; use the same-grid velocity input");
         if (driver::opts.replace_w_head == LIBRPA_SWITCH_ON &&
             driver::opts.option_dielect_func != 3 && driver::opts.option_dielect_func != 4)
             throw std::runtime_error(
@@ -487,7 +487,6 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_int(driver_params, i_state_low);
     _parse_int(driver_params, i_state_high);
     _parse_bool(driver_params, output_hamgnn);
-    _parse_bool(driver_params, use_pyatb);
     _parse_bool(driver_params, output_gw_spec_func);
     _parse_bool(driver_params, use_spinor_wfc);
     parser.parse_bool("use_soc", driver_params.use_spinor_wfc, flag);  // backward-compatible

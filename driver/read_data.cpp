@@ -513,13 +513,27 @@ void read_headwing_input(const string &dir_path, bool need_wing,
         driver::get_bool(driver::opts.use_symmetry_rpa) ||
         driver::get_bool(driver::opts.use_symmetry_gw);
     const bool use_kpara_eigvec = driver::get_bool(driver::opts.use_kpara_scf_eigvec);
-    const string pyatb_dir = path_as_directory(dir_path) + "pyatb_librpa_df/";
-    const string pyatb_velocity = pyatb_dir + "velocity_matrix";
-    auto pyatb_ctx = driver_reader_context();
-    pyatb_ctx.params.prefix_eigvecs_scf = "KS_eigenvector";
+    // Auxiliary head/wing bundle: a directory carrying its own k-point table,
+    // mean-field occupations/eigenvalues, band eigenvectors and velocity matrix
+    // for a k-grid that may be larger than the active LibRPA k-list.
+    // `headwing_bundle/` is the current name; `pyatb_librpa_df/` is the legacy
+    // name of the same layout and stays readable so existing datasets keep
+    // working unchanged (legacy directory, deprecated).
+    const string bundle_root = path_as_directory(dir_path);
+    std::string headwing_bundle_dir = bundle_root + "headwing_bundle/";
+    if (!path_exists((headwing_bundle_dir + "velocity_matrix").c_str()))
+    {
+        const string legacy_bundle_dir = bundle_root + "pyatb_librpa_df/";
+        if (path_exists((legacy_bundle_dir + "velocity_matrix").c_str()))
+            headwing_bundle_dir = legacy_bundle_dir;
+    }
+    const string &bundle_dir = headwing_bundle_dir;
+    const string bundle_velocity = bundle_dir + "velocity_matrix";
+    auto bundle_ctx = driver_reader_context();
+    bundle_ctx.params.prefix_eigvecs_scf = "KS_eigenvector";
 
     const auto &active_kfrac_list = pds->pbc.kfrac_list;
-    std::vector<Vector3_Order<double>> kfrac_pyatb;
+    std::vector<Vector3_Order<double>> kfrac_bundle;
     velocity_matrix_t direct_full_bz_velocity;
     MeanField direct_full_bz_wfc;
     std::vector<std::vector<int>> direct_full_bz_velocity_member_source_ik;
@@ -551,16 +565,20 @@ void read_headwing_input(const string &dir_path, bool need_wing,
             freqs.size(), freqs.front(), freqs.back());
     }
 
-    if (path_exists(pyatb_velocity.c_str()))
+    if (path_exists(bundle_velocity.c_str()))
     {
-        // PyATB may write a full-BZ k grid even when LibRPA runs with symmetry
+        // The bundle may carry a full-BZ k grid even when LibRPA runs with symmetry
         // and the active mean-field grid is IBZ.  Treat k_path_info as the
         // source-coordinate table, then read only the active LibRPA k-list.
         if (mpi_comm_global_h.is_root())
         {
-            std::cout << "Reading head/wing input from " << pyatb_dir << std::endl;
+            std::cout << "Reading head/wing input from " << bundle_dir << std::endl;
         }
-        kfrac_pyatb = read_headwing_k_path_info(pyatb_dir + "k_path_info", n_basis, n_states,
+        // Legacy: the bundle's own k-point table drives the full-BZ -> active
+        // LibRPA k-list mapping. Retained for datasets that ship velocity and
+        // wavefunctions on a PyATB grid larger than the SCF grid; removed once
+        // those datasets carry H(R)/S(R)/r(R) for the native velocity route.
+        kfrac_bundle = read_headwing_k_path_info(bundle_dir + "k_path_info", n_basis, n_states,
                                                  n_spin);
         if (use_spinor_wfc)
         {
@@ -569,9 +587,9 @@ void read_headwing_input(const string &dir_path, bool need_wing,
             n_basis /= 2;
         }
         const auto target_to_source_ik =
-            map_kpoints_by_coordinates(active_kfrac_list, kfrac_pyatb,
+            map_kpoints_by_coordinates(active_kfrac_list, kfrac_bundle,
                                        kSymmetryKpointMatchTol);
-        std::vector<int> source_to_target_ik(kfrac_pyatb.size(), -1);
+        std::vector<int> source_to_target_ik(kfrac_bundle.size(), -1);
         for (int ik_target = 0; ik_target != static_cast<int>(target_to_source_ik.size());
              ++ik_target)
         {
@@ -579,8 +597,8 @@ void read_headwing_input(const string &dir_path, bool need_wing,
         }
 
         restore_mf.capture();
-        read_scf_occ_eigenvalues(pyatb_dir + "band_out", mf, use_spinor_wfc,
-                                  target_to_source_ik, static_cast<int>(kfrac_pyatb.size()));
+        read_scf_occ_eigenvalues(bundle_dir + "band_out", mf, use_spinor_wfc,
+                                  target_to_source_ik, static_cast<int>(kfrac_bundle.size()));
         const bool direct_headwing_kblacs_2d =
             use_kpara_eigvec && driver::opts.parallel_routing == LIBRPA_ROUTING_LIBRI;
         std::vector<int> iks_headwing_eigvec_this;
@@ -603,22 +621,22 @@ void read_headwing_input(const string &dir_path, bool need_wing,
         const int ret_eigenvec =
             direct_headwing_kblacs_2d
                 ? librpa::reader::read_eigenvector_kblacs_2d(
-                      pyatb_ctx, pyatb_dir, mf, use_spinor_wfc,
+                      bundle_ctx, bundle_dir, mf, use_spinor_wfc,
                       pds->scfk_blacs_ctxt, pds->desc_wfc_kb,
                       &source_to_target_ik, LegacyTextWfcOrder::SpinBasisBand)
                 : librpa::reader::read_eigenvector(
-                      pyatb_ctx, pyatb_dir, mf, use_spinor_wfc,
+                      bundle_ctx, bundle_dir, mf, use_spinor_wfc,
                       source_to_target_ik, source_iks_headwing_eigvec_selected,
                       LegacyTextWfcOrder::SpinBasisBand);
         if (ret_eigenvec != 0)
         {
-            throw std::runtime_error("Failed to read pyatb head/wing eigenvectors from " +
-                                     pyatb_dir);
+            throw std::runtime_error("Failed to read head/wing bundle eigenvectors from " +
+                                     bundle_dir);
         }
         if (direct_headwing_kblacs_2d)
             pds->mark_eigvecs_kpara_2d_ready();
-        read_velocity(pyatb_velocity, mf, velocity_matrix, source_to_target_ik,
-                      static_cast<int>(kfrac_pyatb.size()));
+        read_velocity(bundle_velocity, mf, velocity_matrix, source_to_target_ik,
+                      static_cast<int>(kfrac_bundle.size()));
         if (n_basis != mf.get_n_aos() || n_states != mf.get_n_states() ||
             n_spin != mf.get_n_spins())
         {
@@ -659,31 +677,35 @@ void read_headwing_input(const string &dir_path, bool need_wing,
     {
         librpa_int::initialize_symmetry_context(*pds, true);
     }
-    if (path_exists(pyatb_velocity.c_str()) && wants_headwing_symmetry &&
-        scf_nk != pds->pbc.get_n_cells_bvk() && kfrac_pyatb.size() != active_kfrac_list.size())
+    // Legacy: retained for datasets whose auxiliary optical bundle provides a
+    // full-BZ wavefunction/velocity set on a k-grid larger than the active
+    // symmetry-reduced LibRPA k-list. Consolidated when those datasets gain
+    // H(R)/S(R)/r(R) and can switch to g0w0_headwing_velocity = native.
+    if (path_exists(bundle_velocity.c_str()) && wants_headwing_symmetry &&
+        scf_nk != pds->pbc.get_n_cells_bvk() && kfrac_bundle.size() != active_kfrac_list.size())
     {
         direct_full_bz_velocity_member_source_ik =
             map_symmetry_kstar_members_to_source_kpoints(
-                pds->symmetry_context, active_kfrac_list, kfrac_pyatb,
+                pds->symmetry_context, active_kfrac_list, kfrac_bundle,
                 kSymmetryKpointMatchTol);
         MeanField full_bz_headwing_mf(
-            mf.get_n_spins(), static_cast<int>(kfrac_pyatb.size()), mf.get_n_states(),
+            mf.get_n_spins(), static_cast<int>(kfrac_bundle.size()), mf.get_n_states(),
             mf.get_n_aos(), mf.get_n_spinor());
-        std::vector<int> full_bz_identity_map(kfrac_pyatb.size());
+        std::vector<int> full_bz_identity_map(kfrac_bundle.size());
         for (int ik = 0; ik != static_cast<int>(full_bz_identity_map.size()); ++ik)
             full_bz_identity_map[ik] = ik;
         const int ret_full_wfc = librpa::reader::read_eigenvector(
-            pyatb_ctx, pyatb_dir, full_bz_headwing_mf, use_spinor_wfc,
+            bundle_ctx, bundle_dir, full_bz_headwing_mf, use_spinor_wfc,
             full_bz_identity_map, nullptr, LegacyTextWfcOrder::SpinBasisBand);
         if (ret_full_wfc != 0)
         {
             throw std::runtime_error(
-                "Failed to read full-BZ PyATB head/wing eigenvectors from " + pyatb_dir);
+                "Failed to read full-BZ head/wing bundle eigenvectors from " + bundle_dir);
         }
-        read_velocity(pyatb_velocity, full_bz_headwing_mf, direct_full_bz_velocity);
+        read_velocity(bundle_velocity, full_bz_headwing_mf, direct_full_bz_velocity);
         direct_full_bz_wfc = std::move(full_bz_headwing_mf);
         librpa_int::global::lib_printf_root(
-            "Head/wing symmetry: use direct full-BZ PyATB WFC and velocity for %zu k-star members.\n",
+            "Head/wing symmetry: use direct full-BZ bundle WFC and velocity for %zu k-star members.\n",
             pds->symmetry_context.count_kstar_members());
     }
     const auto &headwing_basis_aux =
@@ -771,7 +793,7 @@ void read_headwing_input(const string &dir_path, bool need_wing,
                 if (!missing_k.empty())
                 {
                     std::ostringstream oss;
-                    oss << "PyATB head/wing input is missing eigenvectors for "
+                    oss << "Head/wing bundle input is missing eigenvectors for "
                         << missing_k.size() << " k-points in spin " << ispin << " spinor "
                         << ispinor << ". Check k_path_info and KS_eigenvector_* coverage.";
                     throw std::runtime_error(oss.str());
@@ -779,7 +801,7 @@ void read_headwing_input(const string &dir_path, bool need_wing,
             }
         }
         if (mpi_comm_global_h.is_root())
-            std::cout << "Using PyATB head/wing input on the active LibRPA k-list with "
+            std::cout << "Using the head/wing bundle on the active LibRPA k-list with "
                       << mf.get_n_kpoints() << " k-points" << std::endl;
     }
     if (!restore_mf.active) pds->p_headwing->normalize_ibz_star_weighted_occupations();

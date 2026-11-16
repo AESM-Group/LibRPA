@@ -267,8 +267,8 @@ then apply the existing analytic head/wing prescription at every iteration.
 This preset selects `qsgw_headwing_velocity = current_hr` and resolves to
 numerical option 3. An omitted selector or explicit `current_hr` is accepted;
 explicit `reference` and `rotate_reference` are rejected for option 6. It
-requires `replace_w_head = true`, `use_scalapack_gw_wc = true`, and
-`use_pyatb = false`. The log records requested option 6 and effective option 3.
+requires `replace_w_head = true` and `use_scalapack_gw_wc = true`.
+The log records requested option 6 and effective option 3.
 The native mode remains experimental.
 
 Existing option 3 provides both analytic head and wing, and option 4 provides
@@ -300,7 +300,6 @@ input_preset = abacus
 replace_w_head = true
 option_dielect_func = 6
 use_scalapack_gw_wc = true
-use_pyatb = false
 use_kpara_scf_eigvec = false
 use_symmetry_rpa = false
 use_symmetry_gw = false

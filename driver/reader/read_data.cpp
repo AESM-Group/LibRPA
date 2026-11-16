@@ -308,11 +308,11 @@ void read_scf_occ_eigenvalues(const string &file_path, MeanField &mf, bool use_s
         const int ik_source = source_ik_for_target[ik_target];
         if (ik_source < 0 || ik_source >= n_kpoints_source)
         {
-            throw std::logic_error("Invalid PyATB source k-point index selected for band_out");
+            throw std::logic_error("Invalid head/wing bundle source k-point index selected for band_out");
         }
         if (source_to_target[ik_source] >= 0)
         {
-            throw std::logic_error("Duplicate PyATB source k-point selected for band_out");
+            throw std::logic_error("Duplicate head/wing bundle source k-point selected for band_out");
         }
         source_to_target[ik_source] = ik_target;
     }
@@ -1023,7 +1023,7 @@ void read_velocity(ReaderContext &ctx, const string &file_path, int target_spins
         }
         check_velocity_target_hits(target_hits, target_spins, target_kpoints);
         if (ctx.comm.is_root())
-            std::cout << "* Success: read velocity from pyatb_librpa_df(ABACUS)." << std::endl;
+            std::cout << "* Success: read head/wing velocity matrix (ABACUS)." << std::endl;
         return;
     }
 
@@ -1075,7 +1075,7 @@ void read_velocity(ReaderContext &ctx, const string &file_path, int target_spins
         }
     }
     if (ctx.comm.is_root())
-        std::cout << "* Success: read velocity from pyatb_librpa_df(ABACUS)." << std::endl;
+        std::cout << "* Success: read head/wing velocity matrix (ABACUS)." << std::endl;
 }
 
 void read_velocity_abacus(ReaderContext &ctx, const MeanField &mf, const string &dir_path,
@@ -1128,7 +1128,7 @@ void read_velocity(ReaderContext &ctx, const string &file_path, const MeanField 
         }
         check_velocity_target_hits(target_hits, mf.get_n_spins(), mf.get_n_kpoints());
         if (ctx.comm.is_root())
-            std::cout << "* Success: read velocity from pyatb_librpa_df(ABACUS)." << std::endl;
+            std::cout << "* Success: read head/wing velocity matrix (ABACUS)." << std::endl;
         return;
     }
 
@@ -1217,7 +1217,7 @@ void read_velocity(ReaderContext &ctx, const string &file_path, const MeanField 
         }
     }
     if (ctx.comm.is_root())
-        std::cout << "* Success: read velocity from pyatb_librpa_df(ABACUS)." << std::endl;
+        std::cout << "* Success: read head/wing velocity matrix (ABACUS)." << std::endl;
 }
 
 void read_velocity_aims(ReaderContext &ctx, const MeanField &mf, const string &file_path,
