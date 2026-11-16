@@ -1,0 +1,30 @@
+task = g0w0_band
+input_preset = abacus
+input_dir = ../dataset
+# Preserve the total Vxc filename in this historical dataset.
+fn_vxc_scf = vxc_out.txt
+nfreq = 6
+n_params_anacon = 6
+option_dielect_func = 6
+replace_w_head = t
+use_scalapack_gw_wc = t
+parallel_routing = libri
+vq_threshold = 0
+sqrt_coulomb_threshold = 0
+use_shrink_abfs = t
+use_shrink_chi = t
+output_gw_sigc_ks_mat_kf = t
+debug = t
+version_coul_reader = 1
+version_lri_reader = 1
+# Native velocity needs the complete AO x band frame of every k point.
+use_kpara_scf_eigvec = f
+# The dataset's own band_out.txt is a collinear 27-electron mean field; the
+# scalar native route is not symmetry-reduced.
+use_symmetry_rpa = f
+g0w0_fn_hr = OUT.ABACUS/hrs1_nao.csr
+g0w0_fn_hr_spin1 = OUT.ABACUS/hrs2_nao.csr
+g0w0_fn_sr = OUT.ABACUS/srs1_nao.csr
+g0w0_fn_rr = OUT.ABACUS/rr.csr
+g0w0_hr_unit = Ry
+g0w0_rr_unit = Bohr

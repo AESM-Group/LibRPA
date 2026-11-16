@@ -499,6 +499,38 @@
       <!--           comparison="cmp_float.abs_diff(1e-4)" -->
       <!-- /> -->
     </testcase>
+    <!-- Same MnO2 dataset as the case above, but with the head/wing velocity
+         differentiated by LibRPA from the dataset's own OUT.ABACUS H(R)/S(R)/r(R)
+         blocks instead of read from the auxiliary bundle. The bundle band_out
+         occupies 15 bands in both spins (30 electrons), while the dataset's SCF
+         band_out is the self-consistent collinear 27-electron result (15 up,
+         12 down); the native route consumes the SCF copy, so this case has its
+         own reference rather than reusing the case above. -->
+    <testcase name="MnO2 nspin2 native headwing velocity (abacus input)" directory="g0w0_band_abacus_MnO2_nspin2_native_headwing_libri">
+      <labels refhash="6825722f0624c430d8df04b3a1c816fbf2e471fb"
+      />
+      <build require_libri="true"
+      />
+      <run ntasks_disable="none"
+           nthreads_disable="none"
+           ntasks_enable="none"
+           nthreads_enable="none"
+      />
+      <validate name="Quasi-particle energies on k-grid"
+                regex="State\s+occ\s+e_mf\s+v_xc\s+v_exx\s+ReSigc\s+ImSigc\s+e_qp"
+                headers="2"
+                rows="36"
+                comparison="cmp_table.abs_diff(1e-4)"
+      />
+      <validate name="Non-SCF EXX band structure"
+                file="librpa/EXX_band_spin_*.dat"
+                comparison="cmp_table.abs_diff(1e-4)"
+      />
+      <validate name="QP band structure"
+                file="librpa/GW_band_spin_*.dat"
+                comparison="cmp_table.abs_diff(1e-4,allow_matching_nan=true)"
+      />
+    </testcase>
 
     <testcase name="BN symmetry shrink (abacus input)" directory="g0w0_band_abacus_BN_sym_shrink_libri">
       <labels refhash="a56500a434d0f57e06eb8cfed2dacd3f66833f78"
