@@ -7,6 +7,7 @@
 #include "../io/global_io.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "../utils/error.h"
+#include "../utils/dev_options.h"
 #include "../utils/profiler.h"
 #include "epsilon.h"
 #include "pair_density_vertex.h"
@@ -276,6 +277,35 @@ CrpaLocalProjection prepare_crpa_local_projection(CrpaContext &context,
     {
         CrpaTimer vertex_timer("crpa_vertices",
                                "Build and transform physical-spin pair-density vertices");
+        const BlacsCtxtHandler *mixed_cpu_grid = nullptr;
+#ifdef LIBRPA_USE_DDLA
+        // Borrow the operation's existing CPU resource when possible. GPU-only
+        // contexts need at most one host resource for all physical spins/sites.
+        std::unique_ptr<BlacsCtxtHandler> vertex_cpu_grid;
+        if (global::dev_opts.use_mixed_type_ddla)
+        {
+            bool cpu_resource_ready = true;
+            try
+            {
+                if (context.blacs.ddla_cpu_handle != nullptr)
+                    mixed_cpu_grid = &context.blacs;
+                else
+                {
+                    vertex_cpu_grid = std::make_unique<BlacsCtxtHandler>(MPI_COMM_SELF);
+                    vertex_cpu_grid->init();
+                    vertex_cpu_grid->set_grid(1, 1);
+                    vertex_cpu_grid->init_ddla_handle(ddla::DdlaBackend::CPU);
+                    mixed_cpu_grid = vertex_cpu_grid.get();
+                }
+            }
+            catch (...)
+            {
+                cpu_resource_ready = false;
+            }
+            require_collectively(cpu_resource_ready, comm,
+                                 "cRPA: pair-vertex CPU resource initialization failed");
+        }
+#endif
         for (auto *frame : frames)
         {
             require_collectively(frame->get_sites().size() == result.sites.size(), comm,
@@ -286,7 +316,8 @@ CrpaLocalProjection prepare_crpa_local_projection(CrpaContext &context,
                         frame->get_sites()[site].atom_index == result.sites[site].atom_index,
                     comm, "cRPA: spin frames refer to different sites or orbital counts");
             PairDensityVertex parent(*frame, context.coefficients, chi.atbasis_wfc,
-                                     context.parent_auxiliary_basis, chi.pbc, qs, comm);
+                                     context.parent_auxiliary_basis, chi.pbc, qs, comm,
+                                     mixed_cpu_grid);
             vertices.emplace_back();
             for (const auto &site : parent.sites())
             {

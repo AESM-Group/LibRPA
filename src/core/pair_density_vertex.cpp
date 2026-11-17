@@ -4,14 +4,23 @@
 #include <cmath>
 #include <complex>
 #include <limits>
+#include <memory>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <utility>
 #include <valarray>
 
 #include "../interface/blas_lapack/lapack_connector.h"
+#include "../mpi/base_blacs.h"
 #include "../utils/constants.h"
+#include "../utils/dev_options.h"
 #include "../utils/error.h"
+#include "../utils/profiler.h"
+
+#ifdef LIBRPA_USE_DDLA
+#include <ddla/ddla_vector.h>
+#endif
 
 #ifdef LIBRPA_USE_LIBRI
 #include <RI/comm/mix/Communicate_Tensors_Map_Judge.h>
@@ -161,7 +170,8 @@ void validate_cs_tensor(const RI::Tensor<double> &Cs, const int n_mu, const int 
 SitePairDensityVertex build_site_pair_density_vertex_from_T(
     const int site_index, const SiteOrbitalGroup &site, const std::vector<ComplexMatrix> &T_R_site,
     const PairDensityCsMap &Cs_complete, const AtomicBasis &basis_wfc, const AtomicBasis &basis_abf,
-    const PeriodicBoundaryData &pbc, const std::vector<Vector3_Order<double>> &qpoints)
+    const PeriodicBoundaryData &pbc, const std::vector<Vector3_Order<double>> &qpoints,
+    const BlacsCtxtHandler *mixed_cpu_grid)
 {
     validate_bvk_and_q_grid(pbc, qpoints);
     if (!basis_wfc.initialized() || !basis_abf.initialized())
@@ -201,6 +211,16 @@ SitePairDensityVertex build_site_pair_density_vertex_from_T(
     const int npair = site.n_orbitals * site.n_orbitals;
     std::vector<PairVertexAtomBlocks> D_by_R(pbc.Rlist.size());
     bool used_relevant_cs = false;
+    const bool mixed_coefficients = global::dev_opts.use_mixed_type_ddla;
+#ifdef LIBRPA_USE_DDLA
+    // The whole projection operation owns the handle; no per-site grid or TLS
+    // scratch is created. Missing host resources retain the conventional path.
+    const auto cpu_handle = mixed_cpu_grid == nullptr ? nullptr : mixed_cpu_grid->ddla_cpu_handle;
+#else
+    (void)mixed_cpu_grid;
+    if (mixed_coefficients)
+        throw LIBRPA_RUNTIME_ERROR("use_mixed_type_ddla requires LIBRPA_USE_DDLA");
+#endif
 
     for (const auto &[I, JR_Cs] : Cs_complete)
     {
@@ -230,11 +250,33 @@ SitePairDensityVertex build_site_pair_density_vertex_from_T(
             // product. Pack it once, and form the two AO orderings only once
             // per (ab,ij), rather than repeating them for every auxiliary mu.
             const int nij = n_i * n_j;
-            ComplexMatrix coefficients(n_mu, nij);
-            for (int mu = 0; mu != n_mu; ++mu)
-                for (int ij = 0; ij != nij; ++ij)
-                    coefficients(mu, ij) = (*Cs.data)[static_cast<std::size_t>(mu) * nij + ij];
+            bool use_mixed_block = false;
+#ifdef LIBRPA_USE_DDLA
+            std::optional<ddla::vector<char>> mixed_workspace;
+            if (mixed_coefficients && cpu_handle != nullptr && n_mu && nij)
+            {
+                const auto bytes = ddla::gemm_mixed_workspace_bytes<double>(
+                    cpu_handle, n_mu, npair, nij, false);
+                const auto coefficient_bytes = static_cast<std::size_t>(n_mu) * nij * sizeof(Complex);
+                // Replace the original promoted coefficient lifetime only when
+                // all padded DDLA scratch fits within those removed bytes.
+                use_mixed_block = bytes <= coefficient_bytes;
+                if (use_mixed_block) mixed_workspace.emplace(cpu_handle, bytes);
+            }
+#endif
+            ComplexMatrix coefficients;
+            if (!use_mixed_block)
+            {
+                coefficients.create(n_mu, nij);
+                for (int mu = 0; mu != n_mu; ++mu)
+                    for (int ij = 0; ij != nij; ++ij)
+                        coefficients(mu, ij) = (*Cs.data)[static_cast<std::size_t>(mu) * nij + ij];
+            }
             ComplexMatrix products(npair, nij);
+            // One inclusive marker for a used coefficient block, including all
+            // its products/translations. The deleter balances it on failure too.
+            std::unique_ptr<const char, void (*)(const char *)> mixed_timer(
+                nullptr, [](const char *name) { global::profiler.stop(name); });
 
             for (std::size_t iA = 0; iA != pbc.Rlist.size(); ++iA)
             {
@@ -248,6 +290,11 @@ SitePairDensityVertex build_site_pair_density_vertex_from_T(
                 if (!atom_block_nonzero(T_left, basis_wfc, I) ||
                     !atom_block_nonzero(T_right, basis_wfc, J))
                     continue;
+                if (use_mixed_block && !mixed_timer && n_mu && nij)
+                {
+                    mixed_timer.reset("pair_vertex_mixed_coefficients");
+                    global::profiler.start(mixed_timer.get(), LIBRPA_VERBOSE_DEBUG);
+                }
 
                 auto [it_D, inserted] = D_by_R[iA].emplace(I, ComplexMatrix(npair, n_mu));
                 auto &D = it_D->second;
@@ -270,8 +317,26 @@ SitePairDensityVertex build_site_pair_density_vertex_from_T(
                     }
                 // Ordinary transpose: the conjugations are already in products.
                 if (n_mu && nij)
-                    LapackConnector::gemm('N', 'T', npair, n_mu, nij, Complex{1.0, 0.0}, products.c,
-                                          nij, coefficients.c, nij, Complex{1.0, 0.0}, D.c, n_mu);
+                {
+#ifdef LIBRPA_USE_DDLA
+                    if (use_mixed_block)
+                    {
+                        // Column-major views of row-major storage:
+                        // D^T = Cs * products^T. Cs storage views Cs^T, so
+                        // transpose only that real operand; never conjugate products.
+                        ddla::gemm(cpu_handle, 'T', 'N', n_mu, npair, nij,
+                                   Complex{1.0, 0.0}, std::begin(*Cs.data), nij, products.c, nij,
+                                   Complex{1.0, 0.0}, D.c, n_mu,
+                                   mixed_workspace->data(), mixed_workspace->size());
+                    }
+                    else
+#endif
+                    {
+                        LapackConnector::gemm('N', 'T', npair, n_mu, nij, Complex{1.0, 0.0},
+                                              products.c, nij, coefficients.c, nij,
+                                              Complex{1.0, 0.0}, D.c, n_mu);
+                    }
+                }
             }
         }
     }
@@ -318,7 +383,8 @@ SitePairDensityVertex build_site_pair_density_vertex_from_T(
 SitePairDensityVertex build_site_pair_density_vertex(
     CorrelatedSubspace &subspace, const int site_index, const PairDensityCsMap &Cs_complete,
     const AtomicBasis &basis_wfc, const AtomicBasis &basis_abf, const PeriodicBoundaryData &pbc,
-    const std::vector<Vector3_Order<double>> &qpoints)
+    const std::vector<Vector3_Order<double>> &qpoints,
+    const BlacsCtxtHandler *mixed_cpu_grid)
 {
     const auto &sites = subspace.get_sites();
     if (site_index < 0 || site_index >= static_cast<int>(sites.size()))
@@ -347,7 +413,7 @@ SitePairDensityVertex build_site_pair_density_vertex(
     }
     return build_site_pair_density_vertex_from_T(
         site_index, sites[static_cast<std::size_t>(site_index)], T_R_site, Cs_complete, basis_wfc,
-        basis_abf, pbc, qpoints);
+        basis_abf, pbc, qpoints, mixed_cpu_grid);
 }
 
 SitePairDensityVertex transform_site_pair_density_vertex_auxiliary_basis(
@@ -471,7 +537,8 @@ PairDensityVertex::PairDensityVertex(CorrelatedSubspace &subspace, const Cs_LRI 
                                      const AtomicBasis &basis_wfc, const AtomicBasis &basis_abf,
                                      const PeriodicBoundaryData &pbc,
                                      const std::vector<Vector3_Order<double>> &qpoints,
-                                     const MpiCommHandler &comm_h)
+                                     const MpiCommHandler &comm_h,
+                                     const BlacsCtxtHandler *mixed_cpu_grid)
 {
     if (!comm_h.is_initialized())
         throw LIBRPA_INVALID_ARGUMENT("PairDensityVertex requires an initialized MPI communicator");
@@ -670,7 +737,7 @@ PairDensityVertex::PairDensityVertex(CorrelatedSubspace &subspace, const Cs_LRI 
         try
         {
             site_result = build_site_pair_density_vertex(subspace, isite, Cs_complete, basis_wfc,
-                                                         basis_abf, pbc, qpoints);
+                                                         basis_abf, pbc, qpoints, mixed_cpu_grid);
         }
         catch (const std::exception &error)
         {

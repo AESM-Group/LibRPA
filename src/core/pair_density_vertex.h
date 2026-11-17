@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "../math/complexmatrix.h"
+#include "../mpi/base_blacs.h"
 #include "../mpi/base_mpi.h"
 #include "atomic_basis.h"
 #include "correlated_subspace.h"
@@ -63,17 +64,22 @@ struct SitePairDensityVertex
  * not CorrelatedSubspace's negative-Fourier T_code(A). The wrapper below
  * converts t(A)=T_code(wrap_bvk(-A)) on untwisted BvK meshes. This pure kernel
  * independently accepts any complete full-q grid dual to pbc.Rlist.
+ * A borrowed CPU grid permits the experimental mixed path when its explicit
+ * scratch fits within the removed complex coefficient storage; otherwise the
+ * conventional product is used.
  */
 SitePairDensityVertex build_site_pair_density_vertex_from_T(
     int site_index, const SiteOrbitalGroup &site, const std::vector<ComplexMatrix> &T_R_site,
     const PairDensityCsMap &Cs_complete, const AtomicBasis &basis_wfc, const AtomicBasis &basis_abf,
-    const PeriodicBoundaryData &pbc, const std::vector<Vector3_Order<double>> &qpoints);
+    const PeriodicBoundaryData &pbc, const std::vector<Vector3_Order<double>> &qpoints,
+    const BlacsCtxtHandler *mixed_cpu_grid = nullptr);
 
 /*! Build one site vertex from an already materialized CorrelatedSubspace. */
 SitePairDensityVertex build_site_pair_density_vertex(
     CorrelatedSubspace &subspace, int site_index, const PairDensityCsMap &Cs_complete,
     const AtomicBasis &basis_wfc, const AtomicBasis &basis_abf, const PeriodicBoundaryData &pbc,
-    const std::vector<Vector3_Order<double>> &qpoints);
+    const std::vector<Vector3_Order<double>> &qpoints,
+    const BlacsCtxtHandler *mixed_cpu_grid = nullptr);
 
 /*! Express a site vertex in an active auxiliary basis without modifying inputs.
  *
@@ -111,7 +117,8 @@ public:
     PairDensityVertex(CorrelatedSubspace &subspace, const Cs_LRI &Cs, const AtomicBasis &basis_wfc,
                       const AtomicBasis &basis_abf, const PeriodicBoundaryData &pbc,
                       const std::vector<Vector3_Order<double>> &qpoints,
-                      const MpiCommHandler &comm_h);
+                      const MpiCommHandler &comm_h,
+                      const BlacsCtxtHandler *mixed_cpu_grid = nullptr);
 
     const std::vector<SitePairDensityVertex> &sites() const { return sites_; }
     const SitePairDensityVertex &site(int site_index) const;
