@@ -1734,7 +1734,8 @@ void G0W0::build_spacetime(
             auto Wc_tau_R_blacs = CT_FT_Wc_freq_q(
                 comm_h, Wc_freq_q, pbc, tfg, true, output_wc_rf,
                 ifreq_output_wc_start, ifreq_output_wc_end, output_wc_rf_atom_pair,
-                output_dir, &ad_Wc, &atbasis_abf, &qpoint_view, &symmetry_context);
+                output_dir, &ad_Wc, &atbasis_abf, &qpoint_view, &symmetry_context,
+                blacs_ctxt_h);
             release_free_mem();
             profiler.stop("g0w0_build_spacetime_ct_ft_real_work");
             if (use_complex_tensor)

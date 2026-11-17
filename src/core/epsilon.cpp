@@ -3901,7 +3901,8 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> CT_FT_Wc_freq_q(
     bool output_wc_rf_atom_pair, const std::string &output_dir,
     const ArrayDesc *ad_Wc, const AtomicBasis *atbasis_Wc,
     const SymmetryQPointView *qpoint_view,
-    const SymmetryContext *symmetry_context)
+    const SymmetryContext *symmetry_context,
+    const BlacsCtxtHandler *mixed_cpu_owner)
 {
     using std::endl;
 
@@ -4046,20 +4047,29 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> CT_FT_Wc_freq_q(
     Matz coeff_f2t;
     Matd real_coeff_f2t;
 #ifdef LIBRPA_USE_DDLA
-    // These batches live on the host. Reuse the existing grid/handle owner on
-    // MPI_COMM_SELF; local GEMM must not add collectives on the Wc communicator.
+    // These batches stay on the host. Local GEMM performs no MPI, so an
+    // existing owning CPU grid can be borrowed without changing Wc ownership.
+    // Keep the previous self-grid fallback when the caller has no CPU handle.
     std::unique_ptr<BlacsCtxtHandler> transform_grid;
+    ddla::DdlaHandle_t transform_handle = nullptr;
     if (mixed_transform)
     {
-        transform_grid = std::make_unique<BlacsCtxtHandler>(MPI_COMM_SELF);
-        transform_grid->init();
-        transform_grid->set_grid(1, 1);
-        transform_grid->init_ddla_handle(ddla::DdlaBackend::CPU);
+        if (mixed_cpu_owner != nullptr)
+            transform_handle = mixed_cpu_owner->ddla_cpu_handle;
+        if (transform_handle == nullptr)
+        {
+            transform_grid = std::make_unique<BlacsCtxtHandler>(MPI_COMM_SELF);
+            transform_grid->init();
+            transform_grid->set_grid(1, 1);
+            transform_grid->init_ddla_handle(ddla::DdlaBackend::CPU);
+            transform_handle = transform_grid->ddla_cpu_handle;
+        }
         real_coeff_f2t = Matd(n_freq, n_freq, MAJOR::COL);
         global::lib_printf_root("Experimental DDLA mixed FP64 host Wc cosine transform enabled\n");
     }
     else
 #else
+    (void)mixed_cpu_owner;
     if (mixed_transform)
         throw LIBRPA_RUNTIME_ERROR("use_mixed_type_ddla requires LIBRPA_USE_DDLA");
 #endif
@@ -4148,7 +4158,7 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> CT_FT_Wc_freq_q(
             global::profiler.start("wc_cosine_gemm", LIBRPA_VERBOSE_DEBUG);
 #ifdef LIBRPA_USE_DDLA
             if (mixed_transform)
-                ddla::gemm(transform_grid->ddla_cpu_handle, 'N', 'N', row_this, n_freq, n_freq,
+                ddla::gemm(transform_handle, 'N', 'N', row_this, n_freq, n_freq,
                            C_ONE, fmat.data(), row_max, real_coeff_f2t.ptr(), n_freq,
                            C_ZERO, tmat.data(), row_max);
             else

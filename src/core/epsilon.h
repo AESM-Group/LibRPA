@@ -99,6 +99,8 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> FT_Wc_freq_q(
     const AtomicBasis *atbasis_Wc = nullptr,
     const ArrayDesc *ad_Wc = nullptr);
 
+//! Mixed host cosine GEMM can borrow a caller-owned CPU handle; the owner must
+//! outlive this call. Missing CPU handles retain the local self-grid fallback.
 std::map<double, std::map<Vector3_Order<int>, Matz>> CT_FT_Wc_freq_q(
     const MpiCommHandler &comm_h,
     std::map<double, std::map<Vector3_Order<double>, Matz>> &Wc_freq_q,
@@ -108,7 +110,8 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> CT_FT_Wc_freq_q(
     const std::string &output_dir = ".", const ArrayDesc *ad_Wc = nullptr,
     const AtomicBasis *atbasis_Wc = nullptr,
     const SymmetryQPointView *qpoint_view = nullptr,
-    const SymmetryContext *symmetry_context = nullptr);
+    const SymmetryContext *symmetry_context = nullptr,
+    const BlacsCtxtHandler *mixed_cpu_owner = nullptr);
 
 //! Dense Wc(q,iw) -> real Wc(R,tau), consuming Wc_freq_q.
 std::map<double, std::map<Vector3_Order<int>, Matd>> CT_FT_Wc_freq_q_real(

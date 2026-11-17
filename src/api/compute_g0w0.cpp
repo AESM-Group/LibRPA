@@ -955,7 +955,7 @@ void librpa_int::api::build_gw_sigma_for_task(
         use_shrink_abfs ? &pds->sinvS : nullptr,
         use_shrink_abfs ? &pds->basis_aux_shrink : nullptr,
         use_shrink_abfs ? &pds->basis_aux : nullptr,
-        use_shrink_abfs ? &pds->blacs_h : nullptr,
+        &pds->blacs_h,
         use_shrink_abfs
             ? &(pds->eigvecs_kpara_2d_ready() ? pds->desc_wfc_kb
                                               : pds->desc_wfc_kb_full)
