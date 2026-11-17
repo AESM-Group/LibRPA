@@ -1,11 +1,15 @@
 #pragma once
 
+#include "crpa.h"
 #include "crpa_model.h"
 #include "crpa_task_context.h"
 #include "librpa_options.h"
 
 namespace librpa_int
 {
+//! Preserve the caller's resolved backend policy in the numerical workflow.
+CrpaContext make_crpa_context(CrpaTaskContext& dataset, const LibrpaOptions& options);
+
 struct CrpaTaskInput
 {
     std::vector<std::string> species_labels;
