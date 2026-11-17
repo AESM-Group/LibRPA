@@ -65,6 +65,16 @@ atom_mapping<ComplexMatrix>::pair_t_old gather_vq_row_q(const AtomicBasis &atbas
                                                         const atpair_k_cplx_mat_t &coulmat,
                                                         const Vector3_Order<double> &ik_vec);
 
+// Allocation-free projections through the leading retained Coulomb columns.
+// matrix is overwritten; scratch must not alias matrix/eigenvectors. All
+// storage follows desc's owning backend. Complete-Wc conventions are external.
+void project_to_retained_coulomb_basis(std::complex<double>* matrix,
+    const std::complex<double>* eigenvectors, std::complex<double>* scratch,
+    int retained, const ArrayDesc& desc);
+void project_from_retained_coulomb_basis(std::complex<double>* matrix,
+    const std::complex<double>* eigenvectors, std::complex<double>* scratch,
+    int retained, const ArrayDesc& desc);
+
 std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
     Chi0 &chi0, const atpair_k_cplx_mat_t &coulmat_eps, atpair_k_cplx_mat_t &coulmat_wc,
     double sqrt_coulomb_threshold, const bool replace_w_head, int option_dielect_func,

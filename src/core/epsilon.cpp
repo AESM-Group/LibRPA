@@ -2169,6 +2169,30 @@ atom_mapping<ComplexMatrix>::pair_t_old gather_vq_row_q(const AtomicBasis &atbas
     return Vq_row;
 }
 
+void project_to_retained_coulomb_basis(std::complex<double>* matrix,
+    const std::complex<double>* eigenvectors, std::complex<double>* scratch,
+    int retained, const ArrayDesc& desc)
+{
+    if (retained < 0 || retained > desc.m() || desc.m() != desc.n())
+        throw std::invalid_argument("retained Coulomb projection requires 0<=retained<=N and a square descriptor");
+    LaConnector::pgemm('N', 'N', desc.m(), retained, desc.m(), C_ONE,
+        matrix, 1, 1, desc, eigenvectors, 1, 1, desc, C_ZERO, scratch, 1, 1, desc);
+    LaConnector::pgemm('C', 'N', retained, retained, desc.m(), C_ONE,
+        eigenvectors, 1, 1, desc, scratch, 1, 1, desc, C_ZERO, matrix, 1, 1, desc);
+}
+
+void project_from_retained_coulomb_basis(std::complex<double>* matrix,
+    const std::complex<double>* eigenvectors, std::complex<double>* scratch,
+    int retained, const ArrayDesc& desc)
+{
+    if (retained < 0 || retained > desc.m() || desc.m() != desc.n())
+        throw std::invalid_argument("retained Coulomb projection requires 0<=retained<=N and a square descriptor");
+    LaConnector::pgemm('N', 'N', desc.m(), retained, retained, C_ONE,
+        eigenvectors, 1, 1, desc, matrix, 1, 1, desc, C_ZERO, scratch, 1, 1, desc);
+    LaConnector::pgemm('N', 'C', desc.m(), desc.m(), retained, C_ONE,
+        scratch, 1, 1, desc, eigenvectors, 1, 1, desc, C_ZERO, matrix, 1, 1, desc);
+}
+
 std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
     Chi0 &chi0, const atpair_k_cplx_mat_t &coulmat_eps, atpair_k_cplx_mat_t &coulmat_wc,
     const double sqrt_coulomb_threshold, const bool replace_w_head, int option_dielect_func,
