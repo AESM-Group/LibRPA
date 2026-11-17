@@ -611,7 +611,9 @@ void test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(const BlacsCtxtHandl
     assert_dense_wq_rspace_maps_close(actual, expected);
 }
 
-void test_dense_wc_real_ct_matches_legacy_real_part()
+void test_dense_wc_real_ct_matches_legacy_real_part(const BlacsCtxtHandler &cpu_owner,
+                                                   const MAJOR major = MAJOR::COL,
+                                                   const bool empty_last_rank = false)
 {
     const auto pbc = make_wq_full_pbc();
     TFGrids tfg(2);
@@ -623,7 +625,9 @@ void test_dense_wc_real_ct_matches_legacy_real_part()
     {
         for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
         {
-            Matz mat(2, 2, MAJOR::COL);
+            const bool empty = empty_last_rank &&
+                librpa_int::global::myid_global == librpa_int::global::size_global - 1;
+            Matz mat(empty ? 0 : 2, empty ? 0 : 3, major);
             for (std::size_t i = 0; i != mat.size(); ++i)
             {
                 const double real = 1.0 + ifreq + 0.1 * i;
@@ -641,17 +645,49 @@ void test_dense_wc_real_ct_matches_legacy_real_part()
 
     auto legacy_input = input;
     auto real_input = input;
+    const bool saved_mixed = librpa_int::global::dev_opts.use_mixed_type_ddla;
+    librpa_int::global::dev_opts.use_mixed_type_ddla = false;
     const auto legacy = librpa_int::CT_FT_Wc_freq_q(
-        librpa_int::global::mpi_comm_global_h, legacy_input, pbc, tfg, true);
+        librpa_int::global::mpi_comm_global_h, legacy_input, pbc, tfg, true,
+        false, 0, -1, false, ".", nullptr, nullptr, nullptr, nullptr, &cpu_owner);
 #ifdef LIBRPA_USE_DDLA
     auto mixed_input = input;
     librpa_int::global::dev_opts.use_mixed_type_ddla = true;
     const auto mixed = librpa_int::CT_FT_Wc_freq_q(
         librpa_int::global::mpi_comm_global_h, mixed_input, pbc, tfg, true);
-    librpa_int::global::dev_opts.use_mixed_type_ddla = false;
     assert(mixed_input.empty());
     assert_dense_wq_rspace_maps_close(mixed, legacy);
+    const auto original_handle = cpu_owner.ddla_cpu_handle;
+    assert(original_handle != nullptr);
+    for (int repeat = 0; repeat != 2; ++repeat)
+    {
+        auto borrowed_input = input;
+        const auto borrowed = librpa_int::CT_FT_Wc_freq_q(
+            librpa_int::global::mpi_comm_global_h, borrowed_input, pbc, tfg, false,
+            false, 0, -1, false, ".", nullptr, nullptr, nullptr, nullptr, &cpu_owner);
+        assert_dense_wq_rspace_maps_close(borrowed, mixed);
+        assert(cpu_owner.ddla_cpu_handle == original_handle);
+        assert(borrowed_input.size() == input.size());
+        for (const auto &[freq, blocks] : input)
+            for (const auto &[q, expected] : blocks)
+            {
+                const auto &retained = borrowed_input.at(freq).at(q);
+                assert(retained.major() == expected.major());
+                assert(retained.size() == expected.size());
+                for (std::size_t i = 0; i != expected.size(); ++i)
+                    assert(retained.ptr()[i] == expected.ptr()[i]);
+            }
+    }
+    // An optional owner without a CPU handle retains the existing self fallback.
+    const BlacsCtxtHandler missing_cpu_owner;
+    auto fallback_input = input;
+    const auto fallback = librpa_int::CT_FT_Wc_freq_q(
+        librpa_int::global::mpi_comm_global_h, fallback_input, pbc, tfg, true,
+        false, 0, -1, false, ".", nullptr, nullptr, nullptr, nullptr, &missing_cpu_owner);
+    assert(fallback_input.empty());
+    assert_dense_wq_rspace_maps_close(fallback, mixed);
 #endif
+    librpa_int::global::dev_opts.use_mixed_type_ddla = saved_mixed;
     const auto actual = librpa_int::CT_FT_Wc_freq_q_real(
         librpa_int::global::mpi_comm_global_h, real_input, pbc, tfg);
     assert(legacy_input.empty());
@@ -1065,7 +1101,12 @@ int main(int argc, char *argv[])
         test_wq_to_wr_antiunitary_member_conjugates();
         test_wq_to_wr_symmetry_collective_handles_empty_local_rank();
         test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(blacs_h);
-        test_dense_wc_real_ct_matches_legacy_real_part();
+#ifdef LIBRPA_USE_DDLA
+        blacs_h.init_ddla_handle(ddla::DdlaBackend::CPU);
+#endif
+        test_dense_wc_real_ct_matches_legacy_real_part(blacs_h);
+        test_dense_wc_real_ct_matches_legacy_real_part(blacs_h, MAJOR::ROW);
+        test_dense_wc_real_ct_matches_legacy_real_part(blacs_h, MAJOR::COL, true);
         test_dense_wc_real_ct_projects_large_imaginary_residual();
 #ifdef LIBRPA_USE_LIBRI
         test_dense_wc_layout(blacs_h);
