@@ -158,6 +158,28 @@ void invert_headwing_body_with_identity_solve(
     matrix_m<std::complex<double>> &body, ArrayDesc &desc_body,
     const BlacsCtxtHandler &blacs_h, bool use_cholesky, bool use_device);
 
+// Rewrite E=I-sqrt(V)*chi0*sqrt(V) in place using caller-owned raw buffers.
+// complement is Y=[head direction | filtered Coulomb columns], n x m;
+// weighted_wing is sqrt(V)*wing_mu, n x 3. Their descriptors and all numerical
+// pointers use the caller-selected backend. head is a replicated host 3x3
+// column-major tensor. The only host transfer inside is the 3x3 angular data.
+// factor/scratch each hold max(storage(desc), storage(desc_wing)) elements;
+// small holds max(storage(desc_small), storage(desc_cart)). Storage is at least
+// max(1,LLD*local_columns), including empty owners. Buffers do not alias.
+// Callers allocate/upload all inputs; the kernel never initializes handles.
+void rewrite_eps_abf_space(
+    std::complex<double> *epsilon, std::complex<double> *factor,
+    std::complex<double> *scratch, std::complex<double> *small,
+    const std::complex<double> *complement,
+    const std::complex<double> *weighted_wing,
+    const std::complex<double> *head,
+    const ArrayDesc &desc, const ArrayDesc &desc_y,
+    const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
+    const ArrayDesc &desc_cart,
+    const std::vector<double> &qx, const std::vector<double> &qy,
+    const std::vector<double> &qz, const std::vector<double> &rho,
+    const bool use_cholesky);
+
 // ABF-space averaged inverse dielectric rewrite for Gamma analytic head/wing GW Wc,
 // factored out of diele_func so it can be unit tested directly.
 // eps_block holds E = I - sqrt(V)*chi0*sqrt(V) (n_abf x n_abf, distributed) on

@@ -4342,6 +4342,116 @@ void replace_rpa_response_head_only(matrix_m<std::complex<double>> &response_blo
 }
 
 void rewrite_eps_abf_space(
+    std::complex<double> *epsilon, std::complex<double> *factor,
+    std::complex<double> *scratch, std::complex<double> *small,
+    const std::complex<double> *complement,
+    const std::complex<double> *weighted_wing,
+    const std::complex<double> *head,
+    const ArrayDesc &desc, const ArrayDesc &desc_y,
+    const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
+    const ArrayDesc &desc_cart,
+    const std::vector<double> &qx, const std::vector<double> &qy,
+    const std::vector<double> &qz, const std::vector<double> &rho,
+    const bool use_cholesky)
+{
+    using Z = std::complex<double>;
+    using global::profiler;
+    const int n = desc.m(), m = desc_y.n();
+
+    // Y=[u|X_filtered], G=E*Y and S=Y^H*G+I. All numerical storage
+    // and descriptors belong to the caller, in its selected memory space.
+    profiler.start("epsilon_headwing_abf_build_M");
+    LaConnector::pgemm('N', 'N', n, m, n, C_ONE, epsilon, 1, 1, desc,
+        complement, 1, 1, desc_y, C_ZERO, scratch, 1, 1, desc_y);
+    LaConnector::pgemm('C', 'N', m, m, n, C_ONE, complement, 1, 1, desc_y,
+        scratch, 1, 1, desc_y, C_ZERO, small, 1, 1, desc_small);
+    LaConnector::pdam(1., small, desc_small);
+    LaConnector::pgemm('N', 'C', n, n, m, -C_ONE, scratch, 1, 1, desc_y,
+        complement, 1, 1, desc_y, C_ONE, epsilon, 1, 1, desc);
+    LaConnector::pgemm('N', 'C', n, n, m, -C_ONE, complement, 1, 1, desc_y,
+        scratch, 1, 1, desc_y, C_ONE, epsilon, 1, 1, desc);
+    LaConnector::pgemm('N', 'N', n, m, m, C_ONE, complement, 1, 1, desc_y,
+        small, 1, 1, desc_small, C_ZERO, factor, 1, 1, desc_y);
+    LaConnector::pgemm('N', 'C', n, n, m, C_ONE, factor, 1, 1, desc_y,
+        complement, 1, 1, desc_y, C_ONE, epsilon, 1, 1, desc);
+    profiler.stop("epsilon_headwing_abf_build_M");
+
+    // Solve M*X=I, then D=X-Y*Y^H. The factor buffer becomes D.
+    profiler.start("epsilon_headwing_abf_inverse");
+    LaConnector::zero_local(factor, std::size_t(desc.lld()) * desc.n_loc(), desc);
+    LaConnector::pdam(1., factor, desc);
+    int info = 0;
+    if (use_cholesky)
+        LaConnector::pposv('L', 'L', 'N', n, n, epsilon, 1, 1, desc,
+            factor, 1, 1, desc, info);
+    else
+        LaConnector::pgesv(n, n, epsilon, 1, 1, desc, factor, 1, 1, desc, info);
+    if (info != 0)
+        throw LIBRPA_RUNTIME_ERROR("Head/wing identity solve failed with info=" + std::to_string(info));
+    LaConnector::pgemm('N', 'C', n, n, m, -C_ONE, complement, 1, 1, desc_y,
+        complement, 1, 1, desc_y, C_ONE, factor, 1, 1, desc);
+    profiler.stop("epsilon_headwing_abf_inverse");
+
+    // The caller supplies Z=sqrt(V)*wing_mu. Form A=D*Z.
+    profiler.start("epsilon_headwing_abf_wing");
+    LaConnector::pgemm('N', 'N', n, 3, n, C_ONE, factor, 1, 1, desc,
+        weighted_wing, 1, 1, desc_wing, C_ZERO, scratch, 1, 1, desc_wing);
+    profiler.stop("epsilon_headwing_abf_wing");
+
+    profiler.start("epsilon_headwing_abf_angular");
+    LaConnector::pgemm('C', 'N', 3, 3, n, C_ONE, weighted_wing, 1, 1, desc_wing,
+        scratch, 1, 1, desc_wing, C_ZERO, small, 1, 1, desc_cart);
+    // Only the distributed 3x3 contraction is needed by host quadrature.
+    std::array<Z, 9> local{}, zha{};
+    const auto cart_count = std::size_t(desc_cart.lld()) * desc_cart.n_loc();
+    LaConnector::copy_local(local.data(), small, cart_count, desc_cart);
+    LaConnector::synchronize(desc_cart);
+    for (int j = 0; j != 3; ++j)
+        for (int i = 0; i != 3; ++i)
+        {
+            const int r = desc_cart.indx_g2l_r(i), c = desc_cart.indx_g2l_c(j);
+            if (r >= 0 && c >= 0) zha[i + 3 * j] = local[r + desc_cart.lld() * c];
+        }
+    MPI_Allreduce(MPI_IN_PLACE, zha.data(), 9, MPI_DOUBLE_COMPLEX, MPI_SUM, desc.comm());
+    std::array<Z, 9> l{}, k{};
+    for (int i = 0; i != 9; ++i) l[i] = head[i] - zha[i];
+    Z a0{};
+    for (std::size_t p = 0; p != qx.size(); ++p)
+    {
+        const double x = qx[p], y = qy[p], z = qz[p];
+        const auto qlq = x * (x * l[0] + y * l[3] + z * l[6]) +
+                         y * (x * l[1] + y * l[4] + z * l[7]) +
+                         z * (x * l[2] + y * l[5] + z * l[8]);
+        const auto weight = rho[p] / qlq;
+        a0 += weight;
+        const std::array<double, 3> q{{x, y, z}};
+        for (int j = 0; j != 3; ++j)
+            for (int i = 0; i != 3; ++i) k[i + 3 * j] += weight * q[i] * q[j];
+    }
+    local.fill(Z{});
+    for (int j = 0; j != 3; ++j)
+        for (int i = 0; i != 3; ++i)
+        {
+            const int r = desc_cart.indx_g2l_r(i), c = desc_cart.indx_g2l_c(j);
+            if (r >= 0 && c >= 0) local[r + desc_cart.lld() * c] = k[i + 3 * j];
+        }
+    LaConnector::copy_local(small, local.data(), cart_count, desc_cart);
+    profiler.stop("epsilon_headwing_abf_angular");
+
+    profiler.start("epsilon_headwing_abf_assemble");
+    LaConnector::copy_local(epsilon, factor, std::size_t(desc.lld()) * desc.n_loc(), desc);
+    LaConnector::pgemm('N', 'C', n, n, 1, a0, complement, 1, 1, desc_y,
+        complement, 1, 1, desc_y, C_ONE, epsilon, 1, 1, desc);
+    LaConnector::pgemm('N', 'N', n, 3, 3, C_ONE, scratch, 1, 1, desc_wing,
+        small, 1, 1, desc_cart, C_ZERO, factor, 1, 1, desc_wing);
+    LaConnector::pgemm('N', 'C', n, n, 3, C_ONE, factor, 1, 1, desc_wing,
+        scratch, 1, 1, desc_wing, C_ONE, epsilon, 1, 1, desc);
+    // The host quadrature array can go out of scope after its upload retires.
+    LaConnector::synchronize(desc);
+    profiler.stop("epsilon_headwing_abf_assemble");
+}
+
+void rewrite_eps_abf_space(
     matrix_m<std::complex<double>> &eps_block,
     const matrix_m<std::complex<double>> &sqrtv_block,
     const matrix_m<std::complex<double>> &coul_eigen_block,
