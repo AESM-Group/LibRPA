@@ -1,3 +1,4 @@
+#include "headwing_rewrite_test_utils.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -3450,7 +3451,7 @@ double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
         qz[i] = q_pts[i][2];
     }
 
-    librpa_int::rewrite_eps_abf_space(E_dist, sqrtV_dist, U_dist,
+    headwing_test::rewrite(E_dist, sqrtV_dist, U_dist,
                                       head_direction, desc_head_direction, head, wing_mu, qx, qy,
                                       qz, q_rho, desc, blacs_h,
                                       static_cast<std::size_t>(n_nonsingular), 0.0,
@@ -3743,11 +3744,11 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
             qz[i] = q3d[i][2];
         }
 
-        librpa_int::rewrite_eps_abf_space(E1, sqrtV_dist, U_orig_dist,
+        headwing_test::rewrite(E1, sqrtV_dist, U_orig_dist,
                                           head_direction, desc_head_direction, head, wing_mu, qx, qy,
                                           qz, rho3d, desc, blacs_h,
                                           static_cast<std::size_t>(n), 0.0, false, false);
-        librpa_int::rewrite_eps_abf_space(E2, sqrtV_dist, U_mod_dist,
+        headwing_test::rewrite(E2, sqrtV_dist, U_mod_dist,
                                           head_direction, desc_head_direction, head, wing_mu, qx, qy,
                                           qz, rho3d, desc, blacs_h,
                                           static_cast<std::size_t>(n), 0.0, false, false);

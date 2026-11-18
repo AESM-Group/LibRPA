@@ -1,3 +1,4 @@
+#include "headwing_rewrite_test_utils.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -1596,8 +1597,10 @@ void test_constrained_soc_optical()
     auto head_direction = init_local_mat<Z>(head_desc, MAJOR::COL);
     if (head_desc.indx_g2l_r(0) >= 0 && head_desc.indx_g2l_c(0) >= 0)
         head_direction(head_desc.indx_g2l_r(0), head_desc.indx_g2l_c(0)) = 1;
-    vacuum->rewrite_eps_abf_space(inverse, 0, identity, identity, head_direction, head_desc,
-                                  f.ds.desc_abf, 2, 0, false, false);
+    headwing_test::rewrite(inverse, identity, identity, head_direction, head_desc,
+                           vacuum->get_head_tensors().at(0), vacuum->get_wing_auxiliary().at(0),
+                           {}, {}, {}, {}, f.ds.desc_abf, f.ds.blacs_h,
+                           2, 0, false, false, vacuum.get(), 0);
     for (int i = 0; i < inverse.nr(); ++i)
         for (int j = 0; j < inverse.nc(); ++j) close(inverse(i, j), identity(i, j), 2e-12);
 }
