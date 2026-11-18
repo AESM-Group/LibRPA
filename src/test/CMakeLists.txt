@@ -106,6 +106,14 @@ foreach(target
   config_test(${target} 1)
 endforeach()
 
+if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+  foreach(np 1 2 4)
+    add_test(NAME test_rpa_headwing_device_np${np}
+      COMMAND mpirun -np ${np} $<TARGET_FILE:test_rpa_headwing> --headwing-device)
+    set_tests_properties(test_rpa_headwing_device_np${np} PROPERTIES TIMEOUT 300)
+  endforeach()
+endif()
+
 add_test(NAME test_qpe_solver_mpi
   COMMAND mpirun -np 4 $<TARGET_FILE:test_qpe_solver>)
 set_tests_properties(test_qpe_solver_mpi PROPERTIES TIMEOUT 60)

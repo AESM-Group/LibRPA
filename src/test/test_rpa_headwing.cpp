@@ -15,6 +15,9 @@
 #include <set>
 #include <string>
 #include <valarray>
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#include <ddla/ddla_vector.h>
+#endif
 
 #include "librpa.h"
 #include "../api/instance_manager.h"
@@ -3411,6 +3414,10 @@ Matz coulomb_basis_eps_inv_reference(
 
 // Run the production ABF-space helper on distributed matrices and compare to
 // the dense old Coulomb-basis reference. Returns the observed max abs error.
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+static bool abf_device_test = false;
+#endif
+
 double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
                     const Matz &U, const Matz &sqrtV,
                     const Matz &chi0, const Matz &wing_mu,
@@ -3419,6 +3426,17 @@ double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
                     const std::vector<double> &q_rho, bool use_cholesky, double tol,
                     int n_nonsingular = -1)
 {
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    if (abf_device_test)
+    {
+        int missing = blacs_h.ddla_handle == nullptr ||
+            ddla::ddlaGetBackend(blacs_h.ddla_handle) != ddla::DdlaBackend::GPU;
+        MPI_Allreduce(MPI_IN_PLACE, &missing, 1, MPI_INT, MPI_MAX, blacs_h.comm());
+        if (missing)
+            throw std::invalid_argument("GPU ABF oracle requires an initialized GPU handle on its owning BLACS grid");
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(blacs_h.ddla_handle));
+    }
+#endif
     if (n_nonsingular < 0) n_nonsingular = n;
     const auto ref = coulomb_basis_eps_inv_reference(U, sqrtV, chi0, wing_mu, head,
                                                      q_pts, q_rho, n_nonsingular);
@@ -3451,11 +3469,15 @@ double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
         qz[i] = q_pts[i][2];
     }
 
+    bool use_device = false;
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    use_device = abf_device_test;
+#endif
     headwing_test::rewrite(E_dist, sqrtV_dist, U_dist,
-                                      head_direction, desc_head_direction, head, wing_mu, qx, qy,
-                                      qz, q_rho, desc, blacs_h,
-                                      static_cast<std::size_t>(n_nonsingular), 0.0,
-                                      use_cholesky, false);
+                           head_direction, desc_head_direction, head, wing_mu, qx, qy,
+                           qz, q_rho, desc, blacs_h,
+                           static_cast<std::size_t>(n_nonsingular), 0.0,
+                           use_cholesky, use_device);
 
     double local_max_err = 0.0;
     for (int ilo = 0; ilo != desc.m_loc(); ++ilo)
@@ -3464,8 +3486,9 @@ double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
         for (int jlo = 0; jlo != desc.n_loc(); ++jlo)
         {
             const int jg = desc.indx_l2g_c(jlo);
-            local_max_err =
-                std::max(local_max_err, std::abs(E_dist(ilo, jlo) - ref(ig, jg)));
+            const double delta = std::abs(E_dist(ilo, jlo) - ref(ig, jg));
+            local_max_err = std::isfinite(delta) ? std::max(local_max_err, delta)
+                                                : std::numeric_limits<double>::infinity();
         }
     }
     double max_err = 0.0;
@@ -3551,12 +3574,31 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
                      true, 1e-10);
     }
 
-    // Rectangular (horizontal) CPU BLACS grid; exercises empty thin local
+    // Rectangular (horizontal) BLACS grid; exercises empty thin local
     // blocks on ranks that own no rows/columns of the thin descriptors.
     {
         BlacsCtxtHandler horizontal_blacs_h(MPI_COMM_WORLD);
         horizontal_blacs_h.init();
         horizontal_blacs_h.set_horizontal_grid();
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (abf_device_test)
+        {
+            // A distinct BLACS owner does not inherit the outer square grid's
+            // DDLA handle. Prove the setup error is caught before allocation.
+            bool rejected = false;
+            try { run_abf_case(horizontal_blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head,
+                               q3d, rho3d, false, 1e-10); }
+            catch (const std::invalid_argument& error)
+            {
+                rejected = std::string(error.what()).find("initialized GPU handle on its owning BLACS grid") != std::string::npos;
+            }
+            require_condition(rejected, "missing horizontal GPU owner must fail before allocation");
+            horizontal_blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
+            if (horizontal_blacs_h.myid == 0)
+                std::cout << "HEADWING_HORIZONTAL_GPU_OWNER_READY grid=" << horizontal_blacs_h.nprows
+                          << 'x' << horizontal_blacs_h.npcols << std::endl;
+        }
+#endif
         run_abf_case(horizontal_blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d,
                      false, 1e-10);
         run_abf_case(horizontal_blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d,
@@ -5140,6 +5182,23 @@ int main(int argc, char *argv[])
     MPI_Init_thread(&argc, &argv, LIBRPA_MPI_THREAD_LEVEL, &provided);
     librpa_int::global::init_global_mpi(MPI_COMM_WORLD);
     librpa_int::global::init_global_io(false, "stdout", false);
+
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    if (argc > 1 && std::string(argv[1]) == "--headwing-device")
+    {
+        {
+            BlacsCtxtHandler grid(MPI_COMM_WORLD);
+            grid.init(); grid.set_square_grid(); grid.init_ddla_handle();
+            abf_device_test = true;
+            test_abf_space_wing_rewrite_matches_coulomb_basis(grid);
+            if (grid.myid == 0) std::cout << "HEADWING_DENSE_GPU_ORACLE_PASS" << std::endl;
+        }
+        librpa_int::global::finalize_global_io();
+        librpa_int::global::finalize_global_mpi();
+        MPI_Finalize();
+        return 0;
+    }
+#endif
 
     {
         BlacsCtxtHandler blacs_h(MPI_COMM_WORLD);
