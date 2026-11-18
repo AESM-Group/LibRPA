@@ -2,6 +2,7 @@
 #define LA_CONNECTOR_H
 
 #include <algorithm>
+#include <cstring>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -24,6 +25,46 @@ namespace librpa_int
 
 namespace LaConnector
 {
+
+// Local transfers use the caller-selected backend, including CPU DDLA.
+template <typename T>
+inline void copy_local(T* destination, const T* source, std::size_t count,
+                       const ArrayDesc& desc)
+{
+    if (count == 0) return;
+#ifdef LIBRPA_USE_DDLA
+    if (desc.ddla_handle() != nullptr)
+    {
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(desc.ddla_handle(), destination, source, count * sizeof(T)));
+        return;
+    }
+#endif
+    std::memcpy(destination, source, count * sizeof(T));
+}
+
+template <typename T>
+inline void zero_local(T* matrix, std::size_t count, const ArrayDesc& desc)
+{
+    if (count == 0) return;
+#ifdef LIBRPA_USE_DDLA
+    if (desc.ddla_handle() != nullptr)
+    {
+        ddla::DDLA_CHECK(ddla::ddlaMemset(desc.ddla_handle(), matrix, 0, count * sizeof(T)));
+        return;
+    }
+#endif
+    std::fill_n(matrix, count, T{});
+}
+
+inline void synchronize(const ArrayDesc& desc)
+{
+#ifdef LIBRPA_USE_DDLA
+    if (desc.ddla_handle() != nullptr)
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(desc.ddla_handle()));
+#else
+    (void)desc;
+#endif
+}
 
 // Matrix ownership belongs to the descriptor's grid, not MPI_COMM_WORLD.
 // A one-rank k-point grid can exist inside a multi-rank calculation.
