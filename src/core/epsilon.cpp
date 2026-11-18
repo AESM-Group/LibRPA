@@ -2598,6 +2598,8 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
                 std::cout << "Experimental DDLA mixed FP64 Gamma Wc products enabled" << std::endl;
         }
         const size_t n_nonsingular = n_abf - n_singular;
+        if (gamma_full_headwing && !strict_2d_complete_wc_gamma && n_nonsingular == 0)
+            throw LIBRPA_RUNTIME_ERROR("Gamma head/wing correction requires retained Coulomb modes");
         if (gamma_full_headwing && n_singular != 0)
         {
             librpa_int::global::lib_printf_root(
