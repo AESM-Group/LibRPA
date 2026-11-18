@@ -316,8 +316,9 @@ inline void pdam(const T1& num, T2* A, const ArrayDesc& array_desc)
     if(array_desc.m() != array_desc.n()){
         throw std::runtime_error("In LaConnector::pdam, only square matrix is supported!");
     }
-    #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(is_device_array(A, array_desc)){
+    #ifdef LIBRPA_USE_DDLA
+    if(use_ddla_cpu(array_desc) || (array_desc.ddla_handle() != nullptr &&
+       ddla::ddlaGetBackend(array_desc.ddla_handle()) == ddla::DdlaBackend::GPU)){
         ddla::pdam(array_desc.ddla_handle(), num, A, array_desc.desc);
     }else
     #endif
@@ -443,8 +444,10 @@ inline void pgesv(
 )
 {
 #ifdef LIBRPA_USE_DDLA
-    if (is_device_array(d_A, array_descA) ||
-        (ia == 1 && ja == 1 && ib == 1 && jb == 1 && use_ddla_cpu(array_descA)))
+    const bool device = array_descA.ddla_handle() != nullptr &&
+        ddla::ddlaGetBackend(array_descA.ddla_handle()) == ddla::DdlaBackend::GPU;
+    if (device || ((ia == 1 && ja == 1 && ib == 1 && jb == 1) &&
+                   use_ddla_cpu(array_descA)))
     {
         if(ia!=1 || ja!=1 || ib!=1 || jb!=1){
             throw std::runtime_error("In LaConnector::pgesv, only support ia=ja=ib=jb=1 for device implementation!");
@@ -493,8 +496,10 @@ inline void pposv(
 {
     assert(side == 'L');
 #ifdef LIBRPA_USE_DDLA
-    if (is_device_array(d_A, array_descA) ||
-        (ia == 1 && ja == 1 && ib == 1 && jb == 1 && use_ddla_cpu(array_descA)))
+    const bool device = array_descA.ddla_handle() != nullptr &&
+        ddla::ddlaGetBackend(array_descA.ddla_handle()) == ddla::DdlaBackend::GPU;
+    if (device || ((ia == 1 && ja == 1 && ib == 1 && jb == 1) &&
+                   use_ddla_cpu(array_descA)))
     {
         if(ia!=1 || ja!=1 || ib!=1 || jb!=1){
             throw std::runtime_error("In LaConnector::pposv, only support ia=ja=ib=jb=1 for device implementation!");

@@ -114,16 +114,19 @@ int main(int argc, char** argv)
         catch (const std::runtime_error&) { rejected = true; }
         assert(rejected);
         // Host ScaLAPACK retains its submatrix-offset support in GPU builds.
+        auto host_desc = desc;
+        host_desc.set_ddla_handle(nullptr);
+        host_desc.set_linear_algorithm("scalapack");
         for (const bool cholesky : {false, true})
         {
             auto host_a = diagonal;
             auto host_b = identity;
             if (cholesky)
-                LaConnector::pposv('L', 'L', 'N', 7, 6, host_a.data(), 1, 1, desc,
-                                   host_b.data(), 1, 2, desc, info);
+                LaConnector::pposv('L', 'L', 'N', 7, 6, host_a.data(), 1, 1, host_desc,
+                                   host_b.data(), 1, 2, host_desc, info);
             else
-                LaConnector::pgesv(7, 6, host_a.data(), 1, 1, desc,
-                                   host_b.data(), 1, 2, desc, info);
+                LaConnector::pgesv(7, 6, host_a.data(), 1, 1, host_desc,
+                                   host_b.data(), 1, 2, host_desc, info);
             assert(info == 0);
             double error = 0.0;
             for (int j = 0; j < desc.n_loc(); ++j)
