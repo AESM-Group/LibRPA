@@ -486,6 +486,16 @@ public:
     void get_g_enclosing_gamma_2d();
     void calculate_q_gamma();
     void calculate_q_gamma_2d();
+    // Apply this object's head tensor and Gamma-cell quadrature to the raw
+    // pointer kernel. The caller supplies Y, weighted wing, layout and storage.
+    void rewrite_eps_abf_space(
+        std::complex<double> *epsilon, std::complex<double> *factor,
+        std::complex<double> *scratch, std::complex<double> *small,
+        const std::complex<double> *complement,
+        const std::complex<double> *weighted_wing, const int ifreq,
+        const ArrayDesc &desc, const ArrayDesc &desc_y,
+        const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
+        const ArrayDesc &desc_cart, const bool use_cholesky);
     // ABF-space analytic head/wing rewrite for Gamma GW Wc, including Coulomb filtering.
     // eps_block holds E = I - sqrt(V)*chi0*sqrt(V) on entry and the averaged
     // inverse dielectric matrix on exit. Delegates to the free

@@ -4767,6 +4767,39 @@ void rewrite_eps_abf_space(
     profiler.stop("epsilon_headwing_abf_assemble");
 }
 
+void diele_func::rewrite_eps_abf_space(
+    std::complex<double> *epsilon, std::complex<double> *factor,
+    std::complex<double> *scratch, std::complex<double> *small,
+    const std::complex<double> *complement,
+    const std::complex<double> *weighted_wing, const int ifreq,
+    const ArrayDesc &desc, const ArrayDesc &desc_y,
+    const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
+    const ArrayDesc &desc_cart, const bool use_cholesky)
+{
+    this->vol_gamma = rpa_headwing_gamma_cell_volume(pbc_, use_2d_dielectric);
+    const int nleb = static_cast<int>(qw_leb.size());
+    std::vector<double> rho(nleb);
+    for (int ileb = 0; ileb < nleb; ++ileb)
+    {
+        rho[ileb] = use_2d_dielectric
+                        ? qw_leb[ileb] * std::pow(q_gamma[ileb], 2) / (2.0 * vol_gamma)
+                        : qw_leb[ileb] * std::pow(q_gamma[ileb], 3) / (3.0 * vol_gamma);
+    }
+    if (normalize_gamma_cell_weights)
+    {
+        const double weight = std::accumulate(rho.begin(), rho.end(), 0.0);
+        if (!std::isfinite(weight) || weight <= 0.0)
+            throw LIBRPA_RUNTIME_ERROR("invalid optical Gamma-cell quadrature weight");
+        for (auto &value : rho) value /= weight;
+    }
+    std::array<std::complex<double>, 9> host_head{};
+    for (int j = 0; j != 3; ++j)
+        for (int i = 0; i != 3; ++i) host_head[i + 3 * j] = head.at(ifreq)(i, j);
+    librpa_int::rewrite_eps_abf_space(epsilon, factor, scratch, small, complement,
+        weighted_wing, host_head.data(), desc, desc_y, desc_wing, desc_small,
+        desc_cart, qx_leb, qy_leb, qz_leb, rho, use_cholesky);
+}
+
 void diele_func::rewrite_eps_abf_space(matrix_m<std::complex<double>> &eps_block, const int ifreq,
                                        const matrix_m<std::complex<double>> &sqrtv_block,
                                        const matrix_m<std::complex<double>> &coul_eigen_block,
