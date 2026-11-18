@@ -1609,6 +1609,9 @@ int main(int argc, char** argv)
     MPI_Init_thread(&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
     global::init_global_mpi(MPI_COMM_WORLD);
     global::init_global_io();
+#ifdef LIBRPA_USE_ELPA
+    if (elpa_init(ELPA_API_VERSION) != ELPA_OK) throw std::runtime_error("elpa_init failed");
+#endif
     try
     {
         test_spinor_character_nonorthogonal_metric_and_pdos();
@@ -1626,6 +1629,10 @@ int main(int argc, char** argv)
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
     global::finalize_global_io();
+#ifdef LIBRPA_USE_ELPA
+    int elpa_error;
+    elpa_uninit(&elpa_error);
+#endif
     global::finalize_global_mpi();
     MPI_Finalize();
     std::cout << "test_crpa_soc: passed\n";
