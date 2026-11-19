@@ -3215,6 +3215,18 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
             // Ordinary full Gamma head/wing exports the projected
             // correlation-only inverse; strict 2D exports complete Wc.
             // Other branches export their dielectric matrix before solve.
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+            if (debug && use_gpu_replace_scalapack && gamma_point &&
+                !gamma_full_headwing && !gamma_head_only)
+            {
+                // Ordinary Gamma's host matrix still holds input chi0. Export
+                // the actual device dielectric before its destructive solve.
+                if (chi0_block.size() > 0)
+                    ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, chi0_block.ptr(),
+                        chi0_block_ptr, chi0_block.size() * sizeof(std::complex<double>)));
+                ddla::DDLA_CHECK(ddla::ddlaSynchronize(blacs_h.ddla_handle));
+            }
+#endif
             std::ostringstream epsinv_debug_name;
             epsinv_debug_name << std::fixed << std::setprecision(10)
                               << "epsinv_minus_identity_qx_" << q.x << "_qy_" << q.y
