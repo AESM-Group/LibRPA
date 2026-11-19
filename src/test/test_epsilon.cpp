@@ -1095,6 +1095,61 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     }
 }
 
+void verify_scalar_mixed_wc(const BlacsCtxtHandler &blacs_h, bool gpu, bool cholesky, bool filtered)
+{
+    PeriodicBoundaryData pbc;
+    pbc.set_latvec({1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
+    pbc.set_kgrids_kvec(1, 1, 1, {0.0, 0.0, 0.0});
+    AtomicBasis wfc_basis({2}), aux_basis({1});
+    MeanField mf(1, 1, 2, 2);
+    mf.get_eigenvals()[0](0, 0) = -1.0;
+    mf.get_eigenvals()[0](0, 1) = 1.0;
+    TFGrids grids(3);
+    grids.generate_evenspaced_tf(0.1, 0.1, 0.25, 0.1);
+    KPointBlacsParallelContext kctx(KPointBlacsProcessShape(1, blacs_h.nprocs), MPI_COMM_WORLD, 1);
+    ArrayDesc wfc_desc(blacs_h), aux_desc(blacs_h);
+    wfc_desc.init(2, 2, 1, 1, 0, 0);
+    aux_desc.init(1, 1, 1, 1, 0, 0);
+    const SymmetryContext symmetry;
+    Chi0 chi0(mf, wfc_basis, aux_basis, pbc, symmetry, grids, kctx, wfc_desc, false, false);
+    using ResponseMap = std::map<double, std::map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>>;
+    auto &responses = const_cast<ResponseMap &>(chi0.get_chi0_q());
+    atpair_k_cplx_mat_t bare,cut;
+    const auto q=pbc.klist.front();
+    const double v=filtered ? -0.2 : 4.0;
+    const auto response=[&](double freq) {
+        return std::complex<double>(-0.1, cholesky ? 0.0 : 0.03)*(1.0+grids.get_freq_index(freq));
+    };
+    if (blacs_h.myid == 0)
+    {
+        bare[0][0][q]=std::make_shared<ComplexMatrix>(1,1);
+        cut[0][0][q]=std::make_shared<ComplexMatrix>(1,1);
+        (*bare[0][0][q])(0,0)=v;
+        (*cut[0][0][q])(0,0)=9.0;
+        for (const auto freq:grids.get_freq_nodes())
+        {
+            auto &chi=responses[freq][q][0][0];
+            chi.create(1,1); chi(0,0)=response(freq);
+        }
+    }
+    const auto result=compute_Wc_freq_q(chi0,bare,cut,0.0,false,3,{},nullptr,
+        blacs_h,aux_desc,false,".",cholesky,gpu,"scalapack","ddla");
+    double error=0;
+    for (const auto freq:grids.get_freq_nodes())
+    {
+        const auto expected=9.0*(1.0/(1.0-std::max(0.0,v)*response(freq))-1.0);
+        const auto &local=result.at(freq).at(q);
+        for (size_t i=0;i<local.size();++i)
+        {
+            const double e=std::abs(local.ptr()[i]-expected);
+            error=std::isfinite(e) ? std::max(error,e) : std::numeric_limits<double>::infinity();
+        }
+    }
+    double maximum=0;
+    MPI_Allreduce(&error,&maximum,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+    assert(maximum<1e-12);
+}
+
 void test_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bool gpu = false)
 {
     for (const bool rank_deficient : {true, false})
@@ -1162,8 +1217,11 @@ int main(int argc, char *argv[])
         librpa_int::global::dev_opts.use_mixed_type_ddla = true;
         for (bool filtered : {false, true})
             for (bool cholesky : {false, true})
+            {
                 verify_gamma_wc_retained_identity(blacs_h, filtered, false, 3, cholesky,
                                                    1, true, mixed_gpu);
+                verify_scalar_mixed_wc(blacs_h, mixed_gpu, cholesky, filtered);
+            }
         librpa_int::global::dev_opts.use_mixed_type_ddla = false;
 #endif
 #endif
