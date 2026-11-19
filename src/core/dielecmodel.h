@@ -163,7 +163,7 @@ HeadwingCsIJKMap redistribute_headwing_cs_ijk(
 
 void invert_headwing_body_with_identity_solve(
     matrix_m<std::complex<double>> &body, ArrayDesc &desc_body,
-    const BlacsCtxtHandler &blacs_h, bool use_cholesky, bool use_device);
+    const BlacsCtxtHandler &blacs_h, bool use_device);
 
 // Rewrite E=I-sqrt(V)*chi0*sqrt(V) in place using caller-owned raw buffers.
 // complement is Y=[head direction | filtered Coulomb columns], n x m;

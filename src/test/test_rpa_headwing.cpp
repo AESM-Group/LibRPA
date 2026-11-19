@@ -357,7 +357,7 @@ void fill_distributed_matrix(
 
 void verify_distributed_inverse(
     const std::vector<std::vector<std::complex<double>>> &values,
-    const BlacsCtxtHandler &blacs_h, const int block_size, const bool use_cholesky,
+    const BlacsCtxtHandler &blacs_h, const int block_size,
     const bool expect_empty_local_rank)
 {
     const int n = static_cast<int>(values.size());
@@ -374,7 +374,7 @@ void verify_distributed_inverse(
     if (expect_empty_local_rank) assert(any_empty == 1);
 
     librpa_int::invert_headwing_body_with_identity_solve(
-        inverse, desc, blacs_h, use_cholesky, false);
+        inverse, desc, blacs_h, false);
 
     auto product = init_local_mat<std::complex<double>>(desc, MAJOR::COL);
     librpa_int::ScalapackConnector::pgemm_f(
@@ -406,7 +406,7 @@ void test_headwing_body_inverse_uses_identity_solve(const BlacsCtxtHandler &squa
         {{1.0, 0.0}, {4.0, 0.0}, {1.0, 0.2}, {0.0, 0.0}},
         {{0.0, 0.0}, {1.0, -0.2}, {5.0, 0.0}, {1.0, 0.0}},
         {{0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}, {6.0, 0.0}}};
-    verify_distributed_inverse(pivoting_matrix, square_blacs_h, 1, false, false);
+    verify_distributed_inverse(pivoting_matrix, square_blacs_h, 1, false);
 
     BlacsCtxtHandler horizontal_blacs_h(MPI_COMM_WORLD);
     horizontal_blacs_h.init();
@@ -414,7 +414,7 @@ void test_headwing_body_inverse_uses_identity_solve(const BlacsCtxtHandler &squa
     const std::vector<std::vector<std::complex<double>>> positive_definite_matrix{
         {{4.0, 0.0}, {1.0, 1.0}},
         {{1.0, -1.0}, {3.0, 0.0}}};
-    verify_distributed_inverse(positive_definite_matrix, horizontal_blacs_h, 2, true,
+    verify_distributed_inverse(positive_definite_matrix, horizontal_blacs_h, 2,
                                horizontal_blacs_h.nprocs > 1);
 }
 
