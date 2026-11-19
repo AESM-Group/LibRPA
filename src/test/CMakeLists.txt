@@ -108,9 +108,21 @@ foreach(target
   config_test(${target} 4)
 endforeach()
 
-# Check vector bounds in the matrix helpers. Some processes own no block
-# columns, and libstdc++ assertions catch indexing of the empty row buffer.
+# Some processes own no block columns. Check that the matrix helpers do not
+# index the empty row buffer (libstdc++ assertions) and do not pass its null
+# data pointer to memcpy (trapping nonnull-attribute sanitizer).
 target_compile_definitions(test_matrix_m_mpi PRIVATE _GLIBCXX_ASSERTIONS)
+include(CheckCXXSourceCompiles)
+set(_librpa_nonnull_trap_flags
+  -fsanitize=nonnull-attribute -fsanitize-trap=nonnull-attribute)
+list(JOIN _librpa_nonnull_trap_flags " " CMAKE_REQUIRED_FLAGS)
+check_cxx_source_compiles("int main() { return 0; }"
+  LIBRPA_CXX_HAS_NONNULL_TRAP)
+unset(CMAKE_REQUIRED_FLAGS)
+if(LIBRPA_CXX_HAS_NONNULL_TRAP)
+  target_compile_options(test_matrix_m_mpi PRIVATE ${_librpa_nonnull_trap_flags})
+  target_link_options(test_matrix_m_mpi PRIVATE ${_librpa_nonnull_trap_flags})
+endif()
 
 target_compile_options(test_rpa_headwing PRIVATE -UNDEBUG)
 # The symmetry-context and k-BLACS symmetry-restore suites assert the k-star
