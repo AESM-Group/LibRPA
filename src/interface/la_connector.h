@@ -435,6 +435,90 @@ inline void pgetrf_nopiv(const int& m, const int& n, T* a, const int& ia, const 
     throw std::invalid_argument("pgetrf_nopiv requires a caller-provided DDLA handle");
 }
 
+// Factor/solve interfaces preserve the selected backend and native offset fallback.
+template <typename T>
+inline void pgetrs(char trans, int n, int nrhs, T* a, int ia, int ja,
+                   const ArrayDesc& ad, const int* pivots, T* b, int ib, int jb,
+                   const ArrayDesc& bd, int& info)
+{
+#ifdef LIBRPA_USE_DDLA
+    const auto handle = ad.ddla_handle();
+    const bool device = handle != nullptr && ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU;
+    if (device || (use_ddla_cpu(ad) && ia == 1 && ja == 1 && ib == 1 && jb == 1))
+    {
+        if (ia != 1 || ja != 1 || ib != 1 || jb != 1)
+            throw std::invalid_argument("DDLA pgetrs requires unit offsets");
+        ddla::pgetrs(handle, 'L', trans, n, nrhs, a, ad.desc, pivots, b, bd.desc);
+        info = 0;
+        return;
+    }
+#endif
+    if (is_same_single_rank_grid(ad, bd) && submatrix_fits(ad, ia, ja, n, n) &&
+        submatrix_fits(bd, ib, jb, n, nrhs))
+    {
+        if (n == 0 || nrhs == 0) { info = 0; return; }
+        std::vector<int> local_pivots(n);
+        for (int i = 0; i < n; ++i) local_pivots[i] = pivots[ia - 1 + i] - (ia - 1);
+        LapackConnector::getrs_f(trans, n, nrhs, local_submatrix(a, ia, ja, ad), ad.lld(),
+            local_pivots.data(), local_submatrix(b, ib, jb, bd), bd.lld(), info);
+        return;
+    }
+    ScalapackConnector::pgetrs_f(trans, n, nrhs, a, ia, ja, ad.desc, pivots,
+        b, ib, jb, bd.desc, info);
+}
+
+template <typename T>
+inline void ppotrf(char uplo, int n, T* a, int ia, int ja,
+                   const ArrayDesc& ad, int& info)
+{
+#ifdef LIBRPA_USE_DDLA
+    const auto handle = ad.ddla_handle();
+    const bool device = handle != nullptr && ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU;
+    if (device || (use_ddla_cpu(ad) && ia == 1 && ja == 1))
+    {
+        if (ia != 1 || ja != 1)
+            throw std::invalid_argument("DDLA ppotrf requires unit offsets");
+        ddla::ppotrf(handle, uplo, n, a, ia, ja, ad.desc, info);
+        return;
+    }
+#endif
+    if (is_single_rank_grid(ad) && submatrix_fits(ad, ia, ja, n, n))
+    {
+        if (n == 0) { info = 0; return; }
+        LapackConnector::potrf_f(uplo, n, local_submatrix(a, ia, ja, ad), ad.lld(), info);
+        return;
+    }
+    ScalapackConnector::ppotrf_f(uplo, n, a, ia, ja, ad.desc, info);
+}
+
+template <typename T>
+inline void ppotrs(char uplo, int n, int nrhs, T* a, int ia, int ja,
+                   const ArrayDesc& ad, T* b, int ib, int jb, const ArrayDesc& bd, int& info)
+{
+#ifdef LIBRPA_USE_DDLA
+    const auto handle = ad.ddla_handle();
+    const bool device = handle != nullptr && ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU;
+    if (device || (use_ddla_cpu(ad) && ia == 1 && ja == 1 && ib == 1 && jb == 1))
+    {
+        if (ia != 1 || ja != 1 || ib != 1 || jb != 1)
+            throw std::invalid_argument("DDLA ppotrs requires unit offsets");
+        ddla::ppotrs(handle, 'L', uplo, 'N', n, nrhs, a, ad.desc, b, bd.desc);
+        info = 0;
+        return;
+    }
+#endif
+    if (is_same_single_rank_grid(ad, bd) && submatrix_fits(ad, ia, ja, n, n) &&
+        submatrix_fits(bd, ib, jb, n, nrhs))
+    {
+        if (n == 0 || nrhs == 0) { info = 0; return; }
+        LapackConnector::potrs_f(uplo, n, nrhs, local_submatrix(a, ia, ja, ad), ad.lld(),
+            local_submatrix(b, ib, jb, bd), bd.lld(), info);
+        return;
+    }
+    ScalapackConnector::ppotrs_f(uplo, n, nrhs, a, ia, ja, ad.desc,
+        b, ib, jb, bd.desc, info);
+}
+
 template <typename T>
 inline void pgesv(
     const int& n, const int& nrhs,

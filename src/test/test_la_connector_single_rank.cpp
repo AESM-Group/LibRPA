@@ -31,6 +31,18 @@ REJECT_DISTRIBUTED(pdgesv_)
 REJECT_DISTRIBUTED(pzgesv_)
 REJECT_DISTRIBUTED(pdposv_)
 REJECT_DISTRIBUTED(pzposv_)
+REJECT_DISTRIBUTED(pspotrf_)
+REJECT_DISTRIBUTED(pdpotrf_)
+REJECT_DISTRIBUTED(pcpotrf_)
+REJECT_DISTRIBUTED(pzpotrf_)
+REJECT_DISTRIBUTED(pspotrs_)
+REJECT_DISTRIBUTED(pdpotrs_)
+REJECT_DISTRIBUTED(pcpotrs_)
+REJECT_DISTRIBUTED(pzpotrs_)
+REJECT_DISTRIBUTED(psgetrs_)
+REJECT_DISTRIBUTED(pdgetrs_)
+REJECT_DISTRIBUTED(pcgetrs_)
+REJECT_DISTRIBUTED(pzgetrs_)
 #undef REJECT_DISTRIBUTED
 #endif
 
@@ -147,6 +159,7 @@ void check_solves_at(const BlacsCtxtHandler& grid, int ia, int ja)
     constexpr int n = 4, nrhs = 2;
     std::vector<T> a(49), b(54);
     const auto index_a = [ia, ja](int i, int j) { return ia - 1 + i + 7 * (ja - 1 + j); };
+    for (bool split : {false, true})
     for (bool cholesky : {false, true})
         for (char uplo : {'U', 'L'})
         {
@@ -164,7 +177,22 @@ void check_solves_at(const BlacsCtxtHandler& grid, int ia, int ja)
                     b[1 + i + 9 * (2 + j)] = rhs;
                 }
             int info = -999;
-            if (cholesky)
+            std::vector<int> split_pivots(9);
+            if (split && cholesky)
+            {
+                LaConnector::ppotrf(uplo, n, a.data(), ia, ja, ad, info);
+                assert(info == 0);
+                LaConnector::ppotrs(uplo, n, nrhs, a.data(), ia, ja, ad,
+                                    b.data(), 2, 3, bd, info);
+            }
+            else if (split)
+            {
+                LaConnector::pgetrf(n, n, a.data(), ia, ja, ad, split_pivots.data(), info);
+                assert(info == 0);
+                LaConnector::pgetrs('N', n, nrhs, a.data(), ia, ja, ad, split_pivots.data(),
+                                    b.data(), 2, 3, bd, info);
+            }
+            else if (cholesky)
                 LaConnector::pposv('L', uplo, 'N', n, nrhs, a.data(), ia, ja, ad,
                                    b.data(), 2, 3, bd, info);
             else
