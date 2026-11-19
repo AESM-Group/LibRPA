@@ -41,7 +41,9 @@ config_test(test_la_connector_single_rank 1)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_compile_definitions(test_la_connector_single_rank PRIVATE LIBRPA_TEST_LOCAL_LAPACK_DISPATCH)
   foreach(symbol psgemm_ pdgemm_ pcgemm_ pzgemm_ pssyev_ pdsyev_ pcheev_ pzheev_
-                 pdgetrf_ pzgetrf_ pdgesv_ pzgesv_ pdposv_ pzposv_)
+                 pdgetrf_ pzgetrf_ pdgesv_ pzgesv_ pdposv_ pzposv_
+                 pspotrf_ pdpotrf_ pcpotrf_ pzpotrf_ pspotrs_ pdpotrs_ pcpotrs_ pzpotrs_
+                 psgetrs_ pdgetrs_ pcgetrs_ pzgetrs_)
     target_link_options(test_la_connector_single_rank PRIVATE "LINKER:--wrap=${symbol}")
   endforeach()
 endif()
