@@ -754,7 +754,6 @@ void parse_inputfile_to_params(const std::string &fn)
         parser.parse_bool("read_sigc", btmp, flag);
         if (flag == 0) opts.read_sigc_mat_rf = get_switch(btmp);
     }
-    _parse_switch(opts, use_cholesky_gw_wc);
     _parse_switch(opts, use_gpu_replace_scalapack);
     parser.parse_string("linear_algorithm", stmp, flag);
     if (flag == 0)

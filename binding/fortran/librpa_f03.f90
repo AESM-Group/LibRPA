@@ -226,7 +226,6 @@ module librpa_f03
       integer(c_int) :: istate_ref_hedin_shift
       real(c_double) :: sf_gf_omega_shift
       real(c_double) :: sf_sigc_omega_shift
-      integer(c_int) :: use_cholesky_gw_wc
       integer(c_int) :: use_gpu_replace_scalapack
       character(kind=c_char, len=1) :: linear_algorithm(LIBRPA_MAX_STRLEN)
       character(kind=c_char, len=1) :: eigensolver_method(LIBRPA_MAX_STRLEN)
@@ -379,8 +378,6 @@ module librpa_f03
       real(dp) :: sf_gf_omega_shift
       !> Broadening/shift used for correlation self-energy in spectral-function output, in Hartree.
       real(dp) :: sf_sigc_omega_shift
-      !> Experimental: use Cholesky factorization for computing \f$W^c\f$ from \f$\chi^0\f$.
-      logical :: use_cholesky_gw_wc
       !> Experimental: GPU screened-Coulomb, EXX, self-energy and mean-field operations.
       logical :: use_gpu_replace_scalapack
       !> Distributed screened-Coulomb matrix operations: scalapack or ddla.
@@ -1245,7 +1242,6 @@ contains
       call sync_opt(opts%rpa_headwing_body_start, opts%opts_c%rpa_headwing_body_start, direction)
       call sync_opt(opts%read_sigc_mat_rf,        opts%opts_c%read_sigc_mat_rf,        direction)
       call sync_opt(opts%rpa_headwing_mode,       opts%opts_c%rpa_headwing_mode,       direction)
-      call sync_opt(opts%use_cholesky_gw_wc,      opts%opts_c%use_cholesky_gw_wc,      direction)
       call sync_opt(opts%use_gpu_replace_scalapack, opts%opts_c%use_gpu_replace_scalapack, direction)
       call sync_opt(opts%linear_algorithm, opts%opts_c%linear_algorithm, direction)
       call sync_opt(opts%eigensolver_method, opts%opts_c%eigensolver_method, direction)

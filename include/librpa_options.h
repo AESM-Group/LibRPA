@@ -464,13 +464,6 @@ typedef struct
     //! Experimental
     double sf_sigc_omega_shift;
 
-    //! Flag of using cholesky factorization for computing Wc from chi0.
-    //! @par Default
-    //! false
-    //! @par Status
-    //! Experimental
-    LibrpaSwitch use_cholesky_gw_wc;
-
     //! GPU acceleration of screened Coulomb, EXX, self-energy and mean-field matrix operations.
     //! For screened Coulomb, selects the distributed Wc route and promotes
     //! ScaLAPACK linear operations to DDLA and ScaLAPACK eigenvectors to ELPA

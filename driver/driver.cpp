@@ -435,7 +435,6 @@ std::string format_runtime_options(const librpa::Options &opts) noexcept
             bool_pair(output_abacus_gw_gf),
             bool_pair(use_shrink_abfs),
             bool_pair(use_shrink_chi),
-            bool_pair(use_cholesky_gw_wc),
             bool_pair(use_gpu_replace_scalapack),
             bool_pair(use_kpara_scf_eigvec),
             bool_pair(read_sigc_mat_rf),

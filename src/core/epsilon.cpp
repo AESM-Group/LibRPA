@@ -2199,7 +2199,7 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
     const double sqrt_coulomb_threshold, const bool replace_w_head, int option_dielect_func,
     const vector<std::complex<double>> &epsmac_LF_imagfreq, diele_func *df_headwing,
     const BlacsCtxtHandler &blacs_h, const ArrayDesc &ad, const bool debug, const char *output_dir,
-    bool use_cholesky_gw_wc, bool use_gpu_replace_scalapack, const std::string &eigensolver_method,
+    bool use_gpu_replace_scalapack, const std::string &eigensolver_method,
     const std::string &linear_algorithm)
 {
     using std::cout;
@@ -2398,6 +2398,32 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
             (option_dielect_func == 3 || option_dielect_func == 53);
         const bool gamma_head_only =
             gamma_point && !epsmac_LF_imagfreq.empty() && !gamma_full_headwing;
+        // The head-only rank-one overwrite can lose positive definiteness.
+        // Allocate retry storage once per q, only in the selected memory space.
+        std::vector<std::complex<double>> dielectric_backup_host;
+        std::complex<double>* dielectric_backup = nullptr;
+#ifdef LIBRPA_USE_DDLA
+        std::unique_ptr<ddla::vector<std::complex<double>>> dielectric_backup_backend;
+#endif
+        if (gamma_head_only)
+        {
+            const auto count = chi0_block.size();
+#ifdef LIBRPA_USE_DDLA
+            const auto handle = desc_nabf_nabf_opt.ddla_handle();
+            if (handle != nullptr && (desc_nabf_nabf_opt.use_ddla_linear() ||
+                ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU))
+            {
+                dielectric_backup_backend = std::make_unique<ddla::vector<std::complex<double>>>(
+                    handle, std::max<std::size_t>(1, count));
+                dielectric_backup = dielectric_backup_backend->data();
+            }
+            else
+#endif
+            {
+                dielectric_backup_host.resize(std::max<std::size_t>(1, count));
+                dielectric_backup = dielectric_backup_host.data();
+            }
+        }
         const bool mixed_gamma = global::dev_opts.use_mixed_type_ddla &&
                                  gamma_point && !gamma_full_headwing && !gamma_head_only;
 #ifndef LIBRPA_USE_DDLA
@@ -3353,26 +3379,16 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
                     if (coulwc_block.size() > 0)
                         memcpy(coul_chi0_block_ptr, coulwc_block_ptr, coulwc_block.size() * sizeof(std::complex<double>));
                 }
-                int info = 0;
-                if (use_cholesky_gw_wc)
+                try
                 {
-                    LaConnector::pposv('L', 'L', 'N', n_abf, n_abf, chi0_block_ptr, 1, 1,
-                                       desc_nabf_nabf_opt, coul_chi0_block_ptr, 1, 1,
-                                       desc_nabf_nabf_opt, info);
+                    solve_dielectric_system(chi0_block_ptr, coul_chi0_block_ptr,
+                        desc_nabf_nabf_opt, desc_nabf_nabf_opt,
+                        gamma_head_only, dielectric_backup);
                 }
-                else
-                {
-                    LaConnector::pgesv(n_abf, n_abf, chi0_block_ptr, 1, 1,
-                                       desc_nabf_nabf_opt, coul_chi0_block_ptr, 1, 1,
-                                       desc_nabf_nabf_opt, info);
-                }
-                if (info != 0)
+                catch (...)
                 {
                     global::profiler.stop("epsilon_solver_coulwc_1");
-                    std::ostringstream oss;
-                    oss << "Dielectric " << (use_cholesky_gw_wc ? "Cholesky" : "LU")
-                        << " solve failed with info=" << info;
-                    throw LIBRPA_RUNTIME_ERROR(oss.str());
+                    throw;
                 }
 #ifdef LIBRPA_USE_DDLA
                 if (mixed_gamma) add_real_sc_to_rhs(-1.0);

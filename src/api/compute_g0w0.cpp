@@ -892,7 +892,7 @@ void librpa_int::api::build_gw_sigma_for_task(
         chi0, coul_eps, coul_wc, opts.sqrt_coulomb_threshold,
         opts.replace_w_head == LIBRPA_SWITCH_ON,
         opts.option_dielect_func, epsmac_LF_imagfreq, pds->p_headwing.get(), pds->blacs_h,
-        wc_desc_abf, debug, opts.output_dir, opts.use_cholesky_gw_wc,
+        wc_desc_abf, debug, opts.output_dir,
         opts.use_gpu_replace_scalapack, opts.eigensolver_method, opts.linear_algorithm);
 
     std::map<double, atom_mapping<std::map<Vector3_Order<double>, Matz>>::pair_t_old>

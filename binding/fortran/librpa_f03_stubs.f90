@@ -251,8 +251,6 @@ module librpa_f03
       real(dp) :: sf_gf_omega_shift
       !> Broadening/shift used for correlation self-energy in spectral-function output, in Hartree.
       real(dp) :: sf_sigc_omega_shift
-      !> Experimental: use Cholesky factorization for computing \f$W^c\f$ from \f$\chi^0\f$.
-      logical :: use_cholesky_gw_wc
       !> Experimental: GPU screened-Coulomb, EXX, self-energy and mean-field operations.
       logical :: use_gpu_replace_scalapack
       !> Distributed screened-Coulomb matrix operations: scalapack or ddla.

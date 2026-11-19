@@ -111,7 +111,6 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->istate_ref_hedin_shift = -1;
     opts->sf_gf_omega_shift = 0.01;
     opts->sf_sigc_omega_shift = 0.01;
-    opts->use_cholesky_gw_wc = LIBRPA_SWITCH_OFF;
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     int deviceCount = 0;
 #ifdef LIBRPA_USE_CUDA

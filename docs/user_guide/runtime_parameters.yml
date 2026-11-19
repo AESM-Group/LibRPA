@@ -262,7 +262,6 @@ blocks:
       - api.istate_ref_hedin_shift
       - api.sf_gf_omega_shift
       - api.sf_sigc_omega_shift
-      - api.use_cholesky_gw_wc
       - api.use_gpu_replace_scalapack
       - api.linear_algorithm
       - api.eigensolver_method
@@ -284,6 +283,15 @@ blocks:
       eigensolver also uses local LAPACK on that grid. Explicit DDLA and ELPA
       selections retain their respective backends. No distributed matrix is
       gathered to select this fallback.
+
+      Wc requires a Hermitian imaginary-frequency dielectric matrix and always
+      tries Cholesky factorization, checking its status before the solve.
+      Gamma head corrections restore the original matrix and retry standard LU
+      only when Cholesky reports loss of positive definiteness. Ordinary-point
+      failures and invalid arguments stop the calculation. Cholesky does not
+      check Hermiticity; general non-Hermitian inputs are unsupported by Wc.
+      The strict-2D Gamma body uses the same
+      Cholesky-first/retry policy, without changing its radial average.
 
       RPA selects BLACS/ScaLAPACK automatically for atom-pair/LibRI routing
       when LibRI is available. R-tau routing and builds without LibRI retain

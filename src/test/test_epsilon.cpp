@@ -922,7 +922,7 @@ double rectangular_gamma_volume_ratio()
 
 void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bool rank_deficient,
                                        const bool zero_response, const int dielectric_option,
-                                       const bool use_cholesky, const int block_size = 1,
+                                       const int block_size = 1,
                                        const bool mixed_test = false, const bool gpu = false,
                                        const bool mixed_shell_head = false, const int n = 4)
 {
@@ -1075,7 +1075,7 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
                                 mixed_test ? std::vector<std::complex<double>>{} :
                                              std::vector<std::complex<double>>{1.0},
                                 mixed_test ? nullptr : &headwing, blacs_h,
-                                desc_aux, false, ".", use_cholesky, gpu, "scalapack",
+                                desc_aux, false, ".", gpu, "scalapack",
                                 mixed_test ? "ddla" : "scalapack");
 
     for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
@@ -1138,14 +1138,14 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
         if (blacs_h.myid == 0)
             std::cout << "Gamma Wc dense control: rank=" << retained
                       << " zero_response=" << zero_response << " option=" << dielectric_option
-                      << " cholesky=" << use_cholesky << " block_size=" << block_size
+                      << " block_size=" << block_size
                       << " iq=" << iq << " ifreq=" << grids.get_freq_index(freq)
                       << " max_error=" << max_error << std::endl;
         assert(max_error < 1e-10);
     }
 }
 
-void verify_scalar_mixed_wc(const BlacsCtxtHandler &blacs_h, bool gpu, bool cholesky, bool filtered)
+void verify_scalar_mixed_wc(const BlacsCtxtHandler &blacs_h, bool gpu, bool filtered)
 {
     PeriodicBoundaryData pbc;
     pbc.set_latvec({1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
@@ -1168,7 +1168,7 @@ void verify_scalar_mixed_wc(const BlacsCtxtHandler &blacs_h, bool gpu, bool chol
     const auto q=pbc.klist.front();
     const double v=filtered ? -0.2 : 4.0;
     const auto response=[&](double freq) {
-        return std::complex<double>(-0.1, cholesky ? 0.0 : 0.03)*(1.0+grids.get_freq_index(freq));
+        return std::complex<double>(-0.1, 0.0)*(1.0+grids.get_freq_index(freq));
     };
     if (blacs_h.myid == 0)
     {
@@ -1183,7 +1183,7 @@ void verify_scalar_mixed_wc(const BlacsCtxtHandler &blacs_h, bool gpu, bool chol
         }
     }
     const auto result=compute_Wc_freq_q(chi0,bare,cut,0.0,false,3,{},nullptr,
-        blacs_h,aux_desc,false,".",cholesky,gpu,"scalapack","ddla");
+        blacs_h,aux_desc,false,".",gpu,"scalapack","ddla");
     double error=0;
     for (const auto freq:grids.get_freq_nodes())
     {
@@ -1204,15 +1204,13 @@ void test_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bool
 {
     for (const bool rank_deficient : {true, false})
         for (const bool zero_response : {true, false})
-            verify_gamma_wc_retained_identity(blacs_h, rank_deficient, zero_response, 3, false, 1, false, gpu);
-    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, true, 1, false, gpu);
-    verify_gamma_wc_retained_identity(blacs_h, true, false, 1, false, 1, false, gpu);
+            verify_gamma_wc_retained_identity(blacs_h, rank_deficient, zero_response, 3, 1, false, gpu);
+    verify_gamma_wc_retained_identity(blacs_h, true, false, 1, 1, false, gpu);
     // The filtered eigenvector starts inside a block, rather than at its edge.
-    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, false, 2, false, gpu);
+    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, 2, false, gpu);
     // Exercise wing scratch larger than the full matrix, including empty MPI owners.
     for (int n : {1, 2})
-        for (bool cholesky : {false, true})
-            verify_gamma_wc_retained_identity(blacs_h, false, false, 3, cholesky, 1, false, gpu, false, n);
+        verify_gamma_wc_retained_identity(blacs_h, false, false, 3, 1, false, gpu, false, n);
 }
 
 #endif
@@ -1269,24 +1267,21 @@ int main(int argc, char *argv[])
             for (int option : {3, 53})
                 for (bool filtered : {false, true})
                     for (int block_size : {1, 2})
-                        for (bool cholesky : {false, true})
-                            verify_gamma_wc_retained_identity(blacs_h, filtered, false,
-                                option, cholesky, block_size, false, true);
+                        verify_gamma_wc_retained_identity(blacs_h, filtered, false,
+                            option, block_size, false, true);
         if (mixed_gpu)
             for (int block_size : {1, 2})
-                for (bool cholesky : {false, true})
-                    verify_gamma_wc_retained_identity(blacs_h, true, true, 53,
-                        cholesky, block_size, false, true, true);
+                verify_gamma_wc_retained_identity(blacs_h, true, true, 53,
+                    block_size, false, true, true);
         // Compare the full production ordinary-Gamma path with an independent
-        // dense inverse, including filtering, complex response and both solves.
+        // dense inverse, including filtering and a complex Hermitian response.
         librpa_int::global::dev_opts.use_mixed_type_ddla = true;
         for (bool filtered : {false, true})
-            for (bool cholesky : {false, true})
-            {
-                verify_gamma_wc_retained_identity(blacs_h, filtered, false, 3, cholesky,
-                                                   1, true, mixed_gpu);
-                verify_scalar_mixed_wc(blacs_h, mixed_gpu, cholesky, filtered);
-            }
+        {
+            verify_gamma_wc_retained_identity(blacs_h, filtered, false, 3,
+                                               1, true, mixed_gpu);
+            verify_scalar_mixed_wc(blacs_h, mixed_gpu, filtered);
+        }
         librpa_int::global::dev_opts.use_mixed_type_ddla = false;
 #endif
 #endif

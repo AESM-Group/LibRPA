@@ -88,7 +88,7 @@ double check_matrix(const Matz &actual, const Matz &expected)
     return error;
 }
 
-void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, bool use_cholesky,
+void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation,
                        bool gpu = false, bool filtered = false)
 {
     const int naux = rotation.nr();
@@ -253,11 +253,11 @@ void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, boo
                   << " projections=cpu"
                   << " naux=" << naux << " nfreq=" << frequencies.size()
                   << " retained=" << retained << " cutoff=" << threshold
-                  << " nq=" << pbc.klist_coul.size() << " cholesky=" << use_cholesky
+                  << " nq=" << pbc.klist_coul.size()
                   << " cpu_body=physical_radial_oracle" << std::endl;
     const auto actual =
         compute_Wc_freq_q(response, coulomb_blocks, wc_coulomb_blocks, threshold, true, 3, epsmac,
-                                &headwing, blacs_h, desc, false, ".", use_cholesky,
+                                &headwing, blacs_h, desc, false, ".",
                                 gpu, "scalapack", gpu ? "ddla" : "scalapack");
     assert(actual.size() == frequencies.size());
     double maximum_error = 0.;
@@ -271,7 +271,7 @@ void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, boo
     if (blacs_h.myid == 0)
         std::cout << "STRICT_2D_GW_CALLER_PASS backend=" << (gpu ? "gpu" : "cpu")
                   << " projections=cpu"
-                  << " cholesky=" << use_cholesky << " retained=" << retained
+                  << " retained=" << retained
                   << " max_error=" << maximum_error << std::endl;
 }
 }  // namespace
@@ -321,18 +321,15 @@ int main(int argc, char **argv)
         for (int i = 0; i != 3; ++i)
             for (int j = 0; j != 3; ++j) rotation(i, j) = values[i][j];
         rotation(3, 3) = 1.0;
-        for (bool use_cholesky : {false, true})
+        test_complete_wc(blacs_h, identity, gpu);
+        test_complete_wc(blacs_h, rotation, gpu);
+        if (gpu)
         {
-            test_complete_wc(blacs_h, identity, use_cholesky, gpu);
-            test_complete_wc(blacs_h, rotation, use_cholesky, gpu);
-            if (gpu)
-            {
-                test_complete_wc(blacs_h, identity, use_cholesky, true, true);
-                test_complete_wc(blacs_h, rotation, use_cholesky, true, true);
-            }
+            test_complete_wc(blacs_h, identity, true, true);
+            test_complete_wc(blacs_h, rotation, true, true);
         }
         if (gpu && blacs_h.myid == 0)
-            std::cout << "STRICT_2D_GW_GPU_FULL_CALLER_PASS cases=8" << std::endl;
+            std::cout << "STRICT_2D_GW_GPU_FULL_CALLER_PASS cases=4" << std::endl;
     }
     global::finalize_global_io();
     global::finalize_global_mpi();

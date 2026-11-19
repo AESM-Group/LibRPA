@@ -445,7 +445,7 @@ CrpaScreenedResponse screen_crpa_response(CrpaContext &context, Chi0QMap respons
     auto wc = compute_Wc_freq_q(chi, context.coulomb, coulomb_wc,
                                       context.sqrt_coulomb_threshold, optical != nullptr,
                                       optical ? 3 : 0, epsmac, optical, context.blacs, desc, false,
-                                      ".", false, context.use_gpu_replace_scalapack,
+                                      ".", context.use_gpu_replace_scalapack,
                                       context.eigensolver_method, context.linear_algorithm);
     if (chi.qpoint_view().restore_mode == SymmetryQPointRestoreMode::FULL_CRYSTAL)
         for (auto &[frequency, kernels] : wc)
