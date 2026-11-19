@@ -2404,6 +2404,13 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
         if (mixed_gamma)
             throw LIBRPA_RUNTIME_ERROR("use_mixed_type_ddla requires LIBRPA_USE_DDLA");
 #endif
+        const size_t factor_count = coul_eigen_block.size();
+        // Ordinary Gamma needs no eigenvectors after the powers. Keep both
+        // native real outputs in their existing complex allocation; use the
+        // existing coul_chi0 host matrix for the producer's temporary Z.
+        double* const real_coul_host = mixed_gamma && factor_count > 0
+            ? reinterpret_cast<double*>(coul_eigen_block.ptr()) : nullptr;
+        double* const real_coulwc_host = real_coul_host ? real_coul_host + factor_count : nullptr;
         coul_block.zero_out();
         coulwc_block.zero_out();
         // lib_printf("coul_block\n%s", str(coul_block).c_str());
@@ -2463,12 +2470,14 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
             if (is_gamma_point(q))
             {
                 LaConnector::power_hemat_la_real(
-                    coulwc_block, desc_nabf_nabf_opt, coul_eigen_block, desc_nabf_nabf_opt,
+                    coulwc_block, desc_nabf_nabf_opt,
+                    mixed_gamma ? coul_chi0_block : coul_eigen_block, desc_nabf_nabf_opt,
                     n_singular_coulwc, eigenvalues.c, 0.5, sqrt_coulomb_threshold,
                     use_gpu_replace_scalapack, eigensolver_method,
                     use_gpu_replace_scalapack ? (double*)chi0_block_ptr + power_local_count : nullptr,
                     use_gpu_replace_scalapack ? (double*)chi0_block_ptr : nullptr,
-                    use_gpu_replace_scalapack ? (double*)coul_chi0_block_ptr : nullptr);
+                    use_gpu_replace_scalapack ? (double*)coul_chi0_block_ptr : nullptr,
+                    real_coulwc_host);
             }
             else
             {
@@ -2562,12 +2571,14 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
             // The real path preserves descending Coulomb eigenvalues.
             // leads to sub-meV difference
             sqrtveig_blacs = LaConnector::power_hemat_la_real(
-                coul_block, desc_nabf_nabf_opt, coul_eigen_block, desc_nabf_nabf_opt,
+                coul_block, desc_nabf_nabf_opt,
+                mixed_gamma ? coul_chi0_block : coul_eigen_block, desc_nabf_nabf_opt,
                 n_singular, eigenvalues.c, 0.5, sqrt_coulomb_threshold,
                 use_gpu_replace_scalapack, eigensolver_method,
                 use_gpu_replace_scalapack ? (double*)chi0_block_ptr + power_local_count : nullptr,
                 use_gpu_replace_scalapack ? (double*)chi0_block_ptr : nullptr,
-                use_gpu_replace_scalapack ? (double*)coul_chi0_block_ptr : nullptr);
+                use_gpu_replace_scalapack ? (double*)coul_chi0_block_ptr : nullptr,
+                real_coul_host);
         }
         else
         {
@@ -2577,24 +2588,8 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
                 eigensolver_method, coul_block_ptr, chi0_block_ptr, coul_chi0_block_ptr);
         }
         if (debug_output) ofs_myid << get_timestamp() << " Done power hemat couleps\n";
-        // Ordinary Gamma no longer uses eigenvectors. std::complex array-oriented
-        // access exposes its 2*N doubles: reuse them for S=sqrt(V) and Sc=sqrt(Vc).
-        // Each factor retains the existing block-cyclic local layout. Head/wing
-        // paths still need the eigenvectors and deliberately keep complex GEMMs.
-        double* real_coul_host = nullptr;
-        double* real_coulwc_host = nullptr;
         if (mixed_gamma)
         {
-            global::profiler.start("epsilon_pack_mixed_factors", LIBRPA_VERBOSE_DEBUG);
-            const size_t count = coul_eigen_block.size();
-            real_coul_host = reinterpret_cast<double*>(coul_eigen_block.ptr());
-            real_coulwc_host = count ? real_coul_host + count : real_coul_host;
-            for (size_t i = 0; i < count; ++i)
-            {
-                real_coul_host[i] = coul_block.ptr()[i].real();
-                real_coulwc_host[i] = coulwc_block.ptr()[i].real();
-            }
-            global::profiler.stop("epsilon_pack_mixed_factors");
             if (comm_h.is_root())
                 std::cout << "Experimental DDLA mixed FP64 Gamma Wc products enabled" << std::endl;
         }
