@@ -5,5 +5,3 @@ use_symmetry_exx = true
 use_symmetry_gw = true
 use_symmetry_rpa = true
 | number of k-points        : 2
-Head symmetry restore for analytic head: active (all symmetry restore checks passed).
-Wing symmetry restore for analytic wing: active (all symmetry restore checks passed).

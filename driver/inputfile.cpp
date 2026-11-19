@@ -318,22 +318,10 @@ static void validate_input_parameters()
                 throw std::runtime_error("g0w0_hr_unit must be Ha, Ry, or eV");
             if (params.g0w0_rr_unit != "Bohr" && params.g0w0_rr_unit != "Angstrom")
                 throw std::runtime_error("g0w0_rr_unit must be Bohr or Angstrom");
-            // Native velocity needs the complete AO x band frame of every k point to
-            // build the eigenframe. k-point-parallel distribution keeps only a
-            // subset of k points per rank and cannot supply that frame.
-            if (driver::opts.use_kpara_scf_eigvec == LIBRPA_SWITCH_ON)
-                throw std::runtime_error(
-                    "G0W0 native velocity needs the complete AO x band wavefunction frame of "
-                    "every k point, which k-point-parallel distribution does not retain; "
-                    "set use_kpara_scf_eigvec = false, or select "
-                    "option_velocity = pyatb to read an external velocity matrix");
-            const bool use_symmetry = driver::opts.use_symmetry_rpa == LIBRPA_SWITCH_ON ||
-                                      driver::opts.use_symmetry_gw == LIBRPA_SWITCH_ON ||
-                                      driver::opts.use_symmetry_exx == LIBRPA_SWITCH_ON;
-            if (use_symmetry && !params.use_spinor_wfc)
-                throw std::runtime_error(
-                    "Scalar G0W0 native velocity requires a full-BZ input without symmetry "
-                    "reduction");
+            // Native velocity fetches each AO x band block from the rank that owns it
+            // and broadcasts that copy, so a k-point-parallel distribution is fine.
+            // A symmetry-reduced SCF grid is expanded to the full mesh before the
+            // differentiation; build_native_velocity validates the k-star coverage.
         }
     }
     if (params.crpa_enabled && task != "qsgw" && task != "g0w0" && task != "g0w0_band")

@@ -6,11 +6,13 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <numeric>
 #include <set>
 #include <string>
 
 #include "../core/dielecmodel.h"
 #include "../core/epsilon.h"
+#include "../core/meanfield_mpi.h"
 #include "../core/native_velocity.h"
 #include "../mpi/collective_stage.h"
 #include "dataset_helper.h"
@@ -225,18 +227,72 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
         [&]
         {
             if (ds->mf.get_n_kpoints() == ds->pbc.get_n_cells_bvk()) return;
-            const bool use_symmetry = opts.use_symmetry_rpa == LIBRPA_SWITCH_ON ||
-                                      opts.use_symmetry_gw == LIBRPA_SWITCH_ON;
-            if (ds->mf.get_n_spinor() != 2 || !use_symmetry ||
-                opts.use_kpara_scf_eigvec == LIBRPA_SWITCH_ON)
-                throw LIBRPA_RUNTIME_ERROR(
-                    "IBZ native velocity requires SOC magnetic symmetry and undistributed "
-                    "AO/band WFC blocks");
+            // A symmetry-reduced SCF grid is accepted whenever the k-stars can
+            // restore the full mesh; the expansion below supplies the frame that
+            // the per-k differentiation needs.
             initialize_symmetry_context(*ds, true);
-            require_symmetry_shell_layouts(*ds, "native SOC head/wing");
+            require_symmetry_shell_layouts(*ds, "native IBZ head/wing");
             symmetry = &ds->symmetry_context;
         });
-    auto result = build_native_velocity(ds->mf, ds->pbc, comm, root_input, symmetry);
+    // A symmetry-reduced SCF grid cannot feed the head/wing velocity directly: the
+    // per-k blocks only exist on the IBZ representatives. Expand the loaded
+    // eigenframe to the full mesh first, exactly as QSGW does for its reference
+    // state, then differentiate H/S/r in that full frame. No eigenproblem is
+    // solved, and the caller keeps its own IBZ mean field for P0 and W.
+    MeanField headwing_meanfield;
+    PeriodicBoundaryData headwing_pbc;
+    const MeanField *velocity_mf = &ds->mf;
+    const PeriodicBoundaryData *velocity_pbc = &ds->pbc;
+    if (symmetry != nullptr && ds->mf.get_n_kpoints() != ds->pbc.get_n_cells_bvk())
+    {
+        const auto expanded = expand_symmetry_meanfield(ds->mf, ds->basis_wfc, ds->pbc, *symmetry);
+        headwing_meanfield = expanded.meanfield;
+        headwing_pbc = ds->pbc;
+        headwing_pbc.klist = headwing_pbc.klist_full;
+        headwing_pbc.kfrac_list = headwing_pbc.kfrac_list_full;
+        headwing_pbc.weight_k.assign(
+            static_cast<std::size_t>(headwing_meanfield.get_n_kpoints()),
+            1.0 / static_cast<double>(headwing_meanfield.get_n_kpoints()));
+        headwing_pbc.k_to_kfull.resize(static_cast<std::size_t>(headwing_meanfield.get_n_kpoints()));
+        std::iota(headwing_pbc.k_to_kfull.begin(), headwing_pbc.k_to_kfull.end(), 0);
+        headwing_pbc.kfull_to_k = headwing_pbc.k_to_kfull;
+        headwing_pbc.kfull_to_k_relation.assign(
+            static_cast<std::size_t>(headwing_meanfield.get_n_kpoints()), KFullToKRelation::DIRECT);
+        ds->headwing_full_bz_mf = headwing_meanfield;
+        ds->headwing_full_bz_pbc = headwing_pbc;
+        ds->headwing_full_bz_ready = true;
+        velocity_mf = &ds->headwing_full_bz_mf;
+        velocity_pbc = &ds->headwing_full_bz_pbc;
+        if (comm.is_root())
+            global::lib_printf(
+                "G0W0 native velocity: expanded %d IBZ states to %d full-grid states; "
+                "no eigenproblem solved\n",
+                ds->mf.get_n_kpoints(), headwing_meanfield.get_n_kpoints());
+    }
+    auto result = build_native_velocity(*velocity_mf, *velocity_pbc, comm, root_input, nullptr);
+    if (ds->headwing_full_bz_ready)
+    {
+        // Repack the full-BZ velocity so head/wing can consume it on that mesh.
+        const int n_hw_spins = ds->headwing_full_bz_mf.get_n_spins();
+        const int n_hw_kpoints = ds->headwing_full_bz_mf.get_n_kpoints();
+        const int n_hw_states = ds->headwing_full_bz_mf.get_n_states();
+        const std::size_t count = static_cast<std::size_t>(n_hw_spins) *
+                                  static_cast<std::size_t>(n_hw_kpoints) * 3 *
+                                  static_cast<std::size_t>(n_hw_states) *
+                                  static_cast<std::size_t>(n_hw_states);
+        if (result.velocity.size() != count)
+            throw LIBRPA_RUNTIME_ERROR("Full-BZ native velocity has an unexpected size");
+        initialize_velocity_matrix(ds->headwing_full_bz_velocity, n_hw_spins, n_hw_kpoints,
+                                   n_hw_states);
+        std::size_t cursor = 0;
+        for (int spin = 0; spin < n_hw_spins; ++spin)
+            for (int ik = 0; ik < n_hw_kpoints; ++ik)
+                for (int alpha = 0; alpha < 3; ++alpha)
+                    for (int row = 0; row < n_hw_states; ++row)
+                        for (int column = 0; column < n_hw_states; ++column, ++cursor)
+                            ds->headwing_full_bz_velocity[spin][ik][alpha](row, column) =
+                                result.velocity[cursor];
+    }
     collective_all_stage(comm, "G0W0 native velocity setter",
                          [&]
                          {

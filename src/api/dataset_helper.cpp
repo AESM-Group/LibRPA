@@ -393,11 +393,17 @@ std::unique_ptr<diele_func> make_analytic_headwing(Dataset &ds, const LibrpaOpti
         throw LIBRPA_RUNTIME_ERROR("analytic head/wing requested but velocity matrix is not set");
     }
 
-    MeanField &mf = ds.mf;
+    // Native velocity on a symmetry-reduced SCF grid expands the IBZ states to the
+    // full mesh and differentiates H/S/r there. When that frame exists, head/wing
+    // run on the plain full-BZ mesh: no k-star reconstruction, no IBZ weights.
+    const bool use_full_bz_frame = ds.headwing_full_bz_ready;
+    MeanField &mf = use_full_bz_frame ? ds.headwing_full_bz_mf : ds.mf;
+    const auto &headwing_kfrac = use_full_bz_frame ? ds.headwing_full_bz_pbc.kfrac_list
+                                                  : ds.pbc.kfrac_list;
     if (!mf.initialized())
         throw LIBRPA_RUNTIME_ERROR("analytic head/wing meanfield is not initialized");
 
-    if (static_cast<int>(ds.pbc.kfrac_list.size()) != mf.get_n_kpoints())
+    if (static_cast<int>(headwing_kfrac.size()) != mf.get_n_kpoints())
         throw LIBRPA_RUNTIME_ERROR(
             "analytic head/wing k-point list is inconsistent with meanfield");
 
@@ -407,7 +413,8 @@ std::unique_ptr<diele_func> make_analytic_headwing(Dataset &ds, const LibrpaOpti
         throw LIBRPA_RUNTIME_ERROR("analytic head/wing auxiliary basis is not initialized");
 
     const bool use_headwing_symmetry =
-        opts.use_symmetry_rpa == LIBRPA_SWITCH_ON || opts.use_symmetry_gw == LIBRPA_SWITCH_ON;
+        !use_full_bz_frame && (opts.use_symmetry_rpa == LIBRPA_SWITCH_ON ||
+                               opts.use_symmetry_gw == LIBRPA_SWITCH_ON);
     if (excluded && (use_headwing_symmetry || opts.use_kpara_scf_eigvec == LIBRPA_SWITCH_ON ||
                      opts.use_2d_dielectric == LIBRPA_SWITCH_ON))
         throw LIBRPA_INVALID_ARGUMENT(
@@ -422,10 +429,15 @@ std::unique_ptr<diele_func> make_analytic_headwing(Dataset &ds, const LibrpaOpti
     const bool use_kpara_eigvec = opts.use_kpara_scf_eigvec == LIBRPA_SWITCH_ON;
     const ArrayDesc &desc_scf_wfc =
         ds.eigvecs_kpara_2d_ready() ? ds.desc_wfc_kb : ds.desc_wfc_kb_full;
+    const auto &headwing_pbc = use_full_bz_frame ? ds.headwing_full_bz_pbc : ds.pbc;
+    // The full-BZ frame is a plain mesh with no k-point-parallel distribution, so
+    // the SCF k-BLACS context does not describe it.
+    const bool headwing_kpara = use_full_bz_frame ? false : use_kpara_eigvec;
     auto optical = std::make_unique<diele_func>(
-        mf, ds.velocity_matrix, ds.pbc.kfrac_list, ds.basis_wfc, headwing_basis_aux, freqs,
-        mf.get_n_aos(), mf.get_n_states(), mf.get_n_spins(), headwing_basis_aux.nb_total, ds.pbc,
-        ds.comm_h, ds.blacs_h, use_kpara_eigvec, &ds.scfk_blacs_ctxt, &desc_scf_wfc);
+        mf, use_full_bz_frame ? ds.headwing_full_bz_velocity : ds.velocity_matrix, headwing_kfrac,
+        ds.basis_wfc, headwing_basis_aux, freqs, mf.get_n_aos(), mf.get_n_states(),
+        mf.get_n_spins(), headwing_basis_aux.nb_total, headwing_pbc, ds.comm_h, ds.blacs_h,
+        headwing_kpara, use_full_bz_frame ? nullptr : &ds.scfk_blacs_ctxt, &desc_scf_wfc);
     optical->use_2d_dielectric = opts.use_2d_dielectric == LIBRPA_SWITCH_ON;
     optical->use_soc = mf.get_n_spinor() > 1;
     optical->debug = global::should_output(LIBRPA_VERBOSE_DEBUG);
