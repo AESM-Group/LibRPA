@@ -983,6 +983,11 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     pbc.set_latvec({1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
     pbc.set_kgrids_kvec(2, 1, 1, {0.0, 0.0, 0.0, PI, 0.0, 0.0});
     AtomicBasis wfc_basis({2}), aux_basis({static_cast<std::size_t>(n)});
+    // With every auxiliary s-like, option53's s-block is the full Coulomb
+    // matrix. Its unique leading head is the same first eigenchannel as the
+    // option3 oracle below.
+    if (dielectric_option == 53)
+        aux_basis.set_l_shells({{0, 0, 0, 0}});
     MeanField mf(1, 2, 2, 2);
     for (int ik = 0; ik != 2; ++ik)
     {
@@ -1055,7 +1060,7 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
             for (int i = 0; i != n; ++i) frequency_dielectric(i, i) += 1.0;
             expected_channels = serial_inverse(frequency_dielectric);
         }
-        if (!mixed_test && iq == 0 && dielectric_option == 3)
+        if (!mixed_test && iq == 0 && (dielectric_option == 3 || dielectric_option == 53))
         {
             expected_channels(0, 0) = rectangular_gamma_volume_ratio();
             for (int i = 0; i != n; ++i)
@@ -1212,6 +1217,16 @@ int main(int argc, char *argv[])
         if (mixed_gpu) blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
 #endif
         blacs_h.init_ddla_handle(ddla::DdlaBackend::CPU);
+        // Exercise the complete GPU head/wing caller, including E formation,
+        // filtered suffix packing, borrowed-buffer rewrite and final Sc
+        // products. Keep this independent of the mixed ordinary-Gamma flag.
+        if (mixed_gpu)
+            for (int option : {3, 53})
+                for (bool filtered : {false, true})
+                    for (int block_size : {1, 2})
+                        for (bool cholesky : {false, true})
+                            verify_gamma_wc_retained_identity(blacs_h, filtered, false,
+                                option, cholesky, block_size, false, true);
         // Compare the full production ordinary-Gamma path with an independent
         // dense inverse, including filtering, complex response and both solves.
         librpa_int::global::dev_opts.use_mixed_type_ddla = true;
