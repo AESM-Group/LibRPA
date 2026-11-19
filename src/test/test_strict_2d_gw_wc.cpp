@@ -4,6 +4,8 @@
 #include <complex>
 #include <iostream>
 #include <memory>
+#include <stdexcept>
+#include <string>
 #include <valarray>
 #include <vector>
 
@@ -65,7 +67,7 @@ Matz collect_response(const Chi0 &response, double frequency, const Vector3_Orde
     return result;
 }
 
-void check_matrix(const Matz &actual, const Matz &expected)
+double check_matrix(const Matz &actual, const Matz &expected)
 {
     double error = 0.0;
     for (std::size_t i = 0; i != actual.size(); ++i)
@@ -83,12 +85,16 @@ void check_matrix(const Matz &actual, const Matz &expected)
                           << " expected=" << expected(i, j) << '\n';
     }
     assert(error < 1e-10);
+    return error;
 }
 
-void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, bool use_cholesky)
+void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, bool use_cholesky,
+                       bool gpu = false, bool filtered = false)
 {
     const int naux = rotation.nr();
-    const int nbody = naux - 1;
+    const int retained = filtered ? naux - 1 : naux;
+    const int nbody = retained - 1;
+    const double threshold = filtered ? 0.5 : 0.;
     PeriodicBoundaryData pbc;
     pbc.set_latvec({4.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 0.0, 12.0});
     pbc.set_kgrids_kvec(2, 1, 1, {0.0, 0.0, 0.0, PI / 4.0, 0.0, 0.0});
@@ -120,8 +126,11 @@ void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, boo
     Matz root(naux, naux, MAJOR::COL);
     for (int i = 0; i != naux; ++i) root(i, i) = 4.0 * std::pow(0.5, i);
     const auto scaled_eigenvectors = rotation * root;
-    const auto sqrt_coulomb = scaled_eigenvectors * rotation.get_transpose(true);
-    const auto coulomb = sqrt_coulomb * sqrt_coulomb;
+    const auto full_root = scaled_eigenvectors * rotation.get_transpose(true);
+    const auto coulomb = full_root * full_root;
+    auto retained_root = root.copy();
+    if (filtered) retained_root(naux - 1, naux - 1) = 0.;
+    const auto sqrt_coulomb = filtered ? rotation * retained_root * rotation.get_transpose(true) : full_root;
     atpair_k_cplx_mat_t coulomb_blocks;
     // LibRI collects unique owner blocks; replicated inputs would be summed.
     for (const auto &q : pbc.klist_coul)
@@ -166,7 +175,7 @@ void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, boo
     headwing.cal_wing(coefficients, 0.0, coulomb_blocks);
     diele_func reference = headwing;
     auto scaled_local = get_local_mat(scaled_eigenvectors, desc);
-    reference.wing_mu_to_lambda(scaled_local, desc, naux);
+    reference.wing_mu_to_lambda(scaled_local, desc, retained);
     ArrayDesc desc_body(blacs_h);
     desc_body.init_square_blk(nbody, nbody, 0, 0);
     ArrayDesc desc_wing(blacs_h);
@@ -219,7 +228,14 @@ void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, boo
                                                              qx, qy, weights, qmax, gamma_area);
                 wc = strict_2d_transform_pw_wc_to_auxiliary_basis(
                     wc, reference.get_strict_2d_pw_to_auxiliary_scale());
-                expected[frequencies[f]][q] = rotation * wc * rotation.get_transpose(true);
+                if (filtered)
+                {
+                    Matz embedded(naux, naux, MAJOR::COL);
+                    for (int i = 0; i < retained; ++i)
+                        for (int j = 0; j < retained; ++j) embedded(i, j) = wc(i, j);
+                    expected[frequencies[f]][q] = rotation * embedded * rotation.get_transpose(true);
+                }
+                else expected[frequencies[f]][q] = rotation * wc * rotation.get_transpose(true);
             }
             else
             {
@@ -232,16 +248,31 @@ void test_complete_wc(const BlacsCtxtHandler &blacs_h, const Matz &rotation, boo
     const auto head_values = headwing.get_head_vec();
     const std::vector<std::complex<double>> epsmac(head_values.begin(), head_values.end());
     auto wc_coulomb_blocks = coulomb_blocks;
+    if (blacs_h.myid == 0)
+        std::cout << "STRICT_2D_GW_CALLER backend=" << (gpu ? "gpu" : "cpu")
+                  << " projections=cpu"
+                  << " naux=" << naux << " nfreq=" << frequencies.size()
+                  << " retained=" << retained << " cutoff=" << threshold
+                  << " nq=" << pbc.klist_coul.size() << " cholesky=" << use_cholesky
+                  << " cpu_body=physical_radial_oracle" << std::endl;
     const auto actual =
-        compute_Wc_freq_q(response, coulomb_blocks, wc_coulomb_blocks, 0.0, true, 3, epsmac,
-                                &headwing, blacs_h, desc, false, ".", use_cholesky);
+        compute_Wc_freq_q(response, coulomb_blocks, wc_coulomb_blocks, threshold, true, 3, epsmac,
+                                &headwing, blacs_h, desc, false, ".", use_cholesky,
+                                gpu, "scalapack", gpu ? "ddla" : "scalapack");
     assert(actual.size() == frequencies.size());
+    double maximum_error = 0.;
     for (const auto &frequency : expected)
     {
         assert(actual.at(frequency.first).size() == pbc.klist_coul.size());
         for (const auto &q : frequency.second)
-            check_matrix(collect_matrix(actual.at(frequency.first).at(q.first), desc), q.second);
+            maximum_error = std::max(maximum_error,
+                check_matrix(collect_matrix(actual.at(frequency.first).at(q.first), desc), q.second));
     }
+    if (blacs_h.myid == 0)
+        std::cout << "STRICT_2D_GW_CALLER_PASS backend=" << (gpu ? "gpu" : "cpu")
+                  << " projections=cpu"
+                  << " cholesky=" << use_cholesky << " retained=" << retained
+                  << " max_error=" << maximum_error << std::endl;
 }
 }  // namespace
 
@@ -251,10 +282,36 @@ int main(int argc, char **argv)
     MPI_Init_thread(&argc, &argv, LIBRPA_MPI_THREAD_LEVEL, &provided);
     global::init_global_mpi(MPI_COMM_WORLD);
     global::init_global_io(false, "stdout", false);
+    const bool gpu = argc == 2 && std::string(argv[1]) == "--gpu";
+    if (argc > 1 && !gpu)
+    {
+        if (global::mpi_comm_global_h.is_root()) std::cerr << "Expected no arguments or --gpu\n";
+        global::finalize_global_io(); global::finalize_global_mpi(); MPI_Finalize();
+        return 2;
+    }
+#if !defined(LIBRPA_USE_CUDA) && !defined(LIBRPA_USE_HIP)
+    if (gpu)
+    {
+        if (global::mpi_comm_global_h.is_root())
+            std::cerr << "--gpu requires a CUDA/HIP build and an allocated GPU owning handle; CPU fallback is not a GPU test\n";
+        global::finalize_global_io(); global::finalize_global_mpi(); MPI_Finalize();
+        return 2;
+    }
+#endif
     {
         BlacsCtxtHandler blacs_h(MPI_COMM_WORLD);
         blacs_h.init();
         blacs_h.set_square_grid();
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (gpu)
+        {
+            blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
+            if (blacs_h.ddla_handle == nullptr ||
+                ddla::ddlaGetBackend(blacs_h.ddla_handle) != ddla::DdlaBackend::GPU)
+                throw std::runtime_error("Strict-2D full GPU caller requires the initialized owning GPU handle");
+            ddla::DDLA_CHECK(ddla::ddlaSetDevice(blacs_h.ddla_handle));
+        }
+#endif
         // Three regular channels make a 2x2 MPI grid expose Cartesian block
         // sizes of 1 versus 2, which a two-channel body cannot distinguish.
         Matz identity(4, 4, MAJOR::COL);
@@ -266,9 +323,16 @@ int main(int argc, char **argv)
         rotation(3, 3) = 1.0;
         for (bool use_cholesky : {false, true})
         {
-            test_complete_wc(blacs_h, identity, use_cholesky);
-            test_complete_wc(blacs_h, rotation, use_cholesky);
+            test_complete_wc(blacs_h, identity, use_cholesky, gpu);
+            test_complete_wc(blacs_h, rotation, use_cholesky, gpu);
+            if (gpu)
+            {
+                test_complete_wc(blacs_h, identity, use_cholesky, true, true);
+                test_complete_wc(blacs_h, rotation, use_cholesky, true, true);
+            }
         }
+        if (gpu && blacs_h.myid == 0)
+            std::cout << "STRICT_2D_GW_GPU_FULL_CALLER_PASS cases=8" << std::endl;
     }
     global::finalize_global_io();
     global::finalize_global_mpi();
