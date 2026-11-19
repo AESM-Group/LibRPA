@@ -13,6 +13,7 @@
 #include "../core/dielecmodel.h"
 #include "../core/epsilon.h"
 #include "../core/meanfield_mpi.h"
+#include "../math/utils_matrix_mpi.h"
 #include "../core/native_velocity.h"
 #include "../mpi/collective_stage.h"
 #include "dataset_helper.h"
@@ -245,7 +246,28 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     const PeriodicBoundaryData *velocity_pbc = &ds->pbc;
     if (symmetry != nullptr && ds->mf.get_n_kpoints() != ds->pbc.get_n_cells_bvk())
     {
-        const auto expanded = expand_symmetry_meanfield(ds->mf, ds->basis_wfc, ds->pbc, *symmetry);
+        // k-point-parallel distribution keeps each AO x band block on one rank;
+        // the expansion needs the complete block on the rank that consumes it.
+        // Gather the owner's copy first so the distributed layout is preserved
+        // everywhere else.
+        MeanField replicated = ds->mf;
+        for (int ispin = 0; ispin < replicated.get_n_spins(); ++ispin)
+            for (int ispinor = 0; ispinor < replicated.get_n_spinor(); ++ispinor)
+                for (int ik = 0; ik < replicated.get_n_kpoints(); ++ik)
+                {
+                    auto *local = replicated.find_wfc(ispin, ispinor, ik);
+                    const bool complete = local != nullptr &&
+                                          local->nr == replicated.get_n_states() &&
+                                          local->nc == replicated.get_n_aos();
+                    const int owner = find_mpi_owner_rank(complete, comm.comm);
+                    if (owner < 0)
+                        throw LIBRPA_RUNTIME_ERROR(
+                            "Native IBZ expansion is missing a complete source WFC block");
+                    auto &block = replicated.get_eigenvectors()[ispin][ispinor][ik];
+                    broadcast_ComplexMatrix(block, owner, comm.comm);
+                }
+        const auto expanded =
+            expand_symmetry_meanfield(replicated, ds->basis_wfc, ds->pbc, *symmetry);
         headwing_meanfield = expanded.meanfield;
         headwing_pbc = ds->pbc;
         headwing_pbc.klist = headwing_pbc.klist_full;
