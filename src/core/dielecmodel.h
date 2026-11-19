@@ -23,6 +23,13 @@
 namespace librpa_int
 {
 
+// Solve epsilon*X=B in the caller's memory space. Returns true for Cholesky.
+// Only Gamma head corrections permit LU retry. Their caller supplies a full
+// local backup (non-aliasing, same layout/backend); ordinary solves need none.
+bool solve_dielectric_system(std::complex<double>* epsilon, std::complex<double>* rhs,
+    const ArrayDesc& desc, const ArrayDesc& rhs_desc,
+    bool allow_lu_fallback, std::complex<double>* backup = nullptr);
+
 //! double-dispersion Havriliak-Negami model
 struct DoubleHavriliakNegami
 {

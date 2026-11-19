@@ -38,6 +38,8 @@ endmacro()
 
 # add serial tests
 config_test(test_la_connector_single_rank 1)
+config_test(test_wc_cholesky 4)
+add_test(NAME test_wc_cholesky_serial COMMAND $<TARGET_FILE:test_wc_cholesky>)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_compile_definitions(test_la_connector_single_rank PRIVATE LIBRPA_TEST_LOCAL_LAPACK_DISPATCH)
   foreach(symbol psgemm_ pdgemm_ pcgemm_ pzgemm_ pssyev_ pdsyev_ pcheev_ pzheev_

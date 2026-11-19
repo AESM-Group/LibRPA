@@ -28,6 +28,9 @@
 #include "../utils/libri_utils.h"
 #include "../utils/profiler.h"
 #include "../utils/utils_mem.h"
+#ifdef LIBRPA_USE_DDLA
+#include <ddla/ddla_vector.h>
+#endif
 #include "atomic_basis.h"
 #include "meanfield_mpi.h"
 #include "pbc.h"
@@ -45,6 +48,66 @@ namespace librpa_int
 using RI::Tensor;
 using RI::Communicate_Tensors_Map_Judge::comm_map2;
 using RI::Communicate_Tensors_Map_Judge::comm_map2_first;
+
+bool solve_dielectric_system(std::complex<double>* epsilon, std::complex<double>* rhs,
+    const ArrayDesc& desc, const ArrayDesc& rhs_desc,
+    bool allow_lu_fallback, std::complex<double>* backup)
+{
+    const int n = desc.m(), nrhs = rhs_desc.n();
+    const std::size_t count = desc.m_loc() == 0 ? 0 : std::size_t(desc.lld()) * desc.n_loc();
+    const auto collective_info = [&](int info) {
+        int local[2] = {info < 0 ? -info : 0, info > 0 ? info : 0}, status[2]{};
+        MPI_Allreduce(local, status, 2, MPI_INT, MPI_MAX, desc.comm());
+        return status[0] ? -status[0] : status[1];
+    };
+    const auto require_success = [&](int info, const char* operation) {
+        if (info != 0)
+            throw LIBRPA_RUNTIME_ERROR(std::string("Dielectric ") + operation +
+                                      " failed with info=" + std::to_string(info));
+    };
+    int info = 0;
+    if (allow_lu_fallback && count)
+        LaConnector::copy_local(backup, epsilon, count, desc);
+    LaConnector::ppotrf('L', n, epsilon, 1, 1, desc, info);
+    info = collective_info(info);
+    if (info == 0)
+    {
+        LaConnector::ppotrs('L', n, nrhs, epsilon, 1, 1, desc,
+                            rhs, 1, 1, rhs_desc, info);
+        require_success(collective_info(info), "Cholesky solve");
+        return true;
+    }
+    // A negative INFO is an invalid argument, not loss of definiteness.
+    if (info < 0 || !allow_lu_fallback)
+        require_success(info, "Cholesky factorization");
+    if (count) LaConnector::copy_local(epsilon, backup, count, desc);
+
+    // Standard LU is for the W solve; RPA correlation keeps its separate bpiv policy.
+    std::vector<int> host_pivots;
+    int* pivots = nullptr;
+#ifdef LIBRPA_USE_DDLA
+    std::unique_ptr<ddla::vector<int>> backend_pivots;
+    const auto handle = desc.ddla_handle();
+    if (handle != nullptr && (desc.use_ddla_linear() ||
+        ddla::ddlaGetBackend(handle) == ddla::DdlaBackend::GPU))
+    {
+        backend_pivots = std::make_unique<ddla::vector<int>>(handle, std::max(1, desc.m_loc()));
+        pivots = backend_pivots->data();
+    }
+    else
+#endif
+    {
+        host_pivots.resize(std::max(1, desc.m_loc() + desc.mb()));
+        pivots = host_pivots.data();
+    }
+    info = 0;
+    LaConnector::pgetrf(n, n, epsilon, 1, 1, desc, pivots, info);
+    require_success(collective_info(info), "LU factorization");
+    LaConnector::pgetrs('N', n, nrhs, epsilon, 1, 1, desc, pivots,
+                        rhs, 1, 1, rhs_desc, info);
+    require_success(collective_info(info), "LU solve");
+    return false;
+}
 
 std::complex<double> compute_pi_det_blacs_2d(Matz &loc_piT, const ArrayDesc &arrdesc_pi, int *ipiv,
                                              int &info, Matz* solve_rhs = nullptr,
