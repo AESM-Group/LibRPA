@@ -4,8 +4,8 @@ The standalone driver accepts `use_mixed_type_ddla = true` (default `false`)
 with a `LIBRPA_USE_DDLA=ON` build and `linear_algorithm = ddla`.
 This is an internal C++ `DevOptions` prototype, not a public C/Fortran option.
 It does not change the public options ABI.
-On a one-rank owning grid, the mixed adapter calls local DDLA GEMM directly;
-larger grids use distributed mixed PGEMM with the original descriptors.
+The mixed adapter delegates to DDLA PGEMM with the original descriptors.
+DDLA itself selects native local GEMM on a one-rank owning grid.
 
 The operation remains FP64: `double` multiplied by `complex<double>` produces
 `complex<double>`. It does not enable FP32, TF32 or reduced-precision solves.
