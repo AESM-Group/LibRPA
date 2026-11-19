@@ -980,6 +980,61 @@ static void test_gf_kblacs_reduced_kstar_spinor_matches_serial_restore()
         }
 }
 
+// Reusing an owning MeanField with rewritten storage must start a new device
+// bra lifetime, including when empty ranks and several k points participate.
+static void test_gf_kblacs_rewritten_wfc_storage()
+{
+    constexpr int nk = 2, nb = 2, nao = 3;
+    std::vector<Vector3_Order<double>> kfrac{{0, 0, 0}, {0.5, 0, 0}};
+    const std::vector<Vector3_Order<int>> Rs{{0, 0, 0}, {1, 0, 0}};
+    const std::vector<double> taus{-0.4, 0.3};
+    MeanField reference(1, nk, nb, nao), mf(1, nk, nb, nao);
+    KPointBlacsProcessShape shape(1, size_global, false);
+    KPointBlacsParallelContext context(shape, mpi_comm_global_h.comm, nk);
+    const auto source_desc = context.create_array_desc(nao, nb, nao, nb);
+    const auto wfc_desc = make_permanent_wfc_desc(context, nao, nb);
+    const auto out_desc = context.create_array_desc(nao, nao);
+    for (auto *state : {&reference, &mf})
+    {
+        state->get_efermi() = 0;
+        for (int k = 0; k != nk; ++k)
+            for (int b = 0; b != nb; ++b)
+            {
+                state->get_eigenvals()[0](k, b) = b ? 0.7 : -0.8;
+                state->get_weight()[0](k, b) = b ? 0.0 : 2.0 / nk;
+            }
+    }
+    for (int k = 0; k != nk; ++k)
+    {
+        auto &c = reference.get_eigenvectors()[0][0][k];
+        c.create(nb, nao);
+        for (int b = 0; b != nb; ++b)
+            for (int a = 0; a != nao; ++a)
+                c(b, a) = {0.1 + 0.2 * b + 0.3 * a, -0.2 + 0.1 * a + 0.4 * k};
+        if (context.kpoint_blacs_root_global_rank(k) == myid_global)
+            mf.get_eigenvectors()[0][0][k] = c;
+    }
+    redistribute_meanfield_eigvecs_kblacs(mf, context, source_desc, wfc_desc, "rewrite test");
+    for (int generation = 0; generation != 2; ++generation)
+    {
+        const auto expected = reference.get_gf_cplx_imagtimes_Rs(0, 0, 0, kfrac, taus, Rs);
+        const auto actual = get_gf_cplx_imagtimes_Rs_kblacs_para(
+            0, mf, kfrac, taus, Rs, context, wfc_desc, out_desc);
+        for (const auto tau : taus)
+            for (const auto &R : Rs)
+                for (int j = 0; j != out_desc.n_loc(); ++j)
+                    for (int i = 0; i != out_desc.m_loc(); ++i)
+                        assert(fequal(actual.at(tau).at(R)(i, j),
+                                      expected.at(tau).at(R)(out_desc.indx_l2g_r(i),
+                                                            out_desc.indx_l2g_c(j)),
+                                      cplxdb{1e-12, 0}));
+        // Mutate elements in place, preserving allocation identity.
+        for (auto *state : {&reference, &mf})
+            for (auto &[k, c] : state->get_eigenvectors()[0][0])
+                for (int i = 0; i != c.size; ++i) c.c[i] *= cplxdb{1.2, -0.3};
+    }
+}
+
 static void test_dmat_kblacs_reduced_kstar_spinor_matches_serial_restore()
 {
     if (size_global < 2) return;
@@ -1098,6 +1153,7 @@ int main (int argc, char *argv[])
     test_dmat_gf_kblacs_reduced_kstar_matches_full_bz_fourier(true);
     test_dmat_gf_kblacs_reduced_kstar_matches_full_bz_fourier(false, true);
     test_gf_kblacs_reduced_kstar_spinor_matches_serial_restore();
+    test_gf_kblacs_rewritten_wfc_storage();
     test_dmat_kblacs_reduced_kstar_spinor_matches_serial_restore();
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
