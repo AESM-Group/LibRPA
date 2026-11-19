@@ -163,7 +163,7 @@ void collect_block_from_IJ_storage_tensor(matrix_m<Tdst> &mat_lo, const ArrayDes
         }
         Tdst *row_ptr = tmp_loc.ptr() + ilo * ad.n_loc();
         omp_set_lock(&mat_lock);
-        memcpy(row_ptr, &tmp_loc_row[0], cp_size);
+        memcpy(row_ptr, tmp_loc_row.data(), cp_size);
         omp_unset_lock(&mat_lock);
     }
     #pragma omp barrier
@@ -225,7 +225,7 @@ void collect_block_from_IJ_storage_matrix_transform(
         }
         Tdst *row_ptr=tmp_loc.ptr() + ilo* ad.n_loc();
         omp_set_lock(&mat_lock);
-        memcpy(row_ptr,&tmp_loc_row[0],cp_size);
+        memcpy(row_ptr, tmp_loc_row.data(), cp_size);
         omp_unset_lock(&mat_lock);
     }
     #pragma omp barrier
@@ -280,7 +280,7 @@ void collect_block_from_IJ_storage_tensor_transform(
         }
         Tdst *row_ptr = tmp_loc.ptr() + ilo * ad.n_loc();
         omp_set_lock(&mat_lock);
-        memcpy(row_ptr, &tmp_loc_row[0], cp_size);
+        memcpy(row_ptr, tmp_loc_row.data(), cp_size);
         omp_unset_lock(&mat_lock);
     }
     #pragma omp barrier
@@ -336,7 +336,7 @@ void collect_block_from_IJ_storage_tensor_transform_triple(
         }
         Tdst *row_ptr = tmp_loc.ptr() + ilo * ad.n_loc();
         omp_set_lock(&mat_lock);
-        memcpy(row_ptr, &tmp_loc_row[0], cp_size);
+        memcpy(row_ptr, tmp_loc_row.data(), cp_size);
         omp_unset_lock(&mat_lock);
     }
 #pragma omp barrier
@@ -451,7 +451,7 @@ void collect_block_from_ALL_IJ_Tensor(matrix_m<Tdst> &mat_lo, const ArrayDesc &a
         }
         Tdst *row_ptr = tmp_loc.ptr() + ilo * ad.n_loc();
         omp_set_lock(&mat_lock);
-        memcpy(row_ptr, &tmp_loc_row[0], cp_size);
+        memcpy(row_ptr, tmp_loc_row.data(), cp_size);
         omp_unset_lock(&mat_lock);
     }
     #pragma omp barrier
@@ -510,7 +510,7 @@ void collect_block_from_ALL_IJ_Tensor_sparse_zero_missing(
         }
         Tdst *row_ptr = tmp_loc.ptr() + ilo * ad.n_loc();
         omp_set_lock(&mat_lock);
-        memcpy(row_ptr, &tmp_loc_row[0], cp_size);
+        memcpy(row_ptr, tmp_loc_row.data(), cp_size);
         omp_unset_lock(&mat_lock);
     }
     #pragma omp barrier
@@ -556,7 +556,7 @@ void collect_block_from_ordered_IJ_Tensor_sparse_zero_missing(
         }
         Tdst *row_ptr = tmp_loc.ptr() + ilo * ad.n_loc();
         omp_set_lock(&mat_lock);
-        memcpy(row_ptr, &tmp_loc_row[0], cp_size);
+        memcpy(row_ptr, tmp_loc_row.data(), cp_size);
         omp_unset_lock(&mat_lock);
     }
     #pragma omp barrier

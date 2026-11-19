@@ -108,6 +108,10 @@ foreach(target
   config_test(${target} 4)
 endforeach()
 
+# Check vector bounds in the matrix helpers. Some processes own no block
+# columns, and libstdc++ assertions catch indexing of the empty row buffer.
+target_compile_definitions(test_matrix_m_mpi PRIVATE _GLIBCXX_ASSERTIONS)
+
 target_compile_options(test_rpa_headwing PRIVATE -UNDEBUG)
 # The symmetry-context and k-BLACS symmetry-restore suites assert the k-star
 # rotation conventions; keep them active in Release builds as well.
