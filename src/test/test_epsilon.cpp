@@ -7,6 +7,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include "../core/epsilon.h"
@@ -923,8 +924,11 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
                                        const bool zero_response, const int dielectric_option,
                                        const bool use_cholesky, const int block_size = 1,
                                        const bool mixed_test = false, const bool gpu = false,
-                                       const int n = 4)
+                                       const bool mixed_shell_head = false, const int n = 4)
 {
+    if (mixed_shell_head &&
+        (dielectric_option != 53 || !rank_deficient || !zero_response || mixed_test))
+        throw std::invalid_argument("mixed-shell head oracle requires filtered option53 and zero response");
     const int retained = rank_deficient ? n - 1 : n;
     std::vector<double> eigenvalues{4.0, 2.0, 1.0, 0.5};
     eigenvalues.resize(n);
@@ -974,6 +978,29 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     const auto cut_root = eigenvectors * cut_root_channels * adjoint;
     const auto cut = cut_root * cut_root;
     const auto response = eigenvectors * response_channels * adjoint;
+    if (mixed_shell_head)
+    {
+        // One s orbital followed by a p shell selects the embedded head e0.
+        // The known discarded eigenvector has |U_f^H e0|^2=1/4, so this
+        // fixture detects either missing product in the GPU head deflation.
+        const double filtered_overlap2 = std::norm(adjoint(retained, 0));
+        double sp_coupling2 = 0.0, cut_filtered_norm2 = 0.0;
+        for (int i = 0; i != n; ++i)
+        {
+            if (i != 0) sp_coupling2 += std::norm(bare(i, 0));
+            std::complex<double> value = 0.0;
+            for (int j = 0; j != n; ++j)
+                value += cut_root(i, j) * eigenvectors(j, retained);
+            cut_filtered_norm2 += std::norm(value);
+        }
+        if (std::abs(filtered_overlap2 - 0.25) > 1e-14 ||
+            sp_coupling2 <= 0.1 || cut_filtered_norm2 <= 0.1)
+            throw std::runtime_error("mixed-shell fixture lost its noncommuting filtered-head control");
+        if (blacs_h.myid == 0)
+            std::cout << "Option53 mixed-shell control: filtered_overlap2=" << filtered_overlap2
+                      << " sp_coupling2=" << sp_coupling2
+                      << " cut_filtered_norm2=" << cut_filtered_norm2 << std::endl;
+    }
     auto dielectric_channels = sqrt_diagonal * response_channels * sqrt_diagonal;
     dielectric_channels *= -1.0;
     for (int i = 0; i != n; ++i) dielectric_channels(i, i) += 1.0;
@@ -985,9 +1012,11 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     AtomicBasis wfc_basis({2}), aux_basis({static_cast<std::size_t>(n)});
     // With every auxiliary s-like, option53's s-block is the full Coulomb
     // matrix. Its unique leading head is the same first eigenchannel as the
-    // option3 oracle below.
+    // option3 oracle below. The separate mixed-shell zero-response control
+    // instead selects e0 and requires a nonzero filtered-head projection.
     if (dielectric_option == 53)
-        aux_basis.set_l_shells({{0, 0, 0, 0}});
+        aux_basis.set_l_shells(mixed_shell_head ? std::vector<std::vector<int>>{{0, 1}}
+                                             : std::vector<std::vector<int>>{{0, 0, 0, 0}});
     MeanField mf(1, 2, 2, 2);
     for (int ik = 0; ik != 2; ++ik)
     {
@@ -1060,7 +1089,23 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
             for (int i = 0; i != n; ++i) frequency_dielectric(i, i) += 1.0;
             expected_channels = serial_inverse(frequency_dielectric);
         }
-        if (!mixed_test && iq == 0 && (dielectric_option == 3 || dielectric_option == 53))
+        if (mixed_shell_head && iq == 0)
+        {
+            // chi=0 gives E=I; zero velocity/wing gives H=I and Z=A=0.
+            // For h=P_ret e0/||P_ret e0|| and F=U_f U_f^H, the rewrite
+            // returns I-hh^H-F+a0*hh^H. Caller cleanup adds F-I, leaving
+            // (a0-1)hh^H before the two Sc products. Compute h from the
+            // fixture's known eigenbasis, never from production eigenvectors.
+            expected_channels.zero_out();
+            double retained_norm2 = 0.0;
+            for (int i = 0; i != retained; ++i)
+                retained_norm2 += std::norm(adjoint(i, 0));
+            const double coefficient = (rectangular_gamma_volume_ratio() - 1.0) / retained_norm2;
+            for (int i = 0; i != retained; ++i)
+                for (int j = 0; j != retained; ++j)
+                    expected_channels(i, j) = coefficient * adjoint(i, 0) * std::conj(adjoint(j, 0));
+        }
+        else if (!mixed_test && iq == 0 && (dielectric_option == 3 || dielectric_option == 53))
         {
             expected_channels(0, 0) = rectangular_gamma_volume_ratio();
             for (int i = 0; i != n; ++i)
@@ -1167,7 +1212,7 @@ void test_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bool
     // Exercise wing scratch larger than the full matrix, including empty MPI owners.
     for (int n : {1, 2})
         for (bool cholesky : {false, true})
-            verify_gamma_wc_retained_identity(blacs_h, false, false, 3, cholesky, 1, false, gpu, n);
+            verify_gamma_wc_retained_identity(blacs_h, false, false, 3, cholesky, 1, false, gpu, false, n);
 }
 
 #endif
@@ -1227,6 +1272,11 @@ int main(int argc, char *argv[])
                         for (bool cholesky : {false, true})
                             verify_gamma_wc_retained_identity(blacs_h, filtered, false,
                                 option, cholesky, block_size, false, true);
+        if (mixed_gpu)
+            for (int block_size : {1, 2})
+                for (bool cholesky : {false, true})
+                    verify_gamma_wc_retained_identity(blacs_h, true, true, 53,
+                        cholesky, block_size, false, true, true);
         // Compare the full production ordinary-Gamma path with an independent
         // dense inverse, including filtering, complex response and both solves.
         librpa_int::global::dev_opts.use_mixed_type_ddla = true;
