@@ -60,6 +60,12 @@ if(LIBRPA_USE_DDLA)
 endif()
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   config_test(test_ddla_connector 4)
+  config_test(test_headwing_rewrite 4)
+  add_test(NAME test_headwing_rewrite_serial COMMAND $<TARGET_FILE:test_headwing_rewrite>)
+  add_test(NAME test_headwing_rewrite_rectangular
+    COMMAND mpirun -np 2 $<TARGET_FILE:test_headwing_rewrite>)
+  set_tests_properties(test_headwing_rewrite test_headwing_rewrite_serial
+    test_headwing_rewrite_rectangular PROPERTIES TIMEOUT 300)
   add_test(NAME test_ddla_connector_serial COMMAND $<TARGET_FILE:test_ddla_connector>)
   add_test(NAME test_ddla_connector_rectangular
     COMMAND mpirun -np 2 $<TARGET_FILE:test_ddla_connector>)
