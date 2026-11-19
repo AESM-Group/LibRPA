@@ -17,7 +17,10 @@ The first implementation covers:
   `epsilon X=Sc`. Gamma's real Coulomb-power producer establishes realness;
   no imaginary response component is discarded. The no-longer-used local
   eigenvector allocation stores both real factors. On GPU, its existing
-  Coulomb buffer is reused for real products and complex solve/subtraction.
+  Coulomb buffer stores both real factors once per q and keeps them resident
+  through all frequencies. The existing complex response buffer holds the
+  solve RHS: real Sc is inserted/subtracted with strided real AXPY, preserving
+  both factors. Native real power output avoids repacking complex factors.
 - The complex Wc frequency-to-time cosine transform: real coefficients replace
   complex copies and a local DDLA CPU GEMM acts on the host-resident batches.
   One CPU handle on `MPI_COMM_SELF` is reused across batches. No transform
