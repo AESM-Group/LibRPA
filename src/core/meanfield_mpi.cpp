@@ -1,10 +1,12 @@
 #include "meanfield_mpi.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <complex>
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <unordered_map>
@@ -24,6 +26,7 @@
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
 #include "../interface/ddla/device_connector.h"
 #include <ddla/ddla.h>
+#include <ddla/ddla_vector.h>
 #endif
 
 namespace librpa_int
@@ -595,6 +598,26 @@ struct WfcGemmWorkspace
     ArrayDesc desc_wfc_compute;
     ArrayDesc desc_out_opt;
     Matz out_opt;
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    std::optional<ddla::vector<cplxdb>> bra, ket, product;
+    std::optional<std::array<int, 3>> bra_key;
+#endif
+
+    // End the GEMM stage before host Fourier/rotation workspaces are created.
+    // Keeping device matrices through those stages would raise combined peak storage.
+    void release_device_buffers()
+    {
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (bra) ddla::DDLA_CHECK(ddla::ddlaSetDevice(bra->handle()));
+        if (bra) bra->reset();
+        if (ket) ket->reset();
+        if (product) product->reset();
+        bra.reset();
+        ket.reset();
+        product.reset();
+        bra_key.reset();
+#endif
+    }
 };
 
 static void check_wfc_gemm_context(const ArrayDesc &desc_wfc, const ArrayDesc &desc_out,
@@ -633,6 +656,7 @@ static WfcGemmWorkspace create_wfc_gemm_workspace(const ArrayDesc &desc_wfc,
 static void pgemm_wfc_scaled_wfc_h(const int n_aos, const int n_cols,
                                    const cplxdb *wfc_bra_ptr,
                                    const cplxdb *scaled_wfc_ket_ptr,
+                                   const std::array<int, 3> &immutable_bra_key,
                                    const ArrayDesc &desc_wfc,
                                    WfcGemmWorkspace &workspace,
                                    Matz &out, const ArrayDesc &desc_out,
@@ -648,7 +672,11 @@ static void pgemm_wfc_scaled_wfc_h(const int n_aos, const int n_cols,
         workspace.desc_wfc_compute.ictxt() != blacs_h.ictxt ||
         workspace.desc_out_opt.ictxt() != blacs_h.ictxt)
         throw LIBRPA_RUNTIME_ERROR("WFC pgemm workspace is not initialized on the active k-point BLACS context");
-    if (workspace.desc_wfc_compute.mb() != desc_wfc.mb() ||
+    if (workspace.desc_wfc_compute.m() != desc_wfc.m() ||
+        workspace.desc_wfc_compute.n() != desc_wfc.n() ||
+        workspace.desc_out_opt.m() != desc_out.m() ||
+        workspace.desc_out_opt.n() != desc_out.n() ||
+        workspace.desc_wfc_compute.mb() != desc_wfc.mb() ||
         workspace.desc_wfc_compute.nb() != desc_wfc.nb() ||
         workspace.desc_wfc_compute.irsrc() != desc_wfc.irsrc() ||
         workspace.desc_wfc_compute.icsrc() != desc_wfc.icsrc())
@@ -679,15 +707,27 @@ static void pgemm_wfc_scaled_wfc_h(const int n_aos, const int n_cols,
                            workspace.desc_out_opt.n_loc();
     const size_t alloc_size_ab = std::max<size_t>(size_ab, 1);
     const size_t alloc_size_c = std::max<size_t>(size_c, 1);
-    cplxdb *d_A = nullptr, *d_B = nullptr, *d_C = nullptr;
-    ddla::DDLA_CHECK(ddla::ddlaMalloc(handle, (void**)&d_A, alloc_size_ab * sizeof(cplxdb)));
-    ddla::DDLA_CHECK(ddla::ddlaMalloc(handle, (void**)&d_B, alloc_size_ab * sizeof(cplxdb)));
-    ddla::DDLA_CHECK(ddla::ddlaMalloc(handle, (void**)&d_C, alloc_size_c * sizeof(cplxdb)));
+    if (workspace.bra && workspace.bra->handle() != handle)
+        throw LIBRPA_RUNTIME_ERROR("WFC workspace belongs to a different DDLA handle");
+    if (!workspace.bra)
+    {
+        workspace.bra.emplace(handle, alloc_size_ab);
+        workspace.ket.emplace(handle, alloc_size_ab);
+        workspace.product.emplace(handle, alloc_size_c);
+    }
+    auto *d_A = workspace.bra->data();
+    auto *d_B = workspace.ket->data();
+    auto *d_C = workspace.product->data();
     if (size_ab > 0)
     {
-        ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, d_A, wfc_bra, size_ab * sizeof(cplxdb)));
+        // The owning operation reads a const MeanField throughout this stage.
+        // The key is (spin, bra component, k), including immutable zero stand-ins;
+        // a reusable raw pointer to a mutable scaled buffer is never a cache key.
+        if (workspace.bra_key != immutable_bra_key)
+            ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, d_A, wfc_bra, size_ab * sizeof(cplxdb)));
         ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, d_B, scaled_wfc_ket, size_ab * sizeof(cplxdb)));
     }
+    workspace.bra_key = immutable_bra_key;
     ddla::pgemm(handle, 'N', 'C', n_aos, n_aos, n_cols, C_ONE,
                 d_A, workspace.desc_wfc_compute.desc,
                 d_B, workspace.desc_wfc_compute.desc,
@@ -695,10 +735,8 @@ static void pgemm_wfc_scaled_wfc_h(const int n_aos, const int n_cols,
     if (size_c > 0)
         ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, out_opt, d_C, size_c * sizeof(cplxdb)));
     ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
-    ddla::DDLA_CHECK(ddla::ddlaFree(handle, d_A));
-    ddla::DDLA_CHECK(ddla::ddlaFree(handle, d_B));
-    ddla::DDLA_CHECK(ddla::ddlaFree(handle, d_C));
 #else
+    (void)immutable_bra_key;
     global::profiler.start("pgemm_entry_wait", LIBRPA_VERBOSE_DEBUG);
     blacs_h.barrier();
     global::profiler.stop("pgemm_entry_wait");
@@ -1038,7 +1076,8 @@ std::map<Vector3_Order<int>, Matz> get_dmat_cplx_Rs_kblacs_para(
         {
             const cplxdb *wfc_bra_ptr = wfc_bra == nullptr ? dummy.data() : wfc_bra->c;
             pgemm_wfc_scaled_wfc_h(n_aos, nocc, wfc_bra_ptr, scaled_wfc_ket.ptr(),
-                                   desc_wfc, wfc_gemm_workspace, dmat_k, desc_dm,
+                                   {ispin, ispinor_bra, ik}, desc_wfc, wfc_gemm_workspace,
+                                   dmat_k, desc_dm,
                                    kblacs_ctxt.blacs_h);
         }
 #pragma omp parallel for schedule(static) if (n_elem > 4096)
@@ -1048,6 +1087,7 @@ std::map<Vector3_Order<int>, Matz> get_dmat_cplx_Rs_kblacs_para(
         }
     }
 
+    wfc_gemm_workspace.release_device_buffers();
     for (int pid = 0; pid != kblacs_ctxt.comm_kpoint_h.nprocs; ++pid)
     {
         const int nR_this = n_Rs_all[pid];
@@ -1275,10 +1315,12 @@ std::map<Vector3_Order<int>, Matz> get_symmetry_restored_dmat_cplx_Rs_kblacs_par
             {
                 const cplxdb *wfc_bra_ptr = wfc_bra == nullptr ? dummy.data() : wfc_bra->c;
                 pgemm_wfc_scaled_wfc_h(n_aos, nocc, wfc_bra_ptr, scaled_wfc_ket.ptr(),
-                                       desc_wfc, wfc_gemm_workspace, dmat_k, desc_dm,
+                                       {ispin, ispinor_bra, ik}, desc_wfc, wfc_gemm_workspace,
+                                       dmat_k, desc_dm,
                                        kblacs_ctxt.blacs_h);
             }
 
+            wfc_gemm_workspace.release_device_buffers();
             const auto &k_ibz = kfrac_list[static_cast<std::size_t>(ik)];
             const auto &star = find_symmetry_kstar_for_ibz_kpoint(symmetry_context, k_ibz);
             const auto star_factor =
@@ -1530,7 +1572,8 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> get_gf_cplx_imagtimes_Rs_kb
             global::profiler.stop("gf_scale_wfc");
             const cplxdb *wfc_bra_ptr = wfc_bra == nullptr ? dummy.data() : wfc_bra->c;
             pgemm_wfc_scaled_wfc_h(n_aos, n_states, wfc_bra_ptr, scaled_wfc_ket.ptr(),
-                                   desc_wfc, wfc_gemm_workspace, gf_k, desc_dm,
+                                   {ispin, ispinor_bra, ik}, desc_wfc, wfc_gemm_workspace,
+                                   gf_k, desc_dm,
                                    kblacs_ctxt.blacs_h);
             global::profiler.start("gf_pack_kmat", LIBRPA_VERBOSE_DEBUG);
 #pragma omp parallel for schedule(static) if (n_elem > 4096)
@@ -1541,6 +1584,7 @@ std::map<double, std::map<Vector3_Order<int>, Matz>> get_gf_cplx_imagtimes_Rs_kb
             global::profiler.stop("gf_pack_kmat");
         }
 
+        wfc_gemm_workspace.release_device_buffers();
         for (int pid = 0; pid != kblacs_ctxt.comm_kpoint_h.nprocs; ++pid)
         {
             const int nR_this = n_Rs_all[pid];
@@ -1792,9 +1836,11 @@ get_symmetry_restored_gf_cplx_imagtimes_Rs_kblacs_para(
                 gf_k = C_ZERO;
                 const cplxdb *wfc_bra_ptr = wfc_bra == nullptr ? dummy.data() : wfc_bra->c;
                 pgemm_wfc_scaled_wfc_h(n_aos, n_states, wfc_bra_ptr, scaled_wfc_ket.ptr(),
-                                       desc_wfc, wfc_gemm_workspace, gf_k, desc_dm,
+                                       {ispin, ispinor_bra, ik}, desc_wfc, wfc_gemm_workspace,
+                                       gf_k, desc_dm,
                                        kblacs_ctxt.blacs_h);
 
+                wfc_gemm_workspace.release_device_buffers();
                 for (std::size_t imember = 0; imember != star.members.size(); ++imember)
                 {
                     const auto &member = star.members[imember];
@@ -2137,10 +2183,12 @@ get_symmetry_restored_gf_cplx_imagtimes_Rs_kblacs_para_spinor(
                     const cplxdb *wfc_bra_ptr =
                         wfc_bra == nullptr ? zero_wfc_stand_in.ptr() : wfc_bra->c;
                     pgemm_wfc_scaled_wfc_h(n_aos, n_states, wfc_bra_ptr, scaled_wfc_ket.ptr(),
-                                           desc_wfc, wfc_gemm_workspace, gf_k[s], desc_dm,
+                                           {ispin, ispinor_bra, ik}, desc_wfc, wfc_gemm_workspace,
+                                           gf_k[s], desc_dm,
                                            kblacs_ctxt.blacs_h);
                 }
 
+                wfc_gemm_workspace.release_device_buffers();
                 for (std::size_t imember = 0; imember != star.members.size(); ++imember)
                 {
                     const auto &member = star.members[imember];
@@ -2505,12 +2553,14 @@ get_symmetry_restored_dmat_cplx_Rs_kblacs_para_spinor(
                 {
                     const cplxdb *wfc_bra_ptr =
                         wfc_bra == nullptr ? zero_wfc_stand_in.ptr() : wfc_bra->c;
-                    pgemm_wfc_scaled_wfc_h(n_aos, nocc, wfc_bra_ptr, scaled_wfc_ket.ptr(), desc_wfc,
+                    pgemm_wfc_scaled_wfc_h(n_aos, nocc, wfc_bra_ptr, scaled_wfc_ket.ptr(),
+                                           {ispin, ispinor_bra, ik}, desc_wfc,
                                            wfc_gemm_workspace, dmat_k[s], desc_dm,
                                            kblacs_ctxt.blacs_h);
                 }
             }
 
+            wfc_gemm_workspace.release_device_buffers();
             for (std::size_t imember = 0; imember != star.members.size(); ++imember)
             {
                 const auto &member = star.members[imember];
