@@ -26,6 +26,7 @@ void initialize_ds_atpairs_local(Dataset &ds, LibrpaParallelRouting routing);
 // Initialize response function component
 void initialize_ds_chi0(Dataset &ds, const LibrpaOptions &opts);
 void initialize_ds_chi0_qstar(Dataset &ds, const LibrpaOptions &opts);
+void export_ds_chi0(Dataset &ds, const LibrpaOptions &opts, LibrpaParallelRouting routing);
 
 // Initialize EXX component
 void initialize_ds_exx(Dataset &ds, const LibrpaOptions &opts);

@@ -803,6 +803,7 @@ void librpa_int::api::build_gw_sigma_for_task(
     chi0.build(routing, LIBRPA_METHOD_SPACE_TIME, cs_data_chi0, pds->atpairs_local,
                basis_aux_chi0, sinvS_chi0, pds->blacs_h);
     profiler.stop("chi0_build");
+    export_ds_chi0(*pds, opts, routing);
     pds->comm_h.barrier();
     if (on_response) on_response(chi0.get_chi0_q());
 

@@ -262,6 +262,8 @@ module librpa_f03
       integer(c_int) :: output_wc_rf_atom_pair
       integer(c_int) :: ifreq_output_wc_start
       integer(c_int) :: ifreq_output_wc_end
+      integer(c_int) :: output_chi0_rf
+      integer(c_int) :: output_chi0_static
    end type LibrpaOptions_c
 
    !> @brief High-level Fortran wrapper for runtime options.
@@ -449,6 +451,10 @@ module librpa_f03
       integer :: ifreq_output_wc_start
       !> Half-open \f$W^c\f$ frequency output end index; negative means all remaining frequencies.
       integer :: ifreq_output_wc_end
+      !> Export bare \f$\chi^0(R,i\omega_{\min})\f$ in the original auxiliary basis, before screening.
+      logical :: output_chi0_rf
+      !> Export bare static \f$\chi^0(R,i\omega=0)\f$ from a separate imaginary-time response build.
+      logical :: output_chi0_static
 
       contains
          procedure :: init => librpa_init_options
@@ -1277,6 +1283,8 @@ contains
       call sync_opt(opts%output_wc_rf_atom_pair,  opts%opts_c%output_wc_rf_atom_pair,  direction)
       call sync_opt(opts%ifreq_output_wc_start,   opts%opts_c%ifreq_output_wc_start,   direction)
       call sync_opt(opts%ifreq_output_wc_end,     opts%opts_c%ifreq_output_wc_end,     direction)
+      call sync_opt(opts%output_chi0_rf, opts%opts_c%output_chi0_rf, direction)
+      call sync_opt(opts%output_chi0_static, opts%opts_c%output_chi0_static, direction)
    end subroutine
 
    !> @brief Initialize runtime options to default values.

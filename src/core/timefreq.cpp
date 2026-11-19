@@ -166,6 +166,27 @@ double TFGrids::generate(LibrpaTimeFreqGrid gtype, double emin, double eintveral
     return retval;
 }
 
+void TFGrids::generate_static_export(const TFGrids &source)
+{
+    if (source.grid_type != LIBRPA_TFGRID_MINIMAX || !source.has_time_grids())
+        throw LIBRPA_RUNTIME_ERROR("static chi0 export requires minimax time quadrature");
+    reset(source.n_grids);
+    grid_type = source.grid_type;
+    set_time();
+    time_nodes = source.time_nodes; time_weights = source.time_weights;
+    // GreenX scales its tabulated 1/x quadrature by 2*E_min for products
+    // of responses. A single static response spans [E_min,E_max], so undo
+    // that factor two here: integral exp(-E*tau) d tau must equal 1/E.
+    for (auto &tau : time_nodes) tau *= 2.0;
+    for (auto &weight : time_weights) weight *= 2.0;
+    freq_nodes = source.freq_nodes; freq_weights = source.freq_weights;
+    costrans_t2f.zero_out();
+    freq_nodes[0] = 0.0;
+    // GreenX time weights approximate integral_0^infty exp(-E*tau) d tau.
+    // The even imaginary-time response requires both positive and negative tau.
+    for (std::size_t it=0; it<n_grids; ++it) costrans_t2f(0,it)=2.0*time_weights[it];
+}
+
 void TFGrids::generate_evenspaced(double emin, double interval)
 {
     if ( emin <= 0 )
