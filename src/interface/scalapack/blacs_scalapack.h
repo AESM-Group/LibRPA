@@ -54,8 +54,26 @@ extern "C"
     //                  int myrow, int mycol, int * ii, int * jj,
     //                  int *prow, int *pcol);
 
-    void pdpotrf_(char *uplo, int *n, double *a, int *ia, int *ja, int *desca, int *info);
-    void pzpotrf_(char *uplo, int *n, std::complex<double> *a, int *ia, int *ja, int *desca, int *info);
+    void pspotrf_(const char *uplo, const int *n, float *a, const int *ia,
+                   const int *ja, const int *desca, int *info);
+    void pspotrs_(const char *uplo, const int *n, const int *nrhs, const float *a,
+                   const int *ia, const int *ja, const int *desca, float *b,
+                   const int *ib, const int *jb, const int *descb, int *info);
+    void pdpotrf_(const char *uplo, const int *n, double *a, const int *ia,
+                   const int *ja, const int *desca, int *info);
+    void pdpotrs_(const char *uplo, const int *n, const int *nrhs, const double *a,
+                   const int *ia, const int *ja, const int *desca, double *b,
+                   const int *ib, const int *jb, const int *descb, int *info);
+    void pcpotrf_(const char *uplo, const int *n, std::complex<float> *a, const int *ia,
+                   const int *ja, const int *desca, int *info);
+    void pcpotrs_(const char *uplo, const int *n, const int *nrhs, const std::complex<float> *a,
+                   const int *ia, const int *ja, const int *desca, std::complex<float> *b,
+                   const int *ib, const int *jb, const int *descb, int *info);
+    void pzpotrf_(const char *uplo, const int *n, std::complex<double> *a, const int *ia,
+                   const int *ja, const int *desca, int *info);
+    void pzpotrs_(const char *uplo, const int *n, const int *nrhs, const std::complex<double> *a,
+                   const int *ia, const int *ja, const int *desca, std::complex<double> *b,
+                   const int *ib, const int *jb, const int *descb, int *info);
 
     void pdposv_(const char* uplo, const int* n, const int* nrhs, double* a,
                  const int* ia, const int* ja, const int* desca, double* b,

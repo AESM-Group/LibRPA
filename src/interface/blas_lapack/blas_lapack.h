@@ -248,6 +248,16 @@ extern "C" {
     void cpotrf_(const char *uplo, const int *n, std::complex<float> *A, const int *lda, int *info);
     void zpotrf_(const char *uplo, const int *n, std::complex<double> *A, const int *lda, int *info);
 
+// solves a symmetric/Hermitian positive definite system using its Cholesky factor
+    void spotrs_(const char *uplo, const int *n, const int *nrhs, const float *A,
+                 const int *lda, float *B, const int *ldb, int *info);
+    void dpotrs_(const char *uplo, const int *n, const int *nrhs, const double *A,
+                 const int *lda, double *B, const int *ldb, int *info);
+    void cpotrs_(const char *uplo, const int *n, const int *nrhs, const std::complex<float> *A,
+                 const int *lda, std::complex<float> *B, const int *ldb, int *info);
+    void zpotrs_(const char *uplo, const int *n, const int *nrhs, const std::complex<double> *A,
+                 const int *lda, std::complex<double> *B, const int *ldb, int *info);
+
 // computes the inverse of a symmetric/Hermitian positive definite matrix A
 // using the Cholesky factorization from ?potrf
     void spotri_(const char *uplo, const int *n, float *A, const int *lda, int *info);

@@ -20,6 +20,26 @@ namespace librpa_int {
 class LapackConnector
 {
 public:
+    static inline void potrf_f(char uplo, int n, float* a, int lda, int& info)
+    { spotrf_(&uplo, &n, a, &lda, &info); }
+    static inline void potrs_f(char uplo, int n, int nrhs, const float* a, int lda,
+                                float* b, int ldb, int& info)
+    { spotrs_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void potrf_f(char uplo, int n, double* a, int lda, int& info)
+    { dpotrf_(&uplo, &n, a, &lda, &info); }
+    static inline void potrs_f(char uplo, int n, int nrhs, const double* a, int lda,
+                                double* b, int ldb, int& info)
+    { dpotrs_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void potrf_f(char uplo, int n, std::complex<float>* a, int lda, int& info)
+    { cpotrf_(&uplo, &n, a, &lda, &info); }
+    static inline void potrs_f(char uplo, int n, int nrhs, const std::complex<float>* a, int lda,
+                                std::complex<float>* b, int ldb, int& info)
+    { cpotrs_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void potrf_f(char uplo, int n, std::complex<double>* a, int lda, int& info)
+    { zpotrf_(&uplo, &n, a, &lda, &info); }
+    static inline void potrs_f(char uplo, int n, int nrhs, const std::complex<double>* a, int lda,
+                                std::complex<double>* b, int ldb, int& info)
+    { zpotrs_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
     // Raw column-major solves, without the legacy matrix-container conversion.
     static inline void gesv_f(int n, int nrhs, float* a, int lda, int* ipiv,
                               float* b, int ldb, int& info)

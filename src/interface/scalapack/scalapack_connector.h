@@ -10,6 +10,34 @@ namespace librpa_int {
 class ScalapackConnector
 {
 public:
+    static inline void ppotrf_f(char uplo, int n, float* a, int ia, int ja,
+                                const int* desca, int& info)
+    { pspotrf_(&uplo, &n, a, &ia, &ja, desca, &info); }
+    static inline void ppotrs_f(char uplo, int n, int nrhs, const float* a, int ia, int ja,
+                                const int* desca, float* b, int ib, int jb,
+                                const int* descb, int& info)
+    { pspotrs_(&uplo, &n, &nrhs, a, &ia, &ja, desca, b, &ib, &jb, descb, &info); }
+    static inline void ppotrf_f(char uplo, int n, double* a, int ia, int ja,
+                                const int* desca, int& info)
+    { pdpotrf_(&uplo, &n, a, &ia, &ja, desca, &info); }
+    static inline void ppotrs_f(char uplo, int n, int nrhs, const double* a, int ia, int ja,
+                                const int* desca, double* b, int ib, int jb,
+                                const int* descb, int& info)
+    { pdpotrs_(&uplo, &n, &nrhs, a, &ia, &ja, desca, b, &ib, &jb, descb, &info); }
+    static inline void ppotrf_f(char uplo, int n, std::complex<float>* a, int ia, int ja,
+                                const int* desca, int& info)
+    { pcpotrf_(&uplo, &n, a, &ia, &ja, desca, &info); }
+    static inline void ppotrs_f(char uplo, int n, int nrhs, const std::complex<float>* a, int ia, int ja,
+                                const int* desca, std::complex<float>* b, int ib, int jb,
+                                const int* descb, int& info)
+    { pcpotrs_(&uplo, &n, &nrhs, a, &ia, &ja, desca, b, &ib, &jb, descb, &info); }
+    static inline void ppotrf_f(char uplo, int n, std::complex<double>* a, int ia, int ja,
+                                const int* desca, int& info)
+    { pzpotrf_(&uplo, &n, a, &ia, &ja, desca, &info); }
+    static inline void ppotrs_f(char uplo, int n, int nrhs, const std::complex<double>* a, int ia, int ja,
+                                const int* desca, std::complex<double>* b, int ib, int jb,
+                                const int* descb, int& info)
+    { pzpotrs_(&uplo, &n, &nrhs, a, &ia, &ja, desca, b, &ib, &jb, descb, &info); }
     // indexing functions adapted from ScaLAPACK TOOLS
 
     inline static int indxg2p(const int &indxglob, const int &nb, const int &iproc,
