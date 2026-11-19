@@ -180,44 +180,6 @@ void rewrite_eps_abf_space(
     const std::vector<double> &qz, const std::vector<double> &rho,
     const bool use_cholesky);
 
-// ABF-space averaged inverse dielectric rewrite for Gamma analytic head/wing GW Wc,
-// factored out of diele_func so it can be unit tested directly.
-// eps_block holds E = I - sqrt(V)*chi0*sqrt(V) (n_abf x n_abf, distributed) on
-// entry and is overwritten with the averaged inverse dielectric matrix.
-// sqrtv_block is the matrix square root sqrt(V); coul_eigen_block supplies the
-// trailing filtered Coulomb eigenvectors. head_direction is a distributed
-// n_abf x 1 vector described by desc_head_direction on the same BLACS grid.
-// It must be normalized and lie in the retained Coulomb space.
-// head is the 3x3 dielectric head H
-// (it already includes the identity contribution) and wing_mu the replicated
-// n_abf x 3 ABF wing. qx/qy/qz are unit angular directions and rho the
-// per-point quadrature weights (already including the Gamma-cell volume and
-// q_gamma factors). When the Coulomb matrix has filtered eigenchannels, the
-// rewrite is restricted to the retained space; the filtered channels must be
-// the trailing orthonormal columns of coul_eigen_block. The retained columns
-// are not read. The projector is applied through its low-rank factor
-// Y = [head_direction | trailing filtered columns] (n_abf x m with
-// m = 1 + n_singular), so no n_abf x n_abf projector is ever formed.
-// eps_block must be Hermitian: the routine contracts it only as E*Y rather than
-// forming both E*Y and E^H*Y, so the result is accurate to O(|E - E^H|). The
-// Cholesky branch of the in-place inverse (pposv with uplo='L') already requires
-// this, and E is Hermitian on the imaginary-frequency axis that reaches here.
-// Collective reductions run on the descriptor communicator. The read-only
-// matrix inputs are const; only eps_block is modified.
-void rewrite_eps_abf_space(
-    matrix_m<std::complex<double>> &eps_block,
-    const matrix_m<std::complex<double>> &sqrtv_block,
-    const matrix_m<std::complex<double>> &coul_eigen_block,
-    const matrix_m<std::complex<double>> &head_direction,
-    const ArrayDesc &desc_head_direction,
-    const matrix_m<std::complex<double>> &head,
-    const matrix_m<std::complex<double>> &wing_mu,
-    const std::vector<double> &qx, const std::vector<double> &qy,
-    const std::vector<double> &qz, const std::vector<double> &rho,
-    const ArrayDesc &desc_nabf_nabf_opt, const BlacsCtxtHandler &blacs_h,
-    std::size_t n_nonsingular,
-    double sqrt_coulomb_threshold, bool use_cholesky, bool use_device);
-
 class diele_func
 {
 private:
@@ -496,20 +458,6 @@ public:
         const ArrayDesc &desc, const ArrayDesc &desc_y,
         const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
         const ArrayDesc &desc_cart, const bool use_cholesky);
-    // ABF-space analytic head/wing rewrite for Gamma GW Wc, including Coulomb filtering.
-    // eps_block holds E = I - sqrt(V)*chi0*sqrt(V) on entry and the averaged
-    // inverse dielectric matrix on exit. Delegates to the free
-    // rewrite_eps_abf_space helper using this object's head, wing_mu and
-    // angular quadrature data.
-    void rewrite_eps_abf_space(matrix_m<std::complex<double>> &eps_block, const int ifreq,
-                               const matrix_m<std::complex<double>> &sqrtv_block,
-                               const matrix_m<std::complex<double>> &coul_eigen_block,
-                               const matrix_m<std::complex<double>> &head_direction,
-                               const ArrayDesc &desc_head_direction,
-                               const ArrayDesc &desc_nabf_nabf_opt,
-                               std::size_t n_nonsingular_in,
-                               double sqrt_coulomb_threshold,
-                               bool use_cholesky, bool use_device);
     void cal_strict_2d_wc(const int ifreq, ArrayDesc &desc_nabf_nabf_opt, ArrayDesc &desc_body,
                           const matrix_m<std::complex<double>> &regular_coulomb_basis);
     void assign_chi0(matrix_m<std::complex<double>> &chi0_block,
