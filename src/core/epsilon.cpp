@@ -2600,6 +2600,23 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
         const size_t n_nonsingular = n_abf - n_singular;
         if (gamma_full_headwing && !strict_2d_complete_wc_gamma && n_nonsingular == 0)
             throw LIBRPA_RUNTIME_ERROR("Gamma head/wing correction requires retained Coulomb modes");
+        ArrayDesc desc_filtered_coulomb(blacs_h);
+        std::vector<complex<double>> filtered_coulomb;
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (use_gpu_replace_scalapack && gamma_full_headwing &&
+            !strict_2d_complete_wc_gamma && n_singular > 0)
+        {
+            // Pack once per q, including unaligned filtered-column starts.
+            desc_filtered_coulomb.init(n_abf, as_int(n_singular), nb_opt, nb_opt, 0, 0);
+            desc_filtered_coulomb.set_linear_algorithm("ddla");
+            desc_filtered_coulomb.set_ddla_handle(blacs_h.ddla_handle);
+            filtered_coulomb.resize(std::max<size_t>(
+                1, size_t(desc_filtered_coulomb.lld()) * desc_filtered_coulomb.n_loc()));
+            ScalapackConnector::pgemr2d_f(n_abf, as_int(n_singular), coul_eigen_block.ptr(),
+                1, as_int(n_nonsingular) + 1, desc_nabf_nabf_opt.desc,
+                filtered_coulomb.data(), 1, 1, desc_filtered_coulomb.desc, blacs_h.ictxt);
+        }
+#endif
         if (gamma_full_headwing && n_singular != 0)
         {
             librpa_int::global::lib_printf_root(
@@ -2904,19 +2921,21 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
 
             if (gamma_full_headwing)
             {
-#if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
-                if (use_gpu_replace_scalapack)
-                {
-                    ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, chi0_block.ptr(), chi0_block_ptr, chi0_block.size() * sizeof(complex<double>)));
-                    ddla::DDLA_CHECK(ddla::ddlaSynchronize(blacs_h.ddla_handle));
-                }
-#endif
                 ofs_myid << get_timestamp() << "Perform the ABF-space head & wing overwrite"
                          << endl;
                 if (df_headwing == nullptr)
                     throw LIBRPA_RUNTIME_ERROR("Head/wing dielectric function is not initialized");
                 if (strict_2d_complete_wc_gamma)
                 {
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+                    if (use_gpu_replace_scalapack)
+                    {
+                        if (chi0_block.size())
+                            ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, chi0_block.ptr(),
+                                chi0_block_ptr, chi0_block.size() * sizeof(complex<double>)));
+                        ddla::DDLA_CHECK(ddla::ddlaSynchronize(blacs_h.ddla_handle));
+                    }
+#endif
                     const int n_coulomb = as_int(n_nonsingular);
                     // The complete Gamma Wc is assembled in the Coulomb eigenbasis.
                     ScalapackConnector::pgemm_f(
@@ -2940,45 +2959,154 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
                                                 desc_nabf_nabf_opt.desc, coul_eigen_block.ptr(), 1,
                                                 1, desc_nabf_nabf_opt.desc, C_ZERO,
                                                 chi0_block.ptr(), 1, 1, desc_nabf_nabf_opt.desc);
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+                    if (use_gpu_replace_scalapack && chi0_block.size())
+                        ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, chi0_block_ptr,
+                            chi0_block.ptr(), chi0_block.size() * sizeof(complex<double>)));
+#endif
+                    // This is already complete Wc: no projector subtraction
+                    // and no later multiplication by sqrt(Vc).
                 }
                 else
-                    df_headwing->rewrite_eps_abf_space(
-                        chi0_block, ifreq, coul_block, coul_eigen_block,
-                        head_direction, desc_head_direction, desc_nabf_nabf_opt,
-                        n_nonsingular, sqrt_coulomb_threshold, use_cholesky_gw_wc,
-                        use_gpu_replace_scalapack);
-
-                if (!strict_2d_complete_wc_gamma)
                 {
-                    // The ordinary rewrite returns the retained inverse in
-                    // ABF space, with zero filtered channels. Add their thin
-                    // projector F, then subtract I: eps_inv + F - I =
-                    // eps_inv - U_r * U_r^H. The strict 2D rewrite above already
-                    // returns the complete Wc average and needs no subtraction.
-                    const int n_filtered = n_abf - as_int(n_nonsingular);
-                    if (n_filtered > 0)
+                    // The caller chooses the execution domain and owns all storage.
+                    ArrayDesc rewrite_desc(blacs_h);
+                    rewrite_desc.init(n_abf, n_abf, nb_opt, nb_opt, 0, 0);
+                    rewrite_desc.set_linear_algorithm(use_gpu_replace_scalapack ? "ddla" : linear_algorithm);
+#ifdef LIBRPA_USE_DDLA
+                    if (rewrite_desc.use_ddla_linear())
                     {
-                        const int first_filtered = as_int(n_nonsingular) + 1;
-                        ScalapackConnector::pgemm_f(
-                            'N', 'C', n_abf, n_abf, n_filtered, C_ONE, coul_eigen_block.ptr(), 1,
-                            first_filtered, desc_nabf_nabf_opt.desc, coul_eigen_block.ptr(), 1,
-                            first_filtered, desc_nabf_nabf_opt.desc, C_ONE, chi0_block.ptr(), 1, 1,
-                            desc_nabf_nabf_opt.desc);
+                        if (!use_gpu_replace_scalapack && blacs_h.ddla_cpu_handle == nullptr)
+                            const_cast<BlacsCtxtHandler&>(blacs_h).init_ddla_handle(ddla::DdlaBackend::CPU);
+                        rewrite_desc.set_ddla_handle(use_gpu_replace_scalapack
+                            ? blacs_h.ddla_handle : blacs_h.ddla_cpu_handle);
                     }
-                    for (int i = 0; i != n_abf; ++i)
+#endif
+                    ArrayDesc yd(blacs_h), wd(blacs_h), sd(blacs_h), cd(blacs_h);
+                    const int m = 1 + n_abf - as_int(n_nonsingular);
+                    yd.init(n_abf, m, nb_opt, nb_opt, 0, 0);
+                    wd.init(n_abf, 3, nb_opt, nb_opt, 0, 0);
+                    sd.init(m, m, nb_opt, nb_opt, 0, 0);
+                    cd.init(3, 3, nb_opt, nb_opt, 0, 0);
+                    for (auto* d : {&yd, &wd, &sd, &cd})
                     {
-                        const int ilo = desc_nabf_nabf_opt.indx_g2l_r(i);
-                        if (ilo < 0) continue;
-                        const int jlo = desc_nabf_nabf_opt.indx_g2l_c(i);
-                        if (jlo < 0) continue;
-                        chi0_block(ilo, jlo) -= 1.0;
+                        d->set_linear_algorithm(rewrite_desc.use_ddla_linear() ? "ddla" : "scalapack");
+#ifdef LIBRPA_USE_DDLA
+                        d->set_ddla_handle(rewrite_desc.ddla_handle());
+#endif
+                    }
+                    const auto storage = [](const ArrayDesc& d) {
+                        return std::max<size_t>(1, size_t(d.lld()) * d.n_loc());
+                    };
+                    const size_t full_count = storage(rewrite_desc);
+                    const size_t work_count = std::max(full_count, storage(wd));
+                    const size_t small_count = std::max(storage(sd), storage(cd));
+                    std::vector<complex<double>> y_host(storage(yd)), wing_host(storage(wd));
+                    ScalapackConnector::pgemr2d_f(n_abf, 1, head_direction.ptr(), 1, 1,
+                        desc_head_direction.desc, y_host.data(), 1, 1, yd.desc, blacs_h.ictxt);
+                    if (m > 1)
+                    {
+                        ScalapackConnector::pgemr2d_f(n_abf, m - 1,
+                            use_gpu_replace_scalapack ? filtered_coulomb.data() : coul_eigen_block.ptr(), 1,
+                            use_gpu_replace_scalapack ? 1 : as_int(n_nonsingular) + 1,
+                            use_gpu_replace_scalapack ? desc_filtered_coulomb.desc : desc_nabf_nabf_opt.desc,
+                            y_host.data(), 1, 2, yd.desc, blacs_h.ictxt);
+                    }
+                    const auto& wing = df_headwing->get_wing_auxiliary().at(ifreq);
+                    for (int j = 0; j < wd.n_loc(); ++j)
+                        for (int i = 0; i < wd.m_loc(); ++i)
+                            wing_host[i + wd.lld() * j] = wing(wd.indx_l2g_r(i), wd.indx_l2g_c(j));
+                    const auto apply_rewrite = [&](complex<double>* e, complex<double>* f,
+                        complex<double>* t, complex<double>* s, const complex<double>* y,
+                        complex<double>* z) {
+                        // f contains sqrt(V), t contains distributed wing_mu.
+                        LaConnector::pgemm('N', 'N', n_abf, 3, n_abf, C_ONE,
+                            f, 1, 1, rewrite_desc, t, 1, 1, wd, C_ZERO, z, 1, 1, wd);
+                        df_headwing->rewrite_eps_abf_space(e, f, t, s, y, z, ifreq,
+                            rewrite_desc, yd, wd, sd, cd, use_cholesky_gw_wc);
+                    };
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+                    if (use_gpu_replace_scalapack)
+                    {
+                        const auto handle = rewrite_desc.ddla_handle();
+                        // Thin wing layouts can exceed the full layout for n_abf<3.
+                        const size_t extra_count = work_count > full_count ? work_count : 0;
+                        ddla::vector<complex<double>> factor(handle, extra_count), scratch(handle, extra_count);
+                        auto* factor_ptr = extra_count ? factor.data() : coul_block_ptr;
+                        auto* scratch_ptr = extra_count ? scratch.data() : coul_chi0_block_ptr;
+                        ddla::vector<complex<double>> y(handle, storage(yd)), z(handle, storage(wd)),
+                            small(handle, small_count);
+                        if (coul_block.size())
+                            LaConnector::copy_local(factor_ptr, coul_block.ptr(), coul_block.size(), rewrite_desc);
+                        LaConnector::copy_local(y.data(), y_host.data(), storage(yd), rewrite_desc);
+                        LaConnector::copy_local(scratch_ptr, wing_host.data(), storage(wd), rewrite_desc);
+                        LaConnector::synchronize(rewrite_desc);
+                        apply_rewrite(chi0_block_ptr, factor_ptr, scratch_ptr,
+                            small.data(), y.data(), z.data());
+                    }
+                    else
+#endif
+                    {
+                        std::vector<complex<double>> factor(work_count), scratch(work_count),
+                            small(small_count), z(storage(wd)), empty_e(chi0_block.size() ? 0 : full_count);
+                        if (coul_block.size()) std::copy_n(coul_block.ptr(), coul_block.size(), factor.data());
+                        std::copy(wing_host.begin(), wing_host.end(), scratch.begin());
+                        apply_rewrite(chi0_block.size() ? chi0_block.ptr() : empty_e.data(),
+                            factor.data(), scratch.data(), small.data(), y_host.data(), z.data());
+                    }
+                    const int filtered = n_abf - as_int(n_nonsingular);
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+                    if (use_gpu_replace_scalapack)
+                    {
+                        if (filtered > 0)
+                        {
+                            LaConnector::copy_local(coul_block_ptr, filtered_coulomb.data(),
+                                storage(desc_filtered_coulomb), rewrite_desc);
+                            LaConnector::synchronize(rewrite_desc);
+                            LaConnector::pgemm('N', 'C', n_abf, n_abf, filtered, C_ONE,
+                                coul_block_ptr, 1, 1, desc_filtered_coulomb,
+                                coul_block_ptr, 1, 1, desc_filtered_coulomb,
+                                C_ONE, chi0_block_ptr, 1, 1, desc_nabf_nabf_opt);
+                        }
+                        LaConnector::pdam(-1., chi0_block_ptr, desc_nabf_nabf_opt);
+                    }
+                    else
+#endif
+                    {
+                        // The ordinary rewrite returns the retained inverse in
+                        // ABF space, with zero filtered channels. Add their thin
+                        // projector F, then subtract I: eps_inv + F - I =
+                        // eps_inv - U_r * U_r^H. The strict 2D rewrite above already
+                        // returns the complete Wc average and needs no subtraction.
+                        const int n_filtered = n_abf - as_int(n_nonsingular);
+                        if (n_filtered > 0)
+                        {
+                            const int first_filtered = as_int(n_nonsingular) + 1;
+                            ScalapackConnector::pgemm_f(
+                                'N', 'C', n_abf, n_abf, n_filtered, C_ONE, coul_eigen_block.ptr(), 1,
+                                first_filtered, desc_nabf_nabf_opt.desc, coul_eigen_block.ptr(), 1,
+                                first_filtered, desc_nabf_nabf_opt.desc, C_ONE, chi0_block.ptr(), 1, 1,
+                                desc_nabf_nabf_opt.desc);
+                        }
+                        for (int i = 0; i != n_abf; ++i)
+                        {
+                            const int ilo = desc_nabf_nabf_opt.indx_g2l_r(i);
+                            if (ilo < 0) continue;
+                            const int jlo = desc_nabf_nabf_opt.indx_g2l_c(i);
+                            if (jlo < 0) continue;
+                            chi0_block(ilo, jlo) -= 1.0;
+                        }
                     }
                 }
-
-#if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
-                if (use_gpu_replace_scalapack)
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+                if (use_gpu_replace_scalapack && debug)
                 {
-                    ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, chi0_block_ptr, chi0_block.ptr(), chi0_block.size() * sizeof(complex<double>)));
+                    // The host matrix is backup/scratch on GPU paths.
+                    // Refresh it only for the existing host debug consumer.
+                    if (chi0_block.size())
+                        ddla::DDLA_CHECK(ddla::ddlaMemcpy(blacs_h.ddla_handle, chi0_block.ptr(),
+                            chi0_block_ptr, chi0_block.size() * sizeof(complex<double>)));
+                    ddla::DDLA_CHECK(ddla::ddlaSynchronize(blacs_h.ddla_handle));
                 }
 #endif
             }

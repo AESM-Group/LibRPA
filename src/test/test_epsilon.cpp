@@ -922,19 +922,27 @@ double rectangular_gamma_volume_ratio()
 void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bool rank_deficient,
                                        const bool zero_response, const int dielectric_option,
                                        const bool use_cholesky, const int block_size = 1,
-                                       const bool mixed_test = false, const bool gpu = false)
+                                       const bool mixed_test = false, const bool gpu = false,
+                                       const int n = 4)
 {
-    constexpr int n = 4;
     const int retained = rank_deficient ? n - 1 : n;
-    const std::array<double, n> eigenvalues{4.0, 2.0, 1.0, rank_deficient ? -0.2 : 0.5};
-    const Matz eigenvectors({{{0.5, 0.0}, {0.5, 0.0}, {0.5, 0.0}, {0.5, 0.0}},
+    std::vector<double> eigenvalues{4.0, 2.0, 1.0, 0.5};
+    eigenvalues.resize(n);
+    if (rank_deficient) eigenvalues.back() = -0.2;
+    Matz eigenvectors({{{0.5, 0.0}, {0.5, 0.0}, {0.5, 0.0}, {0.5, 0.0}},
                              {{0.5, 0.0}, {-0.5, 0.0}, {0.5, 0.0}, {-0.5, 0.0}},
                              {{0.5, 0.0}, {0.5, 0.0}, {-0.5, 0.0}, {-0.5, 0.0}},
                              {{0.5, 0.0}, {-0.5, 0.0}, {-0.5, 0.0}, {0.5, 0.0}}},
                             MAJOR::COL);
+    if (n < 4)
+    {
+        eigenvectors.resize(n, n);
+        eigenvectors.zero_out();
+        for (int i = 0; i != n; ++i) eigenvectors(i, i) = 1.0;
+    }
     Matz diagonal(n, n, MAJOR::COL), sqrt_diagonal(n, n, MAJOR::COL);
     Matz cut_root_channels(n, n, MAJOR::COL), response_channels(n, n, MAJOR::COL);
-    const double cut_diagonal[n]{1.2, 1.1, 1.4, 0.9};
+    const double cut_diagonal[]{1.2, 1.1, 1.4, 0.9};
     for (int i = 0; i != n; ++i)
     {
         diagonal(i, i) = eigenvalues[i];
@@ -943,17 +951,23 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     }
     // The positive cut root couples retained and discarded bare-Coulomb
     // channels. Projecting the cut interaction too would fail this control.
-    cut_root_channels(1, 3) = cut_root_channels(3, 1) = 0.21;
-    cut_root_channels(2, 3) = cut_root_channels(3, 2) = -0.13;
+    if (n == 4)
+    {
+        cut_root_channels(1, 3) = cut_root_channels(3, 1) = 0.21;
+        cut_root_channels(2, 3) = cut_root_channels(3, 2) = -0.13;
+    }
     if (!zero_response)
     {
-        response_channels(1, 1) = -0.07;
-        response_channels(2, 2) = -0.09;
-        response_channels(3, 3) = -0.11;
-        response_channels(1, 2) = {0.012, 0.009};
-        response_channels(2, 1) = {0.012, -0.009};
-        response_channels(2, 3) = {0.006, -0.005};
-        response_channels(3, 2) = {0.006, 0.005};
+        if (n > 1) response_channels(1, 1) = -0.07;
+        if (n == 4)
+        {
+            response_channels(2, 2) = -0.09;
+            response_channels(3, 3) = -0.11;
+            response_channels(1, 2) = {0.012, 0.009};
+            response_channels(2, 1) = {0.012, -0.009};
+            response_channels(2, 3) = {0.006, -0.005};
+            response_channels(3, 2) = {0.006, 0.005};
+        }
     }
     const auto adjoint = transpose(eigenvectors, true);
     const auto bare = eigenvectors * diagonal * adjoint;
@@ -968,7 +982,7 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     PeriodicBoundaryData pbc;
     pbc.set_latvec({1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
     pbc.set_kgrids_kvec(2, 1, 1, {0.0, 0.0, 0.0, PI, 0.0, 0.0});
-    AtomicBasis wfc_basis({2}), aux_basis({n});
+    AtomicBasis wfc_basis({2}), aux_basis({static_cast<std::size_t>(n)});
     MeanField mf(1, 2, 2, 2);
     for (int ik = 0; ik != 2; ++ik)
     {
@@ -1067,15 +1081,19 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     }
 }
 
-void test_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h)
+void test_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bool gpu = false)
 {
     for (const bool rank_deficient : {true, false})
         for (const bool zero_response : {true, false})
-            verify_gamma_wc_retained_identity(blacs_h, rank_deficient, zero_response, 3, false);
-    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, true);
-    verify_gamma_wc_retained_identity(blacs_h, true, false, 1, false);
+            verify_gamma_wc_retained_identity(blacs_h, rank_deficient, zero_response, 3, false, 1, false, gpu);
+    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, true, 1, false, gpu);
+    verify_gamma_wc_retained_identity(blacs_h, true, false, 1, false, 1, false, gpu);
     // The filtered eigenvector starts inside a block, rather than at its edge.
-    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, false, 2);
+    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, false, 2, false, gpu);
+    // Exercise wing scratch larger than the full matrix, including empty MPI owners.
+    for (int n : {1, 2})
+        for (bool cholesky : {false, true})
+            verify_gamma_wc_retained_identity(blacs_h, false, false, 3, cholesky, 1, false, gpu, n);
 }
 
 #endif
@@ -1111,6 +1129,13 @@ int main(int argc, char *argv[])
 #ifdef LIBRPA_USE_LIBRI
         test_dense_wc_layout(blacs_h);
         test_gamma_wc_retained_identity(blacs_h);
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (argc > 1 && std::string(argv[1]) == "--headwing-gpu")
+        {
+            blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
+            test_gamma_wc_retained_identity(blacs_h, true);
+        }
+#endif
 #ifdef LIBRPA_USE_DDLA
         bool mixed_gpu = false;
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
