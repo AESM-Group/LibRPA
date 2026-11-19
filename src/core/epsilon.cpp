@@ -1865,6 +1865,7 @@ CorrEnergy compute_RPA_correlation(LibrpaParallelRouting routing, const Chi0 &ch
                     else
                         det_for_rpa = det_for_rpa * identity_minus_pi(ib, ib);
                 }
+                delete[] ipiv;
 
                 complex<double> trace_pi;
                 complex<double> ln_det;
