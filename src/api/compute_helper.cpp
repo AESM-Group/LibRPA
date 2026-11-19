@@ -246,11 +246,16 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     const PeriodicBoundaryData *velocity_pbc = &ds->pbc;
     if (symmetry != nullptr && ds->mf.get_n_kpoints() != ds->pbc.get_n_cells_bvk())
     {
-        // k-point-parallel distribution keeps each AO x band block on one rank;
-        // the expansion needs the complete block on the rank that consumes it.
-        // Gather the owner's copy first so the distributed layout is preserved
-        // everywhere else.
+        // A k-point-parallel layout may split even a single AO x band block across
+        // the ranks of its k-group, so no rank holds the complete block that the
+        // expansion reads. Rebuild the replicated layout first, then give every
+        // rank a private copy.
         MeanField replicated = ds->mf;
+        if (ds->eigvecs_kpara_2d_ready() && ds->scfk_blacs_ctxt.is_initialized() &&
+            ds->desc_wfc_kb.is_initialized() && ds->desc_wfc_kb_full.is_initialized())
+            redistribute_meanfield_eigvecs_kblacs(replicated, ds->scfk_blacs_ctxt,
+                                                  ds->desc_wfc_kb, ds->desc_wfc_kb_full,
+                                                  "native IBZ head/wing");
         for (int ispin = 0; ispin < replicated.get_n_spins(); ++ispin)
             for (int ispinor = 0; ispinor < replicated.get_n_spinor(); ++ispinor)
                 for (int ik = 0; ik < replicated.get_n_kpoints(); ++ik)
