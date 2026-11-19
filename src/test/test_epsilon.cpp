@@ -989,7 +989,7 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
         mf.get_eigenvals()[0](ik, 0) = -1.0;
         mf.get_eigenvals()[0](ik, 1) = 1.0;
     }
-    TFGrids grids(1);
+    TFGrids grids(mixed_test ? 3 : 1);
     grids.generate_evenspaced_tf(0.1, 0.1, 0.25, 0.1);
     KPointBlacsParallelContext kctx(KPointBlacsProcessShape(1, blacs_h.nprocs), MPI_COMM_WORLD, 2);
     ArrayDesc desc_wfc(blacs_h), desc_aux(blacs_h);
@@ -1012,15 +1012,20 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
             auto &vc = cut_blocks[0][0][q];
             v = std::make_shared<ComplexMatrix>(n, n);
             vc = std::make_shared<ComplexMatrix>(n, n);
-            auto &chi = response_blocks[grids.get_freq_nodes().front()][q][0][0];
-            chi.create(n, n);
             for (int i = 0; i != n; ++i)
                 for (int j = 0; j != n; ++j)
                 {
                     (*v)(i, j) = bare(i, j);
                     (*vc)(i, j) = cut(i, j);
-                    chi(i, j) = response(i, j);
                 }
+            for (const auto freq : grids.get_freq_nodes())
+            {
+                auto &chi = response_blocks[freq][q][0][0];
+                chi.create(n, n);
+                const double scale = 1.0 + 0.25 * grids.get_freq_index(freq);
+                for (int i = 0; i != n; ++i)
+                    for (int j = 0; j != n; ++j) chi(i, j) = scale * response(i, j);
+            }
         }
     }
     velocity_matrix_t velocity;
@@ -1040,8 +1045,16 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
                                 mixed_test ? "ddla" : "scalapack");
 
     for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
+    for (const auto freq : grids.get_freq_nodes())
     {
         auto expected_channels = inverse.copy();
+        if (grids.get_freq_index(freq) != 0)
+        {
+            auto frequency_dielectric = sqrt_diagonal * response_channels * sqrt_diagonal;
+            frequency_dielectric *= -(1.0 + 0.25 * grids.get_freq_index(freq));
+            for (int i = 0; i != n; ++i) frequency_dielectric(i, i) += 1.0;
+            expected_channels = serial_inverse(frequency_dielectric);
+        }
         if (!mixed_test && iq == 0 && dielectric_option == 3)
         {
             expected_channels(0, 0) = rectangular_gamma_volume_ratio();
@@ -1053,7 +1066,7 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
         else
             for (int i = 0; i != n; ++i) expected_channels(i, i) -= 1.0;
         const auto expected = cut_root * eigenvectors * expected_channels * adjoint * cut_root;
-        const auto &result = actual.at(grids.get_freq_nodes().front()).at(pbc.klist[iq]);
+        const auto &result = actual.at(freq).at(pbc.klist[iq]);
         double local_error = 0.0;
         for (int i = 0; i != desc_aux.m_loc(); ++i)
             for (int j = 0; j != desc_aux.n_loc(); ++j)
@@ -1076,7 +1089,8 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
             std::cout << "Gamma Wc dense control: rank=" << retained
                       << " zero_response=" << zero_response << " option=" << dielectric_option
                       << " cholesky=" << use_cholesky << " block_size=" << block_size
-                      << " iq=" << iq << " max_error=" << max_error << std::endl;
+                      << " iq=" << iq << " ifreq=" << grids.get_freq_index(freq)
+                      << " max_error=" << max_error << std::endl;
         assert(max_error < 1e-10);
     }
 }
