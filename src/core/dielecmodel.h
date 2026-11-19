@@ -184,8 +184,7 @@ void rewrite_eps_abf_space(
     const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
     const ArrayDesc &desc_cart,
     const std::vector<double> &qx, const std::vector<double> &qy,
-    const std::vector<double> &qz, const std::vector<double> &rho,
-    const bool use_cholesky);
+    const std::vector<double> &qz, const std::vector<double> &rho);
 
 class diele_func
 {
@@ -464,7 +463,7 @@ public:
         const std::complex<double> *weighted_wing, const int ifreq,
         const ArrayDesc &desc, const ArrayDesc &desc_y,
         const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
-        const ArrayDesc &desc_cart, const bool use_cholesky);
+        const ArrayDesc &desc_cart);
     void cal_strict_2d_wc(const int ifreq, ArrayDesc &desc_nabf_nabf_opt, ArrayDesc &desc_body,
                           const matrix_m<std::complex<double>> &regular_coulomb_basis);
     void assign_chi0(matrix_m<std::complex<double>> &chi0_block,

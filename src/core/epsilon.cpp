@@ -3082,7 +3082,7 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
                         LaConnector::pgemm('N', 'N', n_abf, 3, n_abf, C_ONE,
                             f, 1, 1, rewrite_desc, t, 1, 1, wd, C_ZERO, z, 1, 1, wd);
                         df_headwing->rewrite_eps_abf_space(e, f, t, s, y, z, ifreq,
-                            rewrite_desc, yd, wd, sd, cd, use_cholesky_gw_wc);
+                            rewrite_desc, yd, wd, sd, cd);
                     };
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
                     if (use_gpu_replace_scalapack)

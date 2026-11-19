@@ -1600,7 +1600,7 @@ void test_constrained_soc_optical()
     headwing_test::rewrite(inverse, identity, identity, head_direction, head_desc,
                            vacuum->get_head_tensors().at(0), vacuum->get_wing_auxiliary().at(0),
                            {}, {}, {}, {}, f.ds.desc_abf, f.ds.blacs_h,
-                           2, 0, false, false, vacuum.get(), 0);
+                           2, 0, false, vacuum.get(), 0);
     for (int i = 0; i < inverse.nr(); ++i)
         for (int j = 0; j < inverse.nc(); ++j) close(inverse(i, j), identity(i, j), 2e-12);
 }

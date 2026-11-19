@@ -10,6 +10,7 @@
 #include "../core/dielecmodel.h"
 #include "../interface/la_connector.h"
 #include "../math/utils_matrix_mpi.h"
+#include "headwing_rewrite_test_utils.h"
 #ifdef LIBRPA_USE_DDLA
 #include <ddla/ddla_vector.h>
 #endif
@@ -109,6 +110,46 @@ void check_system(const BlacsCtxtHandler& grid, int n, int mode, bool ddla_cpu, 
     assert(maximum < 1.e-11);
 }
 
+void check_gamma_rewrite(const BlacsCtxtHandler& grid, bool ddla_cpu, bool gpu)
+{
+    ArrayDesc desc(grid), hd(grid);
+    desc.init(3, 3, 1, 1, 0, 0);
+    hd.init(3, 1, 1, 1, 0, 0);
+#ifdef LIBRPA_USE_DDLA
+    if (ddla_cpu)
+    {
+        desc.set_linear_algorithm("ddla");
+        desc.set_ddla_handle(grid.ddla_cpu_handle);
+    }
+#endif
+    auto eps = init_local_mat<Z>(desc, MAJOR::COL);
+    auto sqrtv = init_local_mat<Z>(desc, MAJOR::COL);
+    auto eigenvectors = init_local_mat<Z>(desc, MAJOR::COL);
+    auto direction = init_local_mat<Z>(hd, MAJOR::COL);
+    Matz head(3, 3, MAJOR::COL), wing(3, 3, MAJOR::COL);
+    head.zero_out(); wing.zero_out();
+    for (int i = 0; i < 3; ++i) head(i, i) = 1.;
+    for (int j = 0; j < desc.n_loc(); ++j)
+        for (int i = 0; i < desc.m_loc(); ++i)
+        {
+            const int r = desc.indx_l2g_r(i), c = desc.indx_l2g_c(j);
+            eps(i, j) = r == c ? Z(r == 2 ? -2. : r == 1 ? 4. : 1.) : Z{};
+            sqrtv(i, j) = eigenvectors(i, j) = r == c ? Z(1.) : Z{};
+        }
+    for (int j = 0; j < hd.n_loc(); ++j)
+        for (int i = 0; i < hd.m_loc(); ++i)
+            direction(i, j) = hd.indx_l2g_r(i) == 0 ? Z(1.) : Z{};
+    headwing_test::rewrite(eps, sqrtv, eigenvectors, direction, hd, head, wing,
+        {1.}, {0.}, {0.}, {1.}, desc, grid, 3, 0., gpu);
+    for (int j = 0; j < desc.n_loc(); ++j)
+        for (int i = 0; i < desc.m_loc(); ++i)
+        {
+            const int r = desc.indx_l2g_r(i), c = desc.indx_l2g_c(j);
+            const Z expected = r == c ? Z(r == 2 ? -.5 : r == 1 ? .25 : 1.) : Z{};
+            assert(std::abs(eps(i, j) - expected) < 1.e-11);
+        }
+}
+
 int main(int argc, char** argv)
 {
     int provided = 0;
@@ -135,6 +176,7 @@ int main(int argc, char** argv)
             {
                 check_system(grid, n, mode, ddla_cpu, gpu);
             }
+        check_gamma_rewrite(grid, ddla_cpu, gpu);
         if (grid.myid == 0) std::cout << "WC_CHOLESKY_LU_FALLBACK_PASS" << std::endl;
     }
     MPI_Finalize();

@@ -3423,7 +3423,7 @@ double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
                     const Matz &chi0, const Matz &wing_mu,
                     const Matz &head,
                     const std::vector<std::array<double, 3>> &q_pts,
-                    const std::vector<double> &q_rho, bool use_cholesky, double tol,
+                    const std::vector<double> &q_rho, double tol,
                     int n_nonsingular = -1)
 {
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
@@ -3477,7 +3477,7 @@ double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
                            head_direction, desc_head_direction, head, wing_mu, qx, qy,
                            qz, q_rho, desc, blacs_h,
                            static_cast<std::size_t>(n_nonsingular), 0.0,
-                           use_cholesky, use_device);
+                           use_device);
 
     double local_max_err = 0.0;
     for (int ilo = 0; ilo != desc.m_loc(); ++ilo)
@@ -3552,13 +3552,13 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
          {{0.3, 0.1}, {0.4, -0.2}, {2.4, 0.0}}},
         MAJOR::COL);
 
-    // LU and Cholesky, 3D and 2D, nonzero and zero wing (square grid).
-    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d, false, 1e-10);
-    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu, head, q3d, rho3d, true, 1e-10);
-    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q2d, rho2d, false, 1e-10);
-    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu, head, q2d, rho2d, true, 1e-10);
-    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, zero_wing_mu, head, q3d, rho3d, false, 1e-10);
-    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, zero_wing_mu, head, q3d, rho3d, true, 1e-10);
+    // Two block sizes, 3D and 2D, nonzero and zero wing (square grid).
+    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d, 1e-10);
+    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu, head, q3d, rho3d, 1e-10);
+    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q2d, rho2d, 1e-10);
+    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu, head, q2d, rho2d, 1e-10);
+    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, zero_wing_mu, head, q3d, rho3d, 1e-10);
+    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, zero_wing_mu, head, q3d, rho3d, 1e-10);
 
     // Wing with a deliberately large component parallel to x1 in each
     // Cartesian column. The Direct-Z path (A = D*Z, no explicit projection)
@@ -3569,9 +3569,9 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
             for (int mu = 0; mu != n; ++mu)
                 wing_mu_large_x1(mu, alpha) += 100.0 * U(mu, 0);
         run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu_large_x1, head, q3d, rho3d,
-                     false, 1e-10);
+                     1e-10);
         run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu_large_x1, head, q3d, rho3d,
-                     true, 1e-10);
+                     1e-10);
     }
 
     // Rectangular (horizontal) BLACS grid; exercises empty thin local
@@ -3587,7 +3587,7 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
             // DDLA handle. Prove the setup error is caught before allocation.
             bool rejected = false;
             try { run_abf_case(horizontal_blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head,
-                               q3d, rho3d, false, 1e-10); }
+                               q3d, rho3d, 1e-10); }
             catch (const std::invalid_argument& error)
             {
                 rejected = std::string(error.what()).find("initialized GPU handle on its owning BLACS grid") != std::string::npos;
@@ -3600,9 +3600,7 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
         }
 #endif
         run_abf_case(horizontal_blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d,
-                     false, 1e-10);
-        run_abf_case(horizontal_blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d,
-                     true, 1e-10);
+                     1e-10);
     }
 
     // n_abf == 1 exercises the n-by-1 thin descriptors at the minimal size.
@@ -3617,7 +3615,7 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
         wing_mu1(0, 0) = {0.10, 0.01};
         wing_mu1(0, 1) = {0.11, 0.02};
         wing_mu1(0, 2) = {0.12, 0.03};
-        run_abf_case(blacs_h, 1, 1, U1, sqrtV1, chi01, wing_mu1, head, q3d, rho3d, false,
+        run_abf_case(blacs_h, 1, 1, U1, sqrtV1, chi01, wing_mu1, head, q3d, rho3d,
                      1e-10);
     }
 
@@ -3685,14 +3683,12 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
         {
             const auto sqrtV16 = build_sqrtV16(n_nons);
             run_abf_case(blacs_h, nh, blk, U16, sqrtV16, chi0_16, wing_mu_16, head,
-                         q3d, rho3d, false, 1e-10, n_nons);
-            run_abf_case(blacs_h, nh, blk, U16, sqrtV16, chi0_16, wing_mu_16, head,
-                         q3d, rho3d, true, 1e-10, n_nons);
+                         q3d, rho3d, 1e-10, n_nons);
         }
     }
 
     // Filtered Coulomb basis: the last eigenchannel has zero eigenvalue and is
-    // excluded. Both inversion paths must agree with the old reduced Coulomb-
+    // excluded. The inverse must agree with the old reduced Coulomb-
     // basis algorithm and produce no component in the filtered subspace.
     {
         constexpr int nr = n - 1;
@@ -3705,11 +3701,11 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
         const auto sqrtV_filtered = sqrtveig_filtered * U.get_transpose(true);
 
         run_abf_case(blacs_h, n, 1, U, sqrtV_filtered, chi0, wing_mu, head,
-                     q3d, rho3d, false, 1e-10, nr);
+                     q3d, rho3d, 1e-10, nr);
         run_abf_case(blacs_h, n, 2, U, sqrtV_filtered, chi0, wing_mu, head,
-                     q3d, rho3d, true, 1e-10, nr);
+                     q3d, rho3d, 1e-10, nr);
         run_abf_case(blacs_h, n, 1, U, sqrtV_filtered, chi0, zero_wing_mu, head,
-                     q2d, rho2d, false, 1e-10, nr);
+                     q2d, rho2d, 1e-10, nr);
 
         // Sensitivity to a non-Hermitian E. The rewrite contracts E only as
         // E*Y, so it is exact for Hermitian E and accurate to O(|E - E^H|)
@@ -3725,7 +3721,7 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
                 for (int j = 0; j < n; ++j)
                     chi0_nonherm(i, j) += std::complex<double>{1e-12 * (i - j), 0.0};
             const double err = run_abf_case(blacs_h, n, 1, U, sqrtV_filtered, chi0_nonherm,
-                                            wing_mu, head, q3d, rho3d, false, 1e-10, nr);
+                                            wing_mu, head, q3d, rho3d, 1e-10, nr);
             if (blacs_h.myid == 0)
                 std::cout << "non-Hermitian E sensitivity (d=1e-12): max abs err = "
                           << err << std::endl;
@@ -3740,9 +3736,9 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
                 sqrtveig_head_only(i, 0) = U(i, 0) * std::sqrt(lambda[0]);
             const auto sqrtV_head_only = sqrtveig_head_only * U.get_transpose(true);
             run_abf_case(blacs_h, n, 1, U, sqrtV_head_only, chi0, wing_mu, head,
-                         q3d, rho3d, false, 1e-10, 1);
+                         q3d, rho3d, 1e-10, 1);
             run_abf_case(blacs_h, n, 2, U, sqrtV_head_only, chi0, wing_mu, head,
-                         q3d, rho3d, true, 1e-10, 1);
+                         q3d, rho3d, 1e-10, 1);
         }
     }
 
@@ -3789,11 +3785,11 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
         headwing_test::rewrite(E1, sqrtV_dist, U_orig_dist,
                                           head_direction, desc_head_direction, head, wing_mu, qx, qy,
                                           qz, rho3d, desc, blacs_h,
-                                          static_cast<std::size_t>(n), 0.0, false, false);
+                                          static_cast<std::size_t>(n), 0.0, false);
         headwing_test::rewrite(E2, sqrtV_dist, U_mod_dist,
                                           head_direction, desc_head_direction, head, wing_mu, qx, qy,
                                           qz, rho3d, desc, blacs_h,
-                                          static_cast<std::size_t>(n), 0.0, false, false);
+                                          static_cast<std::size_t>(n), 0.0, false);
 
         double local_max_err = 0.0;
         for (int ilo = 0; ilo != desc.m_loc(); ++ilo)

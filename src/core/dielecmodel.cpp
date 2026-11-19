@@ -4320,8 +4320,7 @@ void rewrite_eps_abf_space(
     const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
     const ArrayDesc &desc_cart,
     const std::vector<double> &qx, const std::vector<double> &qy,
-    const std::vector<double> &qz, const std::vector<double> &rho,
-    const bool use_cholesky)
+    const std::vector<double> &qz, const std::vector<double> &rho)
 {
     using Z = std::complex<double>;
     using global::profiler;
@@ -4349,14 +4348,8 @@ void rewrite_eps_abf_space(
     profiler.start("epsilon_headwing_abf_inverse");
     LaConnector::zero_local(factor, std::size_t(desc.lld()) * desc.n_loc(), desc);
     LaConnector::pdam(1., factor, desc);
-    int info = 0;
-    if (use_cholesky)
-        LaConnector::pposv('L', 'L', 'N', n, n, epsilon, 1, 1, desc,
-            factor, 1, 1, desc, info);
-    else
-        LaConnector::pgesv(n, n, epsilon, 1, 1, desc, factor, 1, 1, desc, info);
-    if (info != 0)
-        throw LIBRPA_RUNTIME_ERROR("Head/wing identity solve failed with info=" + std::to_string(info));
+    // G is dead after building M. Reuse its caller-owned storage for retry.
+    solve_dielectric_system(epsilon, factor, desc, desc, true, scratch);
     LaConnector::pgemm('N', 'C', n, n, m, -C_ONE, complement, 1, 1, desc_y,
         complement, 1, 1, desc_y, C_ONE, factor, 1, 1, desc);
     profiler.stop("epsilon_headwing_abf_inverse");
@@ -4427,7 +4420,7 @@ void diele_func::rewrite_eps_abf_space(
     const std::complex<double> *weighted_wing, const int ifreq,
     const ArrayDesc &desc, const ArrayDesc &desc_y,
     const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
-    const ArrayDesc &desc_cart, const bool use_cholesky)
+    const ArrayDesc &desc_cart)
 {
     this->vol_gamma = rpa_headwing_gamma_cell_volume(pbc_, use_2d_dielectric);
     const int nleb = static_cast<int>(qw_leb.size());
@@ -4450,7 +4443,7 @@ void diele_func::rewrite_eps_abf_space(
         for (int i = 0; i != 3; ++i) host_head[i + 3 * j] = head.at(ifreq)(i, j);
     librpa_int::rewrite_eps_abf_space(epsilon, factor, scratch, small, complement,
         weighted_wing, host_head.data(), desc, desc_y, desc_wing, desc_small,
-        desc_cart, qx_leb, qy_leb, qz_leb, rho, use_cholesky);
+        desc_cart, qx_leb, qy_leb, qz_leb, rho);
 }
 
 void diele_func::rewrite_strict_2d_wc(matrix_m<std::complex<double>> &chi0_block, const int ifreq,

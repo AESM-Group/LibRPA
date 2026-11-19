@@ -30,7 +30,7 @@ static void require(bool good, const char* message, MPI_Comm comm)
 }
 
 static void run_case(BlacsCtxtHandler& grid, int n, int retained, int block,
-                      int repeats, bool native, bool cholesky)
+                      int repeats, bool native)
 {
     const auto handle = grid.ddla_handle;
     ArrayDesc desc(grid), hd(grid), fd(grid);
@@ -113,7 +113,7 @@ static void run_case(BlacsCtxtHandler& grid, int n, int retained, int block,
         if (eps.size()) ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, eps.ptr(), d0.data(), eps.size() * sizeof(Z)));
         ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
         headwing_test::rewrite(eps, sqrtv, u, direction, hd, head, wing, qx, qy, qz, rho,
-            desc, grid, retained, 0., cholesky, native);
+            desc, grid, retained, 0., native);
         if (eps.size()) ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, d0.data(), eps.ptr(), eps.size() * sizeof(Z)));
         if (native)
         {
@@ -171,7 +171,7 @@ static void run_case(BlacsCtxtHandler& grid, int n, int retained, int block,
     MPI_Allreduce(MPI_IN_PLACE, &packing, 1, MPI_DOUBLE, MPI_MAX, grid.comm());
     if (grid.myid == 0)
         std::cout << "HEADWING_STAGE n=" << n << " retained=" << retained << " block=" << block
-                  << " native=" << native << " cholesky=" << cholesky
+                  << " native=" << native
                   << " grid=" << grid.nprows << "x" << grid.npcols << " bytes_per_buffer=" << count * sizeof(Z)
                   << " pack_max=" << packing << " max_error=" << maximum_error
                   << " completed_median_max=" << times[times.size() / 2] << std::endl;
@@ -190,9 +190,9 @@ int main(int argc, char** argv)
             grid.init_ddla_handle(ddla::DdlaBackend::CPU);
         const std::array<std::array<int,3>,8> shapes{{
             {{2,2,1}}, {{4,1,2}}, {{4,3,2}}, {{7,4,2}}, {{8,4,2}}, {{16,14,4}}, {{16,6,4}}, {{34,24,8}}}};
-        for (bool native : {false, true}) for (bool chol : {false, true})
+        for (bool native : {false, true})
             for (const auto shape : shapes)
-                run_case(grid, shape[0], shape[1], shape[2], 1, native, chol);
+                run_case(grid, shape[0], shape[1], shape[2], 1, native);
         if (grid.myid == 0) std::cout << "HEADWING_REWRITE_PASS" << std::endl;
     }
     catch (const std::exception& error) { std::cerr << error.what() << std::endl; passed = false; }

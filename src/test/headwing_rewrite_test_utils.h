@@ -20,7 +20,7 @@ inline void rewrite(Matz &epsilon, const Matz &sqrtv, const Matz &eigenvectors,
     const Matz &wing, const std::vector<double> &qx, const std::vector<double> &qy,
     const std::vector<double> &qz, const std::vector<double> &rho,
     const ArrayDesc &layout, const BlacsCtxtHandler &grid,
-    std::size_t retained, double threshold, bool cholesky, bool gpu,
+    std::size_t retained, double threshold, bool gpu,
     diele_func *model = nullptr, int ifreq = 0)
 {
     using Z = std::complex<double>;
@@ -69,10 +69,10 @@ inline void rewrite(Matz &epsilon, const Matz &sqrtv, const Matz &eigenvectors,
             tp, 1, 1, wd, Z(0), zp, 1, 1, wd);
         if (model)
             model->rewrite_eps_abf_space(ep, fp, tp, sp, yp, zp, ifreq,
-                desc, yd, wd, sd, cd, cholesky);
+                desc, yd, wd, sd, cd);
         else
             librpa_int::rewrite_eps_abf_space(ep, fp, tp, sp, yp, zp, host_head.data(),
-                desc, yd, wd, sd, cd, qx, qy, qz, rho, cholesky);
+                desc, yd, wd, sd, cd, qx, qy, qz, rho);
     };
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     if (gpu)
