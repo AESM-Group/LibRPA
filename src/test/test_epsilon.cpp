@@ -1139,6 +1139,8 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
             std::cout << "Gamma Wc dense control: rank=" << retained
                       << " zero_response=" << zero_response << " option=" << dielectric_option
                       << " block_size=" << block_size
+                      << " gpu=" << gpu << " mixed=" << mixed_test
+                      << " mixed_shell_head=" << mixed_shell_head
                       << " iq=" << iq << " ifreq=" << grids.get_freq_index(freq)
                       << " max_error=" << max_error << std::endl;
         assert(max_error < 1e-10);
