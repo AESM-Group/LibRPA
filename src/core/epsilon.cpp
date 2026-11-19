@@ -2681,6 +2681,10 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
         if (gamma_full_headwing && !strict_2d_complete_wc_gamma)
         {
             desc_head_direction.init(n_abf, 1, nb_opt, nb_opt, 0, 0);
+            desc_head_direction.set_linear_algorithm(linear_algorithm);
+#ifdef LIBRPA_USE_DDLA
+            desc_head_direction.set_ddla_handle(desc_nabf_nabf_opt.ddla_handle());
+#endif
             head_direction = init_local_mat<complex<double>>(desc_head_direction, MAJOR::COL);
             if (option_dielect_func == 53)
             {
@@ -2698,6 +2702,38 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
                 {
                     auto coefficients = init_local_mat<complex<double>>(desc_head_direction, MAJOR::COL);
                     coefficients.zero_out();
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+                    if (use_gpu_replace_scalapack)
+                    {
+                        ArrayDesc desc_coefficients(blacs_h);
+                        desc_coefficients.init(as_int(n_singular), 1, nb_opt, nb_opt, 0, 0);
+                        desc_coefficients.set_linear_algorithm("ddla");
+                        desc_coefficients.set_ddla_handle(blacs_h.ddla_handle);
+                        const auto handle = blacs_h.ddla_handle;
+                        LaConnector::copy_local(coul_block_ptr, filtered_coulomb.data(),
+                            filtered_coulomb.size(), desc_filtered_coulomb);
+                        if (head_direction.size())
+                            ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, chi0_block_ptr,
+                                head_direction.ptr(), head_direction.size() * sizeof(complex<double>)));
+                        LaConnector::synchronize(desc_filtered_coulomb);
+                        LaConnector::pgemm('C', 'N', as_int(n_singular), 1, n_abf, C_ONE,
+                            coul_block_ptr, 1, 1, desc_filtered_coulomb, chi0_block_ptr, 1, 1,
+                            desc_head_direction, C_ZERO, coul_chi0_block_ptr, 1, 1, desc_coefficients);
+                        LaConnector::pgemm('N', 'N', n_abf, 1, as_int(n_singular), -C_ONE,
+                            coul_block_ptr, 1, 1, desc_filtered_coulomb, coul_chi0_block_ptr, 1, 1,
+                            desc_coefficients, C_ONE, chi0_block_ptr, 1, 1, desc_head_direction);
+                        if (head_direction.size())
+                            ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, head_direction.ptr(), chi0_block_ptr,
+                                head_direction.size() * sizeof(complex<double>)));
+                        const size_t coefficient_count = size_t(desc_coefficients.m_loc()) * desc_coefficients.n_loc();
+                        if (coefficient_count)
+                            ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, coefficients.ptr(), coul_chi0_block_ptr,
+                                coefficient_count * sizeof(complex<double>)));
+                        ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
+                    }
+                    else
+#endif
+                    {
                     // Keep coefficient rows aligned with the filtered columns of U.
                     const int first_filtered = as_int(n_nonsingular) + 1;
                     ScalapackConnector::pgemm_f(
@@ -2710,6 +2746,7 @@ std::map<double, std::map<Vector3_Order<double>, Matz>> compute_Wc_freq_q(
                         coul_eigen_block.ptr(), 1, first_filtered, desc_nabf_nabf_opt.desc,
                         coefficients.ptr(), first_filtered, 1, desc_head_direction.desc, C_ONE,
                         head_direction.ptr(), 1, 1, desc_head_direction.desc);
+                    }
                     for (size_t i = 0; i < coefficients.size(); ++i)
                         norm_sq[1] += std::norm(coefficients.ptr()[i]);
                 }
