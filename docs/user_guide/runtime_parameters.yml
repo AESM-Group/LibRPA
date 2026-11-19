@@ -290,6 +290,13 @@ blocks:
       their conventional assembly automatically. Wc always uses the shared
       descriptor-based implementation.
 
+      For `linear_algorithm = ddla`, RPA trace-log factorization uses the
+      block-pivoted LU (`bpiv`), which pivots within each diagonal block.
+      It does not substitute standard partial-pivot LU if factorization fails.
+      A nonsingular matrix can fail this restricted method; the calculation
+      then reports LU INFO and stops. The conventional `scalapack` path retains
+      standard pivoting.
+
       `use_scalapack_ecrpa` and `use_scalapack_gw_wc` were removed. Delete
       these keywords from inputs. The C/Fortran options layout changed;
       recompile library clients.
