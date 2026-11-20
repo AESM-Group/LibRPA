@@ -353,4 +353,12 @@ if(TARGET test_crpa_soc AND LIBRPA_USE_DDLA)
     set_tests_properties(test_crpa_public_options_cpu_np${np} PROPERTIES
       TIMEOUT 180 ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
   endforeach()
+  if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+    foreach(np 1 4)
+      add_test(NAME test_crpa_public_options_gpu_np${np}
+        COMMAND mpirun -np ${np} $<TARGET_FILE:test_crpa_soc> --public-api-gpu)
+      set_tests_properties(test_crpa_public_options_gpu_np${np} PROPERTIES
+        TIMEOUT 300 ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+    endforeach()
+  endif()
 endif()
