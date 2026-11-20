@@ -463,6 +463,20 @@ void parse_inputfile_to_params(const std::string &fn)
     std::string stmp;
     bool btmp;
 
+    // Retired keys must not be silently ignored: an input that still sets them
+    // would run with a different velocity source than its author intended.
+    {
+        std::string retired_value;
+        if (get_last_assigned_value(parser, "g0w0_headwing_velocity", retired_value))
+            throw std::runtime_error(
+                "g0w0_headwing_velocity is no longer supported; use option_velocity = "
+                "pyatb or native");
+        if (get_last_assigned_value(parser, "use_pyatb", retired_value))
+            throw std::runtime_error(
+                "use_pyatb is no longer supported; use option_velocity = pyatb for the "
+                "external velocity matrix or option_velocity = native for H(R)/S(R)/r(R)");
+    }
+
     // TODO: invalid parameters checker
 
     // driver parameters
