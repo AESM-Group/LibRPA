@@ -1,7 +1,8 @@
 # Real-space screened interaction from an irreducible q grid
 
 The GW correlation self-energy contracts the screened interaction in real space,
-so LibRPA transforms $W^{\mathrm{c}}$ from reciprocal space to the Born-von
+so LibRPA transforms $W^{\mathrm{c}}$, constructed as in
+[this note](../gw/correlation_screened_coulomb.md), from reciprocal space to the Born-von
 Karman lattice before the contraction. Symmetry lets the screening be evaluated
 on the irreducible q points only. This note gives the equation the restore
 implements and states why the reduced and the full Brillouin-zone k-point lists
