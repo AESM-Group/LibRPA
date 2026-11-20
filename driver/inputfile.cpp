@@ -296,20 +296,19 @@ static void validate_input_parameters()
             throw std::runtime_error("option_velocity must be pyatb or native");
         if (params.option_velocity == "native")
         {
-            // Only the two options whose head/wing the native route fully covers are
-            // accepted. Option 53 selects a different head direction for the body and
-            // has no native regression yet, so it stays on the external velocity
-            // matrix instead of running an unverified path.
+            // Every analytic head/wing option differentiates the same real-space
+            // operators, so all three accept the native source.
             if (driver::opts.replace_w_head != LIBRPA_SWITCH_ON ||
-                (driver::opts.option_dielect_func != 3 && driver::opts.option_dielect_func != 4))
+                (driver::opts.option_dielect_func != 3 && driver::opts.option_dielect_func != 4 &&
+                 driver::opts.option_dielect_func != 53))
                 throw std::runtime_error(
                     "option_velocity = native requires replace_w_head and "
-                    "option_dielect_func = 3 or 4; option 53 is not wired for native "
-                    "velocity, use option_velocity = pyatb there");
-            if (driver::opts.option_dielect_func == 3 &&
+                    "option_dielect_func = 3, 4, or 53");
+            if ((driver::opts.option_dielect_func == 3 ||
+                 driver::opts.option_dielect_func == 53) &&
                 driver::opts.use_scalapack_gw_wc != LIBRPA_SWITCH_ON)
                 throw std::runtime_error(
-                    "option_velocity = native with option_dielect_func = 3 requires "
+                    "option_velocity = native with option_dielect_func = 3 or 53 requires "
                     "use_scalapack_gw_wc = true to consume analytic wings");
             if (params.g0w0_fn_hr.empty() || params.g0w0_fn_sr.empty() || params.g0w0_fn_rr.empty())
                 throw std::runtime_error(

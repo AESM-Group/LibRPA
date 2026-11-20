@@ -209,16 +209,18 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
         {
             if (!p_opts)
                 throw LIBRPA_INVALID_ARGUMENT("Native velocity requires numerical options");
-            if (p_opts->option_dielect_func != 3 && p_opts->option_dielect_func != 4)
+            if (p_opts->option_dielect_func != 3 && p_opts->option_dielect_func != 4 &&
+                p_opts->option_dielect_func != 53)
                 throw LIBRPA_INVALID_ARGUMENT(
-                    "Native velocity API options must use numerical values 3/4");
+                    "Native velocity API options must use numerical values 3/4/53");
             if (prepare_optical && p_opts->replace_w_head != LIBRPA_SWITCH_ON)
                 throw LIBRPA_INVALID_ARGUMENT(
                     "Native optical preparation requires replace_w_head enabled");
-            if (prepare_optical && p_opts->option_dielect_func == 3 &&
+            if (prepare_optical &&
+                (p_opts->option_dielect_func == 3 || p_opts->option_dielect_func == 53) &&
                 p_opts->use_scalapack_gw_wc != LIBRPA_SWITCH_ON)
                 throw LIBRPA_INVALID_ARGUMENT(
-                    "Native head/wing preparation with option_dielect_func = 3 requires "
+                    "Native head/wing preparation with option_dielect_func = 3 or 53 requires "
                     "use_scalapack_gw_wc enabled to consume analytic wings");
         });
     const auto &opts = *p_opts;
@@ -406,7 +408,8 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     // Preserve the numerical grid/head/wing lifecycle behind the public API.
     initialize_ds_global_ddla(*ds, opts);
     initialize_ds_tfgrids(*ds, opts);
-    initialize_ds_headwing(*ds, opts, opts.option_dielect_func == 3);
+    initialize_ds_headwing(*ds, opts,
+                           opts.option_dielect_func == 3 || opts.option_dielect_func == 53);
     comm.bcast(coulomb_normalization.data(), 2, 0);
     collective_all_stage(
         comm, "Native head/wing Coulomb normalization",

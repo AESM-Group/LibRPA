@@ -1,0 +1,2 @@
+option_velocity = native
+option_dielect_func = 53

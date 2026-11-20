@@ -427,6 +427,28 @@
       />
     </testcase>
 
+    <testcase name="Four-state SOC model (SciPy), native head/wing with option 53" directory="g0w0_scipy_fourstate_soc_full_native_headwing_gamma53">
+      <labels/>
+      <build require_libri="true"/>
+      <validate name="Native velocity serves the option 53 head/wing"
+                regex="^(option_dielect_func = 53|option_velocity = native)$"
+                file_test="librpa/librpa.out"
+                file_refr="runtime_route.txt"
+                comparison="cmp_text.equal"/>
+      <validate name="Complete complex Cartesian velocity (Ha Bohr)"
+                file="librpa/librpa.d/g0w0_velocity.csv"
+                regex="^([0-9]+),([0-9]+),([0-9]+),([0-9]+),([0-9]+),([^,]+),([^,]+)$"
+                comparison="cmp_table.abs_diff(1e-10)"/>
+      <validate name="Complete complex Cartesian head"
+                file="librpa/librpa.d/g0w0_headwing.csv"
+                regex="^head,([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)$"
+                comparison="cmp_table.abs_diff(1e-10)"/>
+      <validate name="Complete complex auxiliary wing"
+                file="librpa/librpa.d/g0w0_headwing.csv"
+                regex="^wing_auxiliary,([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),([^,]+)$"
+                comparison="cmp_table.abs_diff(1e-10)"/>
+    </testcase>
+
     <testcase name="Four-state SOC model (SciPy), full-BZ native head/wing" directory="g0w0_scipy_fourstate_soc_full_native_headwing">
       <labels/>
       <build require_libri="true"/>

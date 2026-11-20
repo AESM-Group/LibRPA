@@ -278,12 +278,12 @@ blocks:
     text: |
       The standalone `g0w0` driver and its `g0w0_band` alias can construct analytic
       head/wing velocity from the original DFT H(R), S(R), and r(R).
-      `option_velocity` selects the source for the analytic head/wing velocity.
-      `pyatb` (default) reads an external velocity matrix and serves
-      `option_dielect_func = 3, 4, 53`; `native` differentiates the real-space
-      operators supplied through `g0w0_fn_hr`, `g0w0_fn_sr`, and `g0w0_fn_rr`
-      and serves option 3 and 4 only. Native velocity with option 3 requires
-      `replace_w_head = true` and `use_scalapack_gw_wc = true`. QSGW keeps its own
+      `option_velocity` selects the source for every analytic head/wing option
+      (`option_dielect_func = 3, 4, 53`): `pyatb` (default) reads an external
+      velocity matrix, `native` differentiates the real-space operators supplied
+      through `g0w0_fn_hr`, `g0w0_fn_sr`, and `g0w0_fn_rr`. Native velocity with
+      option 3 or 53 requires `replace_w_head = true` and
+      `use_scalapack_gw_wc = true`. QSGW keeps its own
       `qsgw_headwing_velocity` selector with the `reference`,
       `rotate_reference`, and `current_hr` conventions, described below.
       Direct library/API callers use option 3 with the public velocity setter or
