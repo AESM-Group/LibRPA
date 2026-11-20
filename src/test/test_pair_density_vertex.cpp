@@ -13,7 +13,11 @@
 #include <cassert>
 #include <cmath>
 #include <complex>
+#include <cstdlib>
+#include <dlfcn.h>
+#include <chrono>
 #include <iostream>
+#include <iomanip>
 #include <map>
 #include <memory>
 #include <random>
@@ -1140,6 +1144,113 @@ void test_auxiliary_pair_reversal_and_sparse_support()
     for (const auto &[I, block] : zero.q_blocks.at(q)) assert(close(abs2(block), 0.0));
 }
 
+// Owner creation/destruction is included for "owned"; borrowed resources exist
+// before measurement. This times the pure site builder, not the cRPA workflow.
+void benchmark_pair_vertex(int argc, char **argv, const MpiCommHandler &comm)
+{
+    const auto ddla_probe_phase = reinterpret_cast<void (*)(const char *, int)>(
+        dlsym(RTLD_DEFAULT, "ddla_probe_phase"));
+    if (std::getenv("DDLA_PROBE_DIR") != nullptr && ddla_probe_phase == nullptr)
+        throw std::runtime_error("DDLA probe phase hook not found through dlsym(RTLD_DEFAULT)");
+    if (argc != 10)
+        throw std::invalid_argument("--benchmark-pair ni nj nmu norb spinor repetitions mixed borrowed|owned|absent");
+    const int ni = std::stoi(argv[2]), nj = std::stoi(argv[3]), nmu = std::stoi(argv[4]);
+    const int norb = std::stoi(argv[5]), spinor = std::stoi(argv[6]), repeats = std::stoi(argv[7]);
+    const bool mixed = std::stoi(argv[8]) != 0;
+    const std::string owner = argv[9];
+    if (ni < 1 || nj < 1 || nmu < 1 || norb < 1 || repeats < 1 ||
+        (spinor != 1 && spinor != 2) || (owner != "borrowed" && owner != "owned" && owner != "absent"))
+        throw std::invalid_argument("Invalid pair-vertex benchmark parameters");
+    const auto pbc = make_pbc(1);
+    const auto qpoints = uniform_qx(1);
+    const int nao = ni + nj, nij = ni * nj;
+    const AtomicBasis ao(std::vector<std::size_t>{static_cast<std::size_t>(ni), static_cast<std::size_t>(nj)});
+    const AtomicBasis abf(std::vector<std::size_t>{static_cast<std::size_t>(nmu), 1});
+    std::vector<ComplexMatrix> t{ComplexMatrix(spinor * nao, norb)};
+    for (int i = 0; i != t[0].size; ++i)
+        t[0].c[i] = {std::sin(0.13 * (i + 1)), 0.3 * std::cos(0.19 * (i + 2))};
+    std::vector<double> values(nmu * nij);
+    for (int i = 0; i != nmu * nij; ++i) values[i] = std::sin(0.017 * (i + 1));
+    PairDensityCsMap cs;
+    cs[0][{1, {0, 0, 0}}] = make_cs(nmu, ni, nj, values);
+    const auto metadata = site("benchmark", 0, norb);
+    const bool saved_mixed = global::dev_opts.use_mixed_type_ddla;
+    global::dev_opts.use_mixed_type_ddla = false;
+    const auto reference = build_site_pair_density_vertex_from_T(
+        0, metadata, t, cs, ao, abf, pbc, qpoints);
+    std::unique_ptr<BlacsCtxtHandler> borrowed;
+    if (owner == "borrowed")
+    {
+#ifdef LIBRPA_USE_DDLA
+        borrowed = std::make_unique<BlacsCtxtHandler>(comm.comm);
+        borrowed->init(); borrowed->set_square_grid();
+        borrowed->init_ddla_handle(ddla::DdlaBackend::CPU);
+#else
+        if (mixed) throw std::runtime_error("Mixed benchmark requires DDLA");
+#endif
+    }
+    std::size_t workspace = 0;
+    bool eligible = false;
+    for (int repetition = -1; repetition != repeats; ++repetition)
+    {
+        global::profiler = Profiler{};
+        global::dev_opts.use_mixed_type_ddla = mixed;
+        SitePairDensityVertex result;
+        MPI_Barrier(comm.comm);
+        const double monotonic = std::chrono::duration<double>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        if (ddla_probe_phase) ddla_probe_phase(repetition < 0 ? "pair_warmup" : "pair_measured", 1);
+        const double start = MPI_Wtime();
+        {
+            std::unique_ptr<BlacsCtxtHandler> owned;
+            const BlacsCtxtHandler *grid = borrowed.get();
+#ifdef LIBRPA_USE_DDLA
+            if (mixed && owner == "owned")
+            {
+                owned = std::make_unique<BlacsCtxtHandler>(MPI_COMM_SELF);
+                owned->init(); owned->set_grid(1, 1);
+                owned->init_ddla_handle(ddla::DdlaBackend::CPU);
+                grid = owned.get();
+            }
+            if (repetition == -1 && mixed && grid)
+            {
+                workspace = ddla::gemm_mixed_workspace_bytes<double>(
+                    grid->ddla_cpu_handle, nmu, norb * norb, nij, false);
+                eligible = workspace <= static_cast<std::size_t>(nmu) * nij * sizeof(Complex);
+            }
+#endif
+            result = build_site_pair_density_vertex_from_T(
+                0, metadata, t, cs, ao, abf, pbc, qpoints, grid);
+        }
+        const double elapsed = MPI_Wtime() - start;
+        if (ddla_probe_phase) ddla_probe_phase(repetition < 0 ? "pair_warmup" : "pair_measured", 0);
+        double seconds = 0;
+        MPI_Allreduce(&elapsed, &seconds, 1, MPI_DOUBLE, MPI_MAX, comm.comm);
+        const auto profile = global::profiler.get_profile_string(LIBRPA_VERBOSE_DEBUG);
+        const bool marker = profile.find("pair_vertex_mixed_coefficients") != std::string::npos;
+        assert(marker == (mixed && eligible));
+        const auto &d = result.q_blocks.at(qpoints[0]).at(0);
+        assert_matrix_close(d, reference.q_blocks.at(qpoints[0]).at(0), 2e-12);
+        Complex checksum{};
+        double norm = 0;
+        for (int i = 0; i != d.size; ++i)
+        {
+            checksum += (1.0 + 0.001 * i) * d.c[i];
+            norm += std::norm(d.c[i]);
+        }
+        if (comm.is_root())
+            std::cout << std::setprecision(17) << "BENCH_PAIR rep=" << repetition
+                      << " ni=" << ni << " nj=" << nj << " nmu=" << nmu << " norb=" << norb
+                      << " spinor=" << spinor << " mixed=" << mixed << " owner=" << owner
+                      << " eligible=" << eligible << " mixed_marker=" << marker
+                      << " workspace=" << workspace << " coefficient_bytes=" << nmu * nij * sizeof(Complex)
+                      << " workflow_measured=0 seconds=" << seconds << " start_monotonic=" << monotonic
+                      << " checksum_re=" << checksum.real() << " checksum_im=" << checksum.imag()
+                      << " checksum_norm=" << norm << std::endl;
+    }
+    global::dev_opts.use_mixed_type_ddla = saved_mixed;
+}
+
 }  // namespace
 
 int main(int argc, char **argv)
@@ -1147,6 +1258,13 @@ int main(int argc, char **argv)
     int provided = MPI_THREAD_SINGLE;
     MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
     MpiCommHandler comm_h(MPI_COMM_WORLD, true);
+
+    if (argc > 1 && std::string(argv[1]) == "--benchmark-pair")
+    {
+        benchmark_pair_vertex(argc, argv, comm_h);
+        MPI_Finalize();
+        return 0;
+    }
 
     const bool saved_mixed = global::dev_opts.use_mixed_type_ddla;
     std::vector<bool> mixed_modes{false};

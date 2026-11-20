@@ -3,7 +3,9 @@
 #include <array>
 #include <cmath>
 #include <complex>
+#include <cstdlib>
 #include <cstring>
+#include <dlfcn.h>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -39,12 +41,13 @@ namespace
 using Z = std::complex<double>;
 bool mixed_ddla_requested = false;
 bool borrowed_cpu_requested = false;
+bool workflow_profile_requested = false;
 bool public_api_requested = false, public_api_gpu = false;
 bool public_api_mixed = true;
 
 bool workflow_policy_requested()
 {
-    return mixed_ddla_requested || borrowed_cpu_requested;
+    return mixed_ddla_requested || borrowed_cpu_requested || workflow_profile_requested;
 }
 
 LibrpaOptions workflow_options()
@@ -749,7 +752,85 @@ struct Fixture
                 throw std::runtime_error("cRPA task factory dropped its requested GPU policy");
             return selected;
         }();
-        return compute_crpa_onsite(context, selection(), {frame.get()});
+        if (!workflow_policy_requested())
+            return compute_crpa_onsite(context, selection(), {frame.get()});
+        using PhaseHook = void (*)(const char*, int);
+        const auto phase_hook = reinterpret_cast<PhaseHook>(
+            dlsym(RTLD_DEFAULT, "ddla_probe_phase"));
+        if (std::getenv("DDLA_PROBE_DIR") != nullptr && phase_hook == nullptr)
+            throw std::runtime_error("DDLA probe phase hook is missing from the loaded interposer");
+        bool had_cpu_owner = false;
+#ifdef LIBRPA_USE_DDLA
+        const auto original_cpu_handle = ds.blacs_h.ddla_cpu_handle;
+        had_cpu_owner = original_cpu_handle != nullptr;
+        if (!had_cpu_owner)
+            throw std::runtime_error("Valid CPU DDLA workflow requires its initialized CPU owner");
+#endif
+        auto saved_profiler = std::move(global::profiler);
+        global::profiler = Profiler{};
+        const char* phase = mixed_ddla_requested
+                                ? "crpa_full_mixed_borrowed" : "crpa_full_legacy_borrowed";
+        ds.comm_h.barrier();
+        if (phase_hook) phase_hook(phase, 1);
+        const double start = MPI_Wtime();
+        auto result = compute_crpa_onsite(context, selection(), {frame.get()});
+        const double elapsed = MPI_Wtime() - start;
+        if (phase_hook) phase_hook(phase, 0);
+        double seconds = 0;
+        ds.comm_h.allreduce(&elapsed, &seconds, 1, MPI_MAX);
+        const auto profile = global::profiler.get_profile_string(LIBRPA_VERBOSE_DEBUG);
+        if (profile.find("Build and transform physical-spin pair-density vertices") == std::string::npos)
+            throw std::runtime_error("cRPA workflow did not reach pair-density projection");
+        const bool mixed_marker = profile.find("pair_vertex_mixed_coefficients") != std::string::npos;
+        bool eligibility_queried = false, eligible = false;
+        std::size_t workspace = 0, coefficient_bytes = 0;
+#ifdef LIBRPA_USE_DDLA
+        if (ds.blacs_h.ddla_cpu_handle != original_cpu_handle)
+            throw std::runtime_error("cRPA workflow changed its caller-owned CPU resource");
+        if (original_cpu_handle)
+        {
+            const int ni = ds.basis_wfc.get_atom_nb(0), nmu = ds.basis_aux.get_atom_nb(0);
+            const int norb = frame->get_sites().front().n_orbitals;
+            workspace = ddla::gemm_mixed_workspace_bytes<double>(
+                original_cpu_handle, nmu, norb * norb, ni * ni, false);
+            coefficient_bytes = static_cast<std::size_t>(nmu) * ni * ni * sizeof(Z);
+            eligible = workspace <= coefficient_bytes;
+            eligibility_queried = true;
+        }
+#endif
+        if ((!mixed_ddla_requested && mixed_marker) ||
+            (eligibility_queried && mixed_marker != (mixed_ddla_requested && eligible)))
+            throw std::runtime_error("cRPA workflow mixed coefficient path disagrees with its query");
+        Z checksum{};
+        double norm = 0;
+        const auto accumulate = [&](const ComplexMatrix& matrix) {
+            for (int i = 0; i < matrix.size; ++i)
+            {
+                checksum += (1.0 + 0.001 * i) * matrix.c[i];
+                norm += std::norm(matrix.c[i]);
+            }
+        };
+        for (const auto& tensor : result.tensors)
+        {
+            accumulate(tensor.bare);
+            for (const auto& matrix : tensor.u) accumulate(matrix);
+            for (const auto& matrix : tensor.w) accumulate(matrix);
+        }
+        if (ds.comm_h.is_root())
+            std::cout << std::setprecision(17) << "CRPA_WORKFLOW mixed=" << mixed_ddla_requested
+                      << " owner=borrowed"
+                      << " cpu_owner_before=" << had_cpu_owner
+                      << " linear=" << context.linear_algorithm << " eigen=" << context.eigensolver_method
+                      << " gpu=" << context.use_gpu_replace_scalapack
+                      << " components=" << components << " bands=" << bands
+                      << " projection_reached=1 eligibility_queried=" << eligibility_queried
+                      << " eligible=" << eligible << " mixed_marker=" << mixed_marker
+                      << " workspace=" << workspace << " coefficient_bytes=" << coefficient_bytes
+                      << " workflow_measured=1 seconds=" << seconds
+                      << " checksum_re=" << checksum.real() << " checksum_im=" << checksum.imag()
+                      << " checksum_norm=" << norm << std::endl;
+        global::profiler = std::move(saved_profiler);
+        return result;
     }
 
     CrpaResult run_staged()
@@ -852,6 +933,10 @@ struct Fixture
 
 void test_public_raw_crpa_options(bool gpu, bool mixed = true)
 {
+    using PhaseHook = void (*)(const char*, int);
+    const auto phase_hook = reinterpret_cast<PhaseHook>(dlsym(RTLD_DEFAULT, "ddla_probe_phase"));
+    if (std::getenv("DDLA_PROBE_DIR") != nullptr && phase_hook == nullptr)
+        throw std::runtime_error("DDLA probe phase hook is missing from the loaded interposer");
     // Reuse the scalar spectral fixture; the public model selects its first s
     // trial, whose ordered tensor is entry (00,00) of the existing oracle.
     Fixture source(false, 0);
@@ -980,9 +1065,25 @@ void test_public_raw_crpa_options(bool gpu, bool mixed = true)
         cpu_before = public_ds->blacs_h.ddla_cpu_handle != nullptr;
         gpu_before = public_ds->blacs_h.ddla_handle != nullptr;
 #endif
+        const std::string phase = std::string("public_crpa_") + (gpu ? "gpu_" : "cpu_") +
+                                  (mixed ? "mixed_" : "legacy_") + (u_only ? "u" : "full");
+        public_ds->comm_h.barrier();
+        if (phase_hook) phase_hook(phase.c_str(), 1);
+        const double start = MPI_Wtime();
         std::unique_ptr<LibrpaCrpaResult, decltype(&librpa_delete_crpa_result)> result(
             u_only ? librpa_compute_crpa_u_window(handler.get(), &raw, &input)
                    : librpa_compute_crpa_window(handler.get(), &raw, &input), librpa_delete_crpa_result);
+#ifdef LIBRPA_USE_DDLA
+        if (public_ds->blacs_h.ddla_handle)
+        {
+            ddla::DDLA_CHECK(ddla::ddlaSetDevice(public_ds->blacs_h.ddla_handle));
+            ddla::DDLA_CHECK(ddla::ddlaSynchronize(public_ds->blacs_h.ddla_handle));
+        }
+#endif
+        const double elapsed = MPI_Wtime() - start;
+        if (phase_hook) phase_hook(phase.c_str(), 0);
+        double seconds = 0;
+        public_ds->comm_h.allreduce(&elapsed, &seconds, 1, MPI_MAX);
 #ifdef LIBRPA_USE_DDLA
         cpu_after = public_ds->blacs_h.ddla_cpu_handle != nullptr;
         gpu_after = public_ds->blacs_h.ddla_handle != nullptr;
@@ -1040,7 +1141,7 @@ void test_public_raw_crpa_options(bool gpu, bool mixed = true)
                       << " u_only=" << u_only << " cpu_owner_before=" << cpu_before
                       << " gpu_owner_before=" << gpu_before << " cpu_owner_after=" << cpu_after
                       << " gpu_owner_after=" << gpu_after << " mixed_marker=" << marker
-                      << " checksum_re=" << checksum.real()
+                      << " seconds=" << seconds << " checksum_re=" << checksum.real()
                       << " checksum_im=" << checksum.imag() << " checksum_norm=" << norm << std::endl;
         global::profiler = std::move(saved_profile);
     }
@@ -1904,6 +2005,7 @@ int main(int argc, char** argv)
             const std::string option = argv[argument];
             if (option == "--mixed-ddla") mixed_ddla_requested = true;
             else if (option == "--borrow-cpu-owner") borrowed_cpu_requested = true;
+            else if (option == "--profile-workflow") workflow_profile_requested = true;
             else if (option == "--public-api-cpu")
             {
                 public_api_requested = public_api_mixed = true;

@@ -345,6 +345,14 @@ if(LIBRPA_USE_LIBRI)
   set_tests_properties(test_libri_output_filter PROPERTIES LABELS "symmetry;exx;gw" TIMEOUT 30)
 endif()
 
+# Benchmark-only optional phase hooks use runtime dlsym lookup, including in
+# non-PIE executables whose weak undefined calls can be linked to address zero.
+foreach(_probe_target test_meanfield_mpi test_pair_density_vertex test_crpa_soc test_headwing_rewrite)
+  if(TARGET ${_probe_target})
+    target_link_libraries(${_probe_target} PRIVATE ${CMAKE_DL_LIBS})
+  endif()
+endforeach()
+
 # Exercise normalization at the public boundary, including raw method defaults.
 if(TARGET test_crpa_soc AND LIBRPA_USE_DDLA)
   foreach(np 1 4)
