@@ -344,3 +344,13 @@ if(LIBRPA_USE_LIBRI)
   config_test(test_libri_output_filter 1)
   set_tests_properties(test_libri_output_filter PROPERTIES LABELS "symmetry;exx;gw" TIMEOUT 30)
 endif()
+
+# Exercise normalization at the public boundary, including raw method defaults.
+if(TARGET test_crpa_soc AND LIBRPA_USE_DDLA)
+  foreach(np 1 4)
+    add_test(NAME test_crpa_public_options_cpu_np${np}
+      COMMAND mpirun -np ${np} $<TARGET_FILE:test_crpa_soc> --public-api-cpu)
+    set_tests_properties(test_crpa_public_options_cpu_np${np} PROPERTIES
+      TIMEOUT 180 ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+  endforeach()
+endif()

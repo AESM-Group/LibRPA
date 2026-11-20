@@ -3,9 +3,12 @@
 #include <array>
 #include <cmath>
 #include <complex>
+#include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <string>
 #include <valarray>
 
 #include "../api/instance_manager.h"
@@ -22,6 +25,9 @@
 #include "../math/utils_matrix_m_mpi.h"
 #include "../mpi/global_mpi.h"
 #include "../utils/constants.h"
+#include "../utils/dev_options.h"
+#include "../utils/profiler.h"
+#include "librpa_compute.h"
 #include "librpa_input.h"
 
 using namespace librpa_int;
@@ -29,6 +35,8 @@ using namespace librpa_int;
 namespace
 {
 using Z = std::complex<double>;
+bool public_api_requested = false, public_api_gpu = false;
+bool public_api_mixed = true;
 
 void close(Z actual, Z expected, double tolerance = 2e-8)
 {
@@ -781,6 +789,213 @@ struct Fixture
         }
     }
 };
+
+void test_public_raw_crpa_options(bool gpu, bool mixed = true)
+{
+    // Reuse the scalar spectral fixture; the public model selects its first s
+    // trial, whose ordered tensor is entry (00,00) of the existing oracle.
+    Fixture source(false, 0);
+    const auto expected = source.run();
+    source.compare_tensors(expected);
+    std::unique_ptr<LibrpaHandler, decltype(&librpa_destroy_handler)> handler(
+        librpa_create_handler(MPI_COMM_WORLD), librpa_destroy_handler);
+    const double lattice[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    const double reciprocal[] = {TWO_PI, 0, 0, 0, TWO_PI, 0, 0, 0, TWO_PI};
+    const double origin[] = {0, 0, 0};
+    const int type = 0, shells = 3, angular[] = {0, 0, 0}, translation[] = {0, 0, 0};
+    const std::size_t nao = 3, naux = 2;
+    librpa_set_scf_dimension(handler.get(), 1, 4, 3, 3, 1);
+    librpa_set_latvec_and_G(handler.get(), lattice, reciprocal);
+    librpa_set_atoms(handler.get(), 1, &type, origin);
+    const double pi = std::acos(-1.0);
+    const double kvec[] = {0, 0, 0, pi / 2, 0, 0, pi, 0, 0, -pi / 2, 0, 0};
+    librpa_set_kgrids_kvec(handler.get(), 4, 1, 1, 4, kvec, nullptr);
+    librpa_set_ao_basis_wfc(handler.get(), 1, &nao, &shells, angular);
+    librpa_set_ao_basis_aux(handler.get(), 1, &naux);
+    const auto convention = orbital_convention();
+    librpa_set_basis_convention(handler.get(), convention.bloch_phase, convention.bloch_ratom,
+                                 convention.order, convention.coeff_m_negative, convention.coeff_m_positive);
+    double weights[12], energies[12];
+    std::vector<double> overlap(4 * 3 * 3 * 2);
+    for (int k = 0; k < 4; ++k)
+    {
+        const auto* c = source.ds.mf.find_wfc(0, 0, k);
+        librpa_set_wfc_packed(handler.get(), 0, k, 3, 3, reinterpret_cast<const double*>(c->c));
+        for (int band = 0; band < 3; ++band)
+        {
+            weights[3 * k + band] = 4 * source.ds.mf.get_weight()[0](k, band);
+            energies[3 * k + band] = source.ds.mf.get_eigenvals()[0](k, band);
+            overlap[2 * (9 * k + 3 * band + band)] = 1;
+        }
+        if (source.ds.comm_h.is_root())
+            librpa_set_aux_bare_coulomb_k_atom_pair_packed(
+                handler.get(), k, 0, 0, 2, 2, reinterpret_cast<const double*>(source.coulomb.c), 0);
+    }
+    librpa_set_wg_ekb_efermi(handler.get(), 1, 4, 3, weights, energies, 0);
+    if (source.ds.comm_h.is_root())
+    {
+        double coefficients[18];
+        for (int ij = 0; ij < 9; ++ij)
+            for (int mu = 0; mu < 2; ++mu)
+                coefficients[2 * ij + mu] = 0.5 * source.density[mu].c[ij].real();
+        librpa_set_lri_coeff(handler.get(), LIBRPA_ROUTING_LIBRI, 0, 0, 3, 3, 2, translation, coefficients);
+    }
+    const char* species[] = {"X"};
+    const int response[] = {0, 1}, orbital[] = {0, 1, 2};
+    LibrpaCrpaInput input;
+    librpa_init_crpa_input(&input);
+    input.n_species = 1; input.species_labels = species; input.correlated_species = "X";
+    input.parent_orbitals = input.output_orbitals = "s";
+    input.n_response_bands = 2; input.response_bands = response;
+    input.n_orbital_bands = 3; input.orbital_bands = orbital;
+    input.n_kpoints = 4; input.n_aos = 3; input.overlap_k_ri = overlap.data();
+    LibrpaOptions raw;
+    librpa_init_options(&raw);
+    raw.parallel_routing = LIBRPA_ROUTING_LIBRI;
+    raw.tfgrids_type = LIBRPA_TFGRID_MINIMAX; raw.nfreq = 24;
+    raw.minimax_emin = 0.4; raw.minimax_emax = 4;
+    raw.use_fullcoul_eps = raw.use_fullcoul_wc = LIBRPA_SWITCH_ON;
+    raw.use_shrink_abfs = raw.use_shrink_chi = LIBRPA_SWITCH_OFF;
+    raw.use_kpara_scf_eigvec = LIBRPA_SWITCH_OFF;
+    raw.gf_threshold = raw.libri_chi0_threshold_C = raw.libri_chi0_threshold_G = 0;
+    raw.sqrt_coulomb_threshold = 0;
+    raw.use_gpu_replace_scalapack = gpu ? LIBRPA_SWITCH_ON : LIBRPA_SWITCH_OFF;
+    std::strcpy(raw.linear_algorithm, gpu ? "scalapack" : "ddla");
+    std::strcpy(raw.eigensolver_method, "scalapack");
+    const auto original_raw = raw;
+    LibrpaQsgwControls qsgw_controls;
+    librpa_init_qsgw_controls(&qsgw_controls);
+    const auto unchanged_options = [&] {
+        if (raw.use_gpu_replace_scalapack != original_raw.use_gpu_replace_scalapack ||
+            std::strcmp(raw.linear_algorithm, original_raw.linear_algorithm) ||
+            std::strcmp(raw.eigensolver_method, original_raw.eigensolver_method))
+            throw std::runtime_error("Public cRPA modified caller-owned raw backend options");
+    };
+#if !defined(LIBRPA_USE_CUDA) && !defined(LIBRPA_USE_HIP)
+    // A CPU build must normalize/reject unsupported raw GPU options at EACH
+    // public boundary. Without resolution, model preparation can succeed or
+    // downstream code fails for an unrelated reason, so omission is detected.
+    auto unsupported = raw;
+    unsupported.use_gpu_replace_scalapack = LIBRPA_SWITCH_ON;
+    std::strcpy(unsupported.linear_algorithm, "scalapack");
+    const auto reject_gpu = [&](auto call) {
+        bool rejected = false;
+        try
+        {
+            std::unique_ptr<LibrpaCrpaResult, decltype(&librpa_delete_crpa_result)> result(call(), librpa_delete_crpa_result);
+        }
+        catch (const std::exception& error)
+        {
+            rejected = std::string(error.what()).find("use_gpu_replace_scalapack requires a CUDA/HIP build with DDLA") != std::string::npos;
+        }
+        if (!rejected) throw std::runtime_error("Public cRPA boundary did not resolve unsupported raw GPU options");
+    };
+    reject_gpu([&] { return librpa_prepare_crpa_model(handler.get(), &unsupported, &input); });
+    reject_gpu([&] { return librpa_compute_crpa_u_window(handler.get(), &unsupported, &input); });
+    reject_gpu([&] { return librpa_compute_crpa_window(handler.get(), &unsupported, &input); });
+    reject_gpu([&] { return librpa_build_g0w0_sigma_crpa(handler.get(), &unsupported, &input); });
+    bool qsgw_rejected = false;
+    try
+    {
+        std::unique_ptr<LibrpaQsgwTask, decltype(&librpa_delete_qsgw_task)> task(
+            librpa_create_qsgw_task(handler.get(), &unsupported, &qsgw_controls), librpa_delete_qsgw_task);
+    }
+    catch (const std::exception& error)
+    {
+        qsgw_rejected = std::string(error.what()).find(
+            "use_gpu_replace_scalapack requires a CUDA/HIP build with DDLA") != std::string::npos;
+    }
+    if (!qsgw_rejected)
+        throw std::runtime_error("Public QSGW task creation did not resolve unsupported raw GPU options");
+#endif
+    const bool saved_mixed = global::dev_opts.use_mixed_type_ddla;
+    global::dev_opts.use_mixed_type_ddla = mixed;
+    const auto public_ds = api::get_dataset_instance(handler.get());
+    for (const bool u_only : {false, true})
+    {
+        auto saved_profile = std::move(global::profiler);
+        global::profiler = Profiler{};
+        bool cpu_before = false, gpu_before = false, cpu_after = false, gpu_after = false;
+#ifdef LIBRPA_USE_DDLA
+        cpu_before = public_ds->blacs_h.ddla_cpu_handle != nullptr;
+        gpu_before = public_ds->blacs_h.ddla_handle != nullptr;
+#endif
+        std::unique_ptr<LibrpaCrpaResult, decltype(&librpa_delete_crpa_result)> result(
+            u_only ? librpa_compute_crpa_u_window(handler.get(), &raw, &input)
+                   : librpa_compute_crpa_window(handler.get(), &raw, &input), librpa_delete_crpa_result);
+#ifdef LIBRPA_USE_DDLA
+        cpu_after = public_ds->blacs_h.ddla_cpu_handle != nullptr;
+        gpu_after = public_ds->blacs_h.ddla_handle != nullptr;
+#endif
+        if (librpa_crpa_result_size(result.get()) != static_cast<int>(expected.frequencies.size()))
+            throw std::runtime_error("Public raw-option cRPA returned incomplete tensors");
+        Z checksum{};
+        double norm = 0;
+        for (int iw = 0; iw < librpa_crpa_result_size(result.get()); ++iw)
+        {
+            LibrpaCrpaTensor tensor;
+            librpa_crpa_result_tensor(result.get(), iw, &tensor);
+            if (tensor.n_orbitals != 1) throw std::runtime_error("Public s-trial fixture changed dimension");
+            close(tensor.frequency_ha, expected.frequencies[iw], 1e-12);
+            close(Z{tensor.bare_ri[0], tensor.bare_ri[1]}, expected.tensors[0].bare(0, 0));
+            close(Z{tensor.partially_screened_ri[0], tensor.partially_screened_ri[1]}, expected.tensors[0].u[iw](0, 0));
+            if (u_only)
+            {
+                if (tensor.fully_screened_ri) throw std::runtime_error("U-only public API computed full W");
+            }
+            else close(Z{tensor.fully_screened_ri[0], tensor.fully_screened_ri[1]}, expected.tensors[0].w[iw](0, 0));
+            const auto accumulate = [&](const double* values) {
+                const Z value{values[0], values[1]};
+                checksum += (1.0 + 0.001 * iw) * value;
+                norm += std::norm(value);
+            };
+            accumulate(tensor.bare_ri);
+            accumulate(tensor.partially_screened_ri);
+            if (!u_only) accumulate(tensor.fully_screened_ri);
+        }
+        const auto profile = global::profiler.get_profile_string(LIBRPA_VERBOSE_DEBUG);
+        if (profile.find("Build and transform physical-spin pair-density vertices") == std::string::npos)
+            throw std::runtime_error("Public raw-option cRPA did not reach actual Wc workflow");
+#ifdef LIBRPA_USE_DDLA
+        if (!gpu)
+        {
+            if (public_ds->blacs_h.ddla_cpu_handle == nullptr)
+                throw std::runtime_error("Public CPU DDLA options did not initialize their owning handle");
+            const auto bytes = ddla::gemm_mixed_workspace_bytes<double>(
+                public_ds->blacs_h.ddla_cpu_handle, 2, 1, 9, false);
+            const bool eligible = bytes <= 18 * sizeof(Z);
+            const bool marker = profile.find("pair_vertex_mixed_coefficients") != std::string::npos;
+            if (marker != (mixed && eligible))
+                throw std::runtime_error("Public s-trial cRPA mixed marker disagrees with queried eligibility");
+        }
+        else if (public_ds->blacs_h.ddla_handle == nullptr)
+            throw std::runtime_error("Public raw GPU options did not initialize their owning GPU handle");
+#endif
+        const bool marker = profile.find("pair_vertex_mixed_coefficients") != std::string::npos;
+        if (!mixed && marker)
+            throw std::runtime_error("Legacy public cRPA unexpectedly used mixed pair coefficients");
+        unchanged_options();
+        if (public_ds->comm_h.is_root())
+            std::cout << std::setprecision(17) << "PUBLIC_CRPA_CALL gpu=" << gpu << " mixed=" << mixed
+                      << " u_only=" << u_only << " cpu_owner_before=" << cpu_before
+                      << " gpu_owner_before=" << gpu_before << " cpu_owner_after=" << cpu_after
+                      << " gpu_owner_after=" << gpu_after << " mixed_marker=" << marker
+                      << " checksum_re=" << checksum.real()
+                      << " checksum_im=" << checksum.imag() << " checksum_norm=" << norm << std::endl;
+        global::profiler = std::move(saved_profile);
+    }
+    // Construction stores the normalized copy for later cRPA extension calls.
+    // No QSGW prepare/run or scientific eigensolve is performed by this check.
+    {
+        std::unique_ptr<LibrpaQsgwTask, decltype(&librpa_delete_qsgw_task)> task(
+            librpa_create_qsgw_task(handler.get(), &raw, &qsgw_controls), librpa_delete_qsgw_task);
+        unchanged_options();
+    }
+    global::dev_opts.use_mixed_type_ddla = saved_mixed;
+    if (source.ds.comm_h.is_root())
+        std::cout << "PUBLIC_CRPA_RAW_OPTIONS gpu=" << gpu << " mixed=" << mixed
+                  << " full_and_u_oracles=passed caller_options_unchanged=1\n";
+}
 
 void test_zero_soc_limit()
 {
@@ -1617,14 +1832,45 @@ int main(int argc, char** argv)
 #endif
     try
     {
-        test_spinor_character_nonorthogonal_metric_and_pdos();
-        test_spinor_character_scalar_packing_limit();
-        test_zero_soc_limit();
-        test_soc_and_spin_representation();
-        test_soc_bloch_phases();
-        test_magnetic_qstar_screening();
-        test_noncollinear_magnetic_crpa();
-        test_constrained_soc_optical();
+        for (int argument = 1; argument < argc; ++argument)
+        {
+            const std::string option = argv[argument];
+            if (option == "--public-api-cpu")
+            {
+                public_api_requested = public_api_mixed = true;
+                public_api_gpu = false;
+            }
+            else if (option == "--public-api-gpu")
+                public_api_requested = public_api_gpu = public_api_mixed = true;
+            else if (option == "--public-api-cpu-legacy")
+            {
+                public_api_requested = true;
+                public_api_gpu = public_api_mixed = false;
+            }
+            else if (option == "--public-api-gpu-legacy")
+            {
+                public_api_requested = public_api_gpu = true;
+                public_api_mixed = false;
+            }
+            else throw std::invalid_argument("Unknown test_crpa_soc option: " + option);
+        }
+#ifndef LIBRPA_USE_DDLA
+        if (public_api_requested)
+            throw std::invalid_argument("Public cRPA backend options require LIBRPA_USE_DDLA");
+#endif
+        if (public_api_requested)
+            test_public_raw_crpa_options(public_api_gpu, public_api_mixed);
+        else
+        {
+            test_spinor_character_nonorthogonal_metric_and_pdos();
+            test_spinor_character_scalar_packing_limit();
+            test_zero_soc_limit();
+            test_soc_and_spin_representation();
+            test_soc_bloch_phases();
+            test_magnetic_qstar_screening();
+            test_noncollinear_magnetic_crpa();
+            test_constrained_soc_optical();
+        }
     }
     catch (const std::exception& failure)
     {
