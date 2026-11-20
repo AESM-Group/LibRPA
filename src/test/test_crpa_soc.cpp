@@ -12,7 +12,9 @@
 #include <valarray>
 
 #include "../api/instance_manager.h"
+#include "../api/options.h"
 #include "../core/crpa.h"
+#include "../core/crpa_task.h"
 #include "../core/crpa_window_input.h"
 #include "../core/crpa_workflow.h"
 #include "../api/dataset.h"
@@ -35,8 +37,36 @@ using namespace librpa_int;
 namespace
 {
 using Z = std::complex<double>;
+bool mixed_ddla_requested = false;
+bool borrowed_cpu_requested = false;
 bool public_api_requested = false, public_api_gpu = false;
 bool public_api_mixed = true;
+
+bool workflow_policy_requested()
+{
+    return mixed_ddla_requested || borrowed_cpu_requested;
+}
+
+LibrpaOptions workflow_options()
+{
+    LibrpaOptions options;
+    librpa_init_options(&options);
+    options.use_gpu_replace_scalapack = LIBRPA_SWITCH_OFF;
+    options.use_shrink_abfs = LIBRPA_SWITCH_OFF;
+    options.sqrt_coulomb_threshold = 0;
+    std::strcpy(options.linear_algorithm, "ddla");
+    std::strcpy(options.eigensolver_method, "scalapack");
+    return resolve_linear_algebra_options(options);
+}
+
+void select_workflow_policy(CrpaContext& context)
+{
+    if (!workflow_policy_requested()) return;
+    const auto options = workflow_options();
+    context.use_gpu_replace_scalapack = options.use_gpu_replace_scalapack == LIBRPA_SWITCH_ON;
+    context.eigensolver_method = options.eigensolver_method;
+    context.linear_algorithm = options.linear_algorithm;
+}
 
 void close(Z actual, Z expected, double tolerance = 2e-8)
 {
@@ -491,6 +521,10 @@ struct Fixture
           components(spinor ? 2 : 1),
           bands(spinor ? 6 : 3)
     {
+#ifdef LIBRPA_USE_DDLA
+        if (workflow_policy_requested())
+            initialize_ds_global_ddla(ds, workflow_options());
+#endif
         ds.basis_wfc.set(std::vector<std::size_t>{3});
         ds.basis_wfc.set_l_shells({{0, 0, 0}});
         ds.basis_aux.set(std::vector<std::size_t>{2});
@@ -689,8 +723,32 @@ struct Fixture
 
     CrpaResult run()
     {
-        CrpaContext context{*chi,      ds.cs_data, ds.basis_aux, pairs,
-                            no_shrink, ds.vq,      ds.blacs_h,   ds.desc_abf};
+        auto context = [&] {
+            if (!workflow_policy_requested())
+                return CrpaContext{*chi, ds.cs_data, ds.basis_aux, pairs,
+                                   no_shrink, ds.vq, ds.blacs_h, ds.desc_abf};
+            // Exercise the same production factory as the public cRPA task,
+            // borrowing the fixture's existing owners and unchanged input data.
+            CrpaTaskContext task{ds.mf, ds.pbc, ds.atoms, ds.basis_wfc, ds.basis_aux,
+                                 ds.basis_aux_shrink, ds.basis_convention, ds.comm_h, ds.blacs_h,
+                                 ds.desc_abf, ds.desc_abf_shrink, pairs, ds.cs_data, no_shrink,
+                                 ds.vq, chi, {}, {}};
+            const auto options = workflow_options();
+            auto selected = make_crpa_context(task, options);
+            if (selected.use_gpu_replace_scalapack || selected.linear_algorithm != "ddla" ||
+                selected.eigensolver_method != "scalapack")
+                throw std::runtime_error("cRPA task factory dropped its resolved CPU DDLA policy");
+            // Metadata-only check of the GPU policy, without invoking a GPU
+            // solve or allocating another numerical resource in this CPU test.
+            auto gpu_options = options;
+            gpu_options.use_gpu_replace_scalapack = LIBRPA_SWITCH_ON;
+            std::strcpy(gpu_options.eigensolver_method, "ddla");
+            const auto gpu_context = make_crpa_context(task, gpu_options);
+            if (!gpu_context.use_gpu_replace_scalapack || gpu_context.linear_algorithm != "ddla" ||
+                gpu_context.eigensolver_method != "ddla")
+                throw std::runtime_error("cRPA task factory dropped its requested GPU policy");
+            return selected;
+        }();
         return compute_crpa_onsite(context, selection(), {frame.get()});
     }
 
@@ -698,6 +756,7 @@ struct Fixture
     {
         CrpaContext context{*chi,      ds.cs_data, ds.basis_aux, pairs,
                             no_shrink, ds.vq,      ds.blacs_h,   ds.desc_abf};
+        select_workflow_policy(context);
         // Keep a nonempty Pd resident, and a different incoming selector. This
         // exposes response replacement or selector leakage between the stages.
         compare_response(true);
@@ -733,6 +792,7 @@ struct Fixture
     {
         CrpaContext context{*chi,      ds.cs_data, ds.basis_aux, pairs,
                             no_shrink, ds.vq,      ds.blacs_h,   ds.desc_abf};
+        select_workflow_policy(context);
         const auto original = ds.mf;
         auto full = build_crpa_total_response(context);
         const auto original_full = full;
@@ -1830,12 +1890,15 @@ int main(int argc, char** argv)
 #ifdef LIBRPA_USE_ELPA
     if (elpa_init(ELPA_API_VERSION) != ELPA_OK) throw std::runtime_error("elpa_init failed");
 #endif
+    const bool saved_mixed = global::dev_opts.use_mixed_type_ddla;
     try
     {
         for (int argument = 1; argument < argc; ++argument)
         {
             const std::string option = argv[argument];
-            if (option == "--public-api-cpu")
+            if (option == "--mixed-ddla") mixed_ddla_requested = true;
+            else if (option == "--borrow-cpu-owner") borrowed_cpu_requested = true;
+            else if (option == "--public-api-cpu")
             {
                 public_api_requested = public_api_mixed = true;
                 public_api_gpu = false;
@@ -1855,9 +1918,10 @@ int main(int argc, char** argv)
             else throw std::invalid_argument("Unknown test_crpa_soc option: " + option);
         }
 #ifndef LIBRPA_USE_DDLA
-        if (public_api_requested)
-            throw std::invalid_argument("Public cRPA backend options require LIBRPA_USE_DDLA");
+        if (workflow_policy_requested() || public_api_requested)
+            throw std::invalid_argument("Mixed cRPA workflow options require LIBRPA_USE_DDLA");
 #endif
+        if (mixed_ddla_requested) global::dev_opts.use_mixed_type_ddla = true;
         if (public_api_requested)
             test_public_raw_crpa_options(public_api_gpu, public_api_mixed);
         else
@@ -1877,6 +1941,7 @@ int main(int argc, char** argv)
         std::cerr << failure.what() << '\n';
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
+    global::dev_opts.use_mixed_type_ddla = saved_mixed;
     global::finalize_global_io();
 #ifdef LIBRPA_USE_ELPA
     int elpa_error;
