@@ -234,17 +234,21 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     // k-group, so rebuild the replicated layout whenever the stored one is
     // split. This depends on the wave-function layout, not on whether the SCF
     // grid happens to be the full mesh.
-    MeanField source = ds->mf;
-    if (ds->eigvecs_kpara_2d_ready() && ds->scfk_blacs_ctxt.is_initialized() &&
+    const bool blocks_split =
+        ds->eigvecs_kpara_2d_ready() && ds->scfk_blacs_ctxt.is_initialized() &&
         ds->desc_wfc_kb.is_initialized() && ds->desc_wfc_kb_full.is_initialized() &&
         (ds->desc_wfc_kb.mb() < ds->desc_wfc_kb.m() ||
-         ds->desc_wfc_kb.nb() < ds->desc_wfc_kb.n()))
+         ds->desc_wfc_kb.nb() < ds->desc_wfc_kb.n());
+    MeanField replicated_source;
+    const MeanField *source = &ds->mf;
+    if (blocks_split)
     {
+        replicated_source = ds->mf;
         int failed = 0;
         try
         {
-            redistribute_meanfield_eigvecs_kblacs(source, ds->scfk_blacs_ctxt, ds->desc_wfc_kb,
-                                                  ds->desc_wfc_kb_full,
+            redistribute_meanfield_eigvecs_kblacs(replicated_source, ds->scfk_blacs_ctxt,
+                                                  ds->desc_wfc_kb, ds->desc_wfc_kb_full,
                                                   "native head/wing");
         }
         catch (const std::exception &)
@@ -259,6 +263,7 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
             throw LIBRPA_RUNTIME_ERROR(
                 "Native head/wing cannot replicate the split k-point-parallel "
                 "wave-function blocks");
+        source = &replicated_source;
     }
 
     const SymmetryContext *symmetry = nullptr;
@@ -281,11 +286,11 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     // solved, and the caller keeps its own IBZ mean field for P0 and W.
     MeanField headwing_meanfield;
     PeriodicBoundaryData headwing_pbc;
-    const MeanField *velocity_mf = &ds->mf;
+    const MeanField *velocity_mf = source;
     const PeriodicBoundaryData *velocity_pbc = &ds->pbc;
     if (symmetry != nullptr && ds->mf.get_n_kpoints() != ds->pbc.get_n_cells_bvk())
     {
-        MeanField replicated = source;
+        MeanField replicated = *source;
         for (int ispin = 0; ispin < replicated.get_n_spins(); ++ispin)
             for (int ispinor = 0; ispinor < replicated.get_n_spinor(); ++ispinor)
                 for (int ik = 0; ik < replicated.get_n_kpoints(); ++ik)
