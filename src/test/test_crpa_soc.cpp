@@ -1346,6 +1346,7 @@ void test_magnetic_qstar_screening()
         chi.gf_threshold = chi.libri_threshold_C = chi.libri_threshold_G = 0;
         CrpaContext context{chi,         f.ds.cs_data, f.ds.basis_aux, f.pairs,
                             f.no_shrink, f.ds.vq,      f.ds.blacs_h,   f.ds.desc_abf};
+        select_workflow_policy(context);
         if (spectral)
         {
             const auto pd = build_crpa_excluded_response(context, weights);
@@ -1438,6 +1439,10 @@ void test_noncollinear_magnetic_crpa()
 {
     MagneticModel model;
     Dataset ds(MPI_COMM_WORLD);
+#ifdef LIBRPA_USE_DDLA
+    if (workflow_policy_requested())
+        initialize_ds_global_ddla(ds, workflow_options());
+#endif
     ds.basis_wfc.set(std::vector<std::size_t>{1, 1, 1});
     ds.basis_wfc.set_l_shells({{0}, {0}, {0}});
     ds.basis_aux.set(std::vector<std::size_t>{1, 1, 1});
@@ -1523,6 +1528,7 @@ void test_noncollinear_magnetic_crpa()
         chi.gf_threshold = chi.libri_threshold_C = chi.libri_threshold_G = 0;
         CrpaContext context{chi,       ds.cs_data, ds.basis_aux, pairs,
                             transform, ds.vq,      ds.blacs_h,   ds.desc_abf};
+        select_workflow_policy(context);
         const auto result = compute_crpa_onsite(context, selection, {&frame});
         if (check_shared)
         {
