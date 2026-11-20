@@ -18,7 +18,6 @@ sqrt_coulomb_threshold = 0
 use_scalapack_gw_wc = true
 use_shrink_abfs = false
 use_shrink_chi = false
-use_pyatb = false
 use_fullcoul_exx = false
 use_fullcoul_eps = true
 use_fullcoul_wc = false

@@ -10,7 +10,6 @@ replace_w_head = true
 use_scalapack_gw_wc = true
 use_shrink_abfs = false
 use_shrink_chi = false
-use_pyatb = false
 use_kpara_scf_eigvec = false
 use_fullcoul_exx = false
 use_fullcoul_eps = true

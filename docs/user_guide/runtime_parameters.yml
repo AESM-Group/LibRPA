@@ -278,26 +278,29 @@ blocks:
     text: |
       The standalone `g0w0` driver and its `g0w0_band` alias can construct analytic
       head/wing velocity from the original DFT H(R), S(R), and r(R).
-      `option_velocity` selects the source for every analytic head/wing option
-      (`option_dielect_func = 3, 4, 53`): `pyatb` (default) reads an external
-      velocity matrix, `native` differentiates the real-space operators supplied
-      through `g0w0_fn_hr`, `g0w0_fn_sr`, and `g0w0_fn_rr`. Native velocity with
-      option 3 or 53 requires `replace_w_head = true` and
-      `use_scalapack_gw_wc = true`. QSGW keeps its own
+      `option_velocity` selects the source for the analytic head/wing velocity.
+      `pyatb` (default) reads an external velocity matrix and serves
+      `option_dielect_func = 3, 4, 53`; `native` differentiates the real-space
+      operators supplied through `g0w0_fn_hr`, `g0w0_fn_sr`, and `g0w0_fn_rr`
+      and serves option 3 and 4 only. Native velocity with option 3 requires
+      `replace_w_head = true` and `use_scalapack_gw_wc = true`. QSGW keeps its own
       `qsgw_headwing_velocity` selector with the `reference`,
       `rotate_reference`, and `current_hr` conventions, described below.
       Direct library/API callers use option 3 with the public velocity setter or
       `librpa_prepare_native_velocity`.
       The native path retains the loaded SCF energies,
       wavefunctions, and occupations and does not solve a second eigenproblem.
-      It requires complete AO-spinor/band frames. Scalar input uses a uniform
-      full-BZ mesh; SOC also accepts paired IBZ states with complete magnetic
-      k stars and normalized multiplicity weights. One/two collinear spin channels or one two-component SOC channel
-      are supported. SOC requires full complex H and full-dimension S/r of
+      It requires complete AO-spinor/band frames. Scalar and SOC input both accept
+      either a uniform full-BZ mesh or a symmetry-reduced grid whose k stars cover
+      the full mesh with normalized multiplicity weights; SOC additionally needs
+      the magnetic spin operations. One/two collinear spin channels or one
+      two-component SOC channel are supported. SOC requires full complex H and full-dimension S/r of
       dimension `2 * N_AO`, with `use_spinor_wfc = true`; both spinor components
-      are retained in AO-major/spinor-minor order. IBZ head/wing uses joint
-      source-gauge velocity and spinor reconstruction. K-point-parallel SCF
-      eigenvectors are disabled on that IBZ route. See the native head/wing example in
+      are retained in AO-major/spinor-minor order. On a symmetry-reduced SCF
+      grid the IBZ states are expanded to the full mesh before H(R)/S(R)/r(R) are
+      differentiated; no second eigenproblem is solved and the main GW stages keep
+      the reduced grid. K-point-parallel SCF eigenvectors are accepted: the
+      head/wing frame is replicated from the owning ranks first. See the native head/wing example in
       [Driver Usage](driver_usage.md#native-g0w0-headwing-velocity).
     fields:
       - driver.option_velocity

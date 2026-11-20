@@ -186,11 +186,13 @@ Hermiticity residuals against 1e-4 eV, and the imaginary velocity diagonal again
 1e-8 Ha Bohr. These input checks establish frame consistency within their tolerances;
 they do not certify material or basis convergence.
 
-For options 3, 4, and 53, the default `option_velocity = pyatb` preserves the
-existing reader: it looks for a velocity matrix produced by an external optical
-code under `pyatb_librpa_df/`. When ABACUS writes the real-space H(R), S(R) and
-r(R) blocks, prefer `option_velocity = native` — LibRPA then differentiates
-those blocks itself and no external velocity file is needed. With
+The default `option_velocity = pyatb` preserves the existing reader: it looks
+for a velocity matrix produced by an external optical code under
+`pyatb_librpa_df/`, and serves options 3, 4, and 53. When ABACUS writes the
+real-space H(R), S(R) and r(R) blocks and the case uses option 3 or 4, prefer
+`option_velocity = native` — LibRPA then differentiates those blocks itself and
+no external velocity file is needed. Option 53 is not wired for the native
+source and keeps `option_velocity = pyatb`. With
 `output_level = debug`, either path writes `g0w0_velocity.csv` and
 `g0w0_headwing.csv` under `output_dir`, containing complete complex velocity, head
 and auxiliary-wing arrays. The head/wing snapshot is written before Wc consumes the

@@ -296,19 +296,20 @@ static void validate_input_parameters()
             throw std::runtime_error("option_velocity must be pyatb or native");
         if (params.option_velocity == "native")
         {
-            // Every analytic head/wing option differentiates the real-space
-            // operators, so all three of them accept the native source.
+            // Only the two options whose head/wing the native route fully covers are
+            // accepted. Option 53 selects a different head direction for the body and
+            // has no native regression yet, so it stays on the external velocity
+            // matrix instead of running an unverified path.
             if (driver::opts.replace_w_head != LIBRPA_SWITCH_ON ||
-                (driver::opts.option_dielect_func != 3 && driver::opts.option_dielect_func != 4 &&
-                 driver::opts.option_dielect_func != 53))
+                (driver::opts.option_dielect_func != 3 && driver::opts.option_dielect_func != 4))
                 throw std::runtime_error(
-                    "native option_velocity requires replace_w_head and option_dielect_func = "
-                    "3, 4, or 53");
-            if ((driver::opts.option_dielect_func == 3 ||
-                 driver::opts.option_dielect_func == 53) &&
+                    "option_velocity = native requires replace_w_head and "
+                    "option_dielect_func = 3 or 4; option 53 is not wired for native "
+                    "velocity, use option_velocity = pyatb there");
+            if (driver::opts.option_dielect_func == 3 &&
                 driver::opts.use_scalapack_gw_wc != LIBRPA_SWITCH_ON)
                 throw std::runtime_error(
-                    "option_velocity = native with option_dielect_func = 3 or 53 requires "
+                    "option_velocity = native with option_dielect_func = 3 requires "
                     "use_scalapack_gw_wc = true to consume analytic wings");
             if (params.g0w0_fn_hr.empty() || params.g0w0_fn_sr.empty() || params.g0w0_fn_rr.empty())
                 throw std::runtime_error(
@@ -756,6 +757,20 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_double(opts, libri_g0w0_threshold_Wc);
     _parse_switch(opts, replace_w_head);
     _parse_int(opts, option_dielect_func);
+    // Option 6 used to be a preset that selected native velocity and then resolved
+    // to numerical option 3. The selector is now option_velocity, so the preset is
+    // gone; reject it instead of falling through to an uncorrected W.
+    if (opts.option_dielect_func == 6)
+        throw std::runtime_error(
+            "option_dielect_func = 6 is no longer supported; use option_dielect_func = 3 "
+            "(or 4, or 53) with option_velocity = native for G0W0/cRPA, or with "
+            "qsgw_headwing_velocity = current_hr for QSGW");
+    if (opts.option_dielect_func != 0 && opts.option_dielect_func != 1 &&
+        opts.option_dielect_func != 2 && opts.option_dielect_func != 3 &&
+        opts.option_dielect_func != 4 && opts.option_dielect_func != 5 &&
+        opts.option_dielect_func != 53)
+        throw std::runtime_error(
+            "option_dielect_func must be 0, 1, 2, 3, 4, 5, or 53");
 
     _parse_switch(opts, use_2d_dielectric);
     _parse_switch(opts, output_gw_sigc_ks_kf);

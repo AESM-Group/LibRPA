@@ -770,6 +770,16 @@ void driver::task_g0w0()
         ofs_myid << "dielect_func:   " << dielect_func << std::endl;
         h.set_dielect_func_imagfreq(omegas_dielect, dielect_func);
     }
+    else if (driver::get_bool(opts.replace_w_head))
+    {
+        // replace_w_head asks for a corrected head, but neither optical input is
+        // available: options 3/4/53 need a velocity source, and the remaining
+        // options need dielecfunc_out. Fail instead of computing an uncorrected W.
+        throw LIBRPA_RUNTIME_ERROR(
+            "replace_w_head = true needs an optical input: options 3, 4, and 53 build the "
+            "head/wing from a velocity source, while options 0, 1, 2, and 5 read " +
+            file_df + "; none is available");
+    }
 
     profiler.start("read_vxc", "Load DFT xc potential");
     std::vector<matrix> vxc;

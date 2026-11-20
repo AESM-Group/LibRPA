@@ -222,6 +222,45 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
                     "use_scalapack_gw_wc enabled to consume analytic wings");
         });
     const auto &opts = *p_opts;
+    // A cached full-BZ frame belongs to the inputs that built it. Drop it before
+    // reading the new ones, so a rebuild cannot select a stale frame.
+    ds->headwing_full_bz_mf = MeanField{};
+    ds->headwing_full_bz_pbc = PeriodicBoundaryData{};
+    ds->headwing_full_bz_velocity.clear();
+    ds->headwing_full_bz_ready = false;
+
+    // The differentiation needs one complete AO x band block per k point. A
+    // k-point-parallel layout can split a single block across the ranks of its
+    // k-group, so rebuild the replicated layout whenever the stored one is
+    // split. This depends on the wave-function layout, not on whether the SCF
+    // grid happens to be the full mesh.
+    MeanField source = ds->mf;
+    if (ds->eigvecs_kpara_2d_ready() && ds->scfk_blacs_ctxt.is_initialized() &&
+        ds->desc_wfc_kb.is_initialized() && ds->desc_wfc_kb_full.is_initialized() &&
+        (ds->desc_wfc_kb.mb() < ds->desc_wfc_kb.m() ||
+         ds->desc_wfc_kb.nb() < ds->desc_wfc_kb.n()))
+    {
+        int failed = 0;
+        try
+        {
+            redistribute_meanfield_eigvecs_kblacs(source, ds->scfk_blacs_ctxt, ds->desc_wfc_kb,
+                                                  ds->desc_wfc_kb_full,
+                                                  "native head/wing");
+        }
+        catch (const std::exception &)
+        {
+            failed = 1;
+        }
+        // Each k-group reports on its own communicator; agree on the whole
+        // handler before any rank enters the next collective.
+        int any_failed = 0;
+        comm.allreduce(&failed, &any_failed, 1, MPI_MAX);
+        if (any_failed)
+            throw LIBRPA_RUNTIME_ERROR(
+                "Native head/wing cannot replicate the split k-point-parallel "
+                "wave-function blocks");
+    }
+
     const SymmetryContext *symmetry = nullptr;
     collective_all_stage(
         comm, "Native magnetic velocity frame",
@@ -246,16 +285,7 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     const PeriodicBoundaryData *velocity_pbc = &ds->pbc;
     if (symmetry != nullptr && ds->mf.get_n_kpoints() != ds->pbc.get_n_cells_bvk())
     {
-        // A k-point-parallel layout may split even a single AO x band block across
-        // the ranks of its k-group, so no rank holds the complete block that the
-        // expansion reads. Rebuild the replicated layout first, then give every
-        // rank a private copy.
-        MeanField replicated = ds->mf;
-        if (ds->eigvecs_kpara_2d_ready() && ds->scfk_blacs_ctxt.is_initialized() &&
-            ds->desc_wfc_kb.is_initialized() && ds->desc_wfc_kb_full.is_initialized())
-            redistribute_meanfield_eigvecs_kblacs(replicated, ds->scfk_blacs_ctxt,
-                                                  ds->desc_wfc_kb, ds->desc_wfc_kb_full,
-                                                  "native IBZ head/wing");
+        MeanField replicated = source;
         for (int ispin = 0; ispin < replicated.get_n_spins(); ++ispin)
             for (int ispinor = 0; ispinor < replicated.get_n_spinor(); ++ispinor)
                 for (int ik = 0; ik < replicated.get_n_kpoints(); ++ik)
@@ -320,13 +350,44 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
                             ds->headwing_full_bz_velocity[spin][ik][alpha](row, column) =
                                 result.velocity[cursor];
     }
+    // The public velocity matrix is indexed on the caller's k list. When the
+    // differentiation ran on the expanded mesh, hand the setter only the
+    // representative k-points, in the caller's order.
+    std::vector<cplxdb> ibz_velocity;
+    const std::vector<cplxdb> *setter_velocity = &result.velocity;
+    if (ds->headwing_full_bz_ready)
+    {
+        const int n_spins = ds->mf.get_n_spins();
+        const int n_kpoints = ds->mf.get_n_kpoints();
+        const int n_states = ds->mf.get_n_states();
+        const std::size_t per_k = static_cast<std::size_t>(3) * n_states * n_states;
+        ibz_velocity.resize(static_cast<std::size_t>(n_spins) * n_kpoints * per_k);
+        for (int spin = 0; spin < n_spins; ++spin)
+            for (int ik = 0; ik < n_kpoints; ++ik)
+            {
+                const int ifull = fold_fractional_kpoint_to_targets(
+                                      ds->pbc.kfrac_list[ik], ds->pbc.kfrac_list_full, 1e-8)
+                                      .target_k_index;
+                if (ifull < 0)
+                    throw LIBRPA_RUNTIME_ERROR(
+                        "Native IBZ velocity cannot locate a representative k-point");
+                const auto *src = result.velocity.data() +
+                                  ((static_cast<std::size_t>(spin) *
+                                        ds->headwing_full_bz_mf.get_n_kpoints() + ifull) *
+                                   per_k);
+                std::copy(src, src + per_k,
+                          ibz_velocity.begin() + (static_cast<std::size_t>(spin) * n_kpoints + ik) *
+                                                    per_k);
+            }
+        setter_velocity = &ibz_velocity;
+    }
     collective_all_stage(comm, "G0W0 native velocity setter",
                          [&]
                          {
                              librpa_set_velocity_matrix_packed(
                                  h, ds->mf.get_n_spins(), ds->mf.get_n_kpoints(),
                                  ds->mf.get_n_states(),
-                                 reinterpret_cast<const double *>(result.velocity.data()));
+                                 reinterpret_cast<const double *>(setter_velocity->data()));
                          });
     if (comm.is_root())
         global::lib_printf(
