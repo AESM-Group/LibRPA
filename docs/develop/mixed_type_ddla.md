@@ -26,10 +26,25 @@ The first implementation covers:
   One CPU handle on `MPI_COMM_SELF` is reused across batches. No transform
   batch is uploaded to the GPU.
 
-Non-Gamma Wc products, Gamma head/wing projections (including strict 2D),
-complex LU/Cholesky solves, LibRI contractions and pair-density vertices retain
-their existing implementation. The separate real-storage Wc transform already
-uses real GEMM and is unchanged. The flag does not accelerate every DDLA call.
+Gamma head/wing remains complex FP64. The ordinary full head/wing rewrite
+follows `use_gpu_replace_scalapack` directly, without an additional one-rank
+or minimum-matrix-size gate. It borrows the caller's three device buffers and
+preserves the six-product expansion. Filtered eigenvectors are packed once
+per q; the correction does not allocate a full projector. The shared solver
+reuses caller-owned scratch to restore the original matrix for Gamma LU retry.
+For filtered option 53, head projection uses GPU GEMMs when selected, while
+head normalization remains on the host.
+
+Strict-2D retains four CPU projections around its CPU retained-body and radial
+calculation, with GPU input/output transfers when selected. Its body uses the
+shared Cholesky-first solver with Gamma LU retry. The result is complete Wc,
+without extra projector or Coulomb products. The GPU projection helpers remain
+benchmark candidates. These head/wing routes are independent of the mixed flag.
+
+Non-Gamma Wc products and linear solves retain complex FP64. LibRI contractions
+are unchanged by the mixed flag. The separate real-storage Wc transform already
+uses real GEMM and is unchanged. The mixed-domain flag does not accelerate every
+DDLA call; compare LibRPA end-to-end timings on identical inputs and resources.
 
 Execution logs identify eligible mixed paths. Profiler entries
 `epsilon_pack_mixed_factors`, `epsilon_compute_eps_pgemm_1/2`,
