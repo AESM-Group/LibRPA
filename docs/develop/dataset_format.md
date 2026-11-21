@@ -99,8 +99,8 @@ the full auxiliary basis, full Coulomb matrices, and producer head/wing data.
 The complete-Wc route requires full Coulomb for both the dielectric basis and
 the finite-q external legs, and it currently requires the ScaLAPACK Wc path.
 
-For native velocity, use `option_dielect_func = 6` with the native G0W0 H/S/r
-inputs, or with `task = qsgw` and its current-HR inputs. Retain the strict-2D
+For native velocity, use `option_velocity = native` with the native G0W0 H/S/r
+inputs, or with `task = qsgw` and `qsgw_headwing_velocity = current_hr`. Retain the strict-2D
 settings above. Both drivers apply this same producer metadata to their
 analytic head/wing object; QSGW reapplies it after each rebuild and on restart.
 Only the normalization is fixed: QSGW recomputes the response from the live

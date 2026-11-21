@@ -20,7 +20,6 @@ use_kpara_scf_eigvec = false
 use_symmetry_exx = false
 use_symmetry_gw = false
 use_symmetry_rpa = false
-use_pyatb = false
 use_fullcoul_exx = false
 use_fullcoul_eps = true
 use_fullcoul_wc = false

@@ -113,6 +113,14 @@ public:
     //! File readers may convert producer-specific momentum/velocity files before
     //! storing them here; public API setters store values as provided.
     velocity_matrix_t velocity_matrix;
+    //! Full-BZ eigenframe for analytic head/wing when the SCF grid is
+    //! symmetry-reduced. Native velocity expands the IBZ states first and then
+    //! differentiates H/S/r in that frame, so head/wing run on a plain full-BZ
+    //! mesh instead of the k-star reconstruction path.
+    MeanField headwing_full_bz_mf;
+    PeriodicBoundaryData headwing_full_bz_pbc;
+    velocity_matrix_t headwing_full_bz_velocity;
+    bool headwing_full_bz_ready = false;
     //! Mean-field object for band calculation
     MeanField mf_band;
     //! Monotonic id for distinguishing successive band-path input datasets.

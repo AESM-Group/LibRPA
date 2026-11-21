@@ -681,10 +681,6 @@ void librpa_int::api::build_gw_sigma_for_task(
     using librpa_int::global::lib_printf;
 
     auto* pds = &dataset;
-    if (opts.option_dielect_func == 6)
-        throw LIBRPA_RUNTIME_ERROR(
-            "option_dielect_func = 6 is a standalone G0W0 driver preset; "
-            "API callers must supply velocity and use option_dielect_func = 3");
     const bool debug = global::should_output(LIBRPA_VERBOSE_DEBUG);
     if (opts.replace_w_head == LIBRPA_SWITCH_ON && opts.option_dielect_func == 53 &&
         (opts.use_2d_dielectric == LIBRPA_SWITCH_ON ||

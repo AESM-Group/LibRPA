@@ -1,4 +1,7 @@
 #pragma once
+
+#include <algorithm>
+#include <cstddef>
 #include <complex>
 #include <string>
 #include <vector>
@@ -107,6 +110,18 @@ public:
     inline void bcast(T *buf, int count, int root) const
     {
         MPI_Bcast(buf, count, mpi_datatype<T>::value, root, this->comm);
+    }
+
+    //! Broadcast a buffer that may exceed the MPI int count limit in slices.
+    template <typename T>
+    void bcast_large(T *buf, std::size_t count, int root) const
+    {
+        constexpr std::size_t chunk = static_cast<std::size_t>(1) << 28;
+        for (std::size_t offset = 0; offset < count; offset += chunk)
+        {
+            const int slice = static_cast<int>(std::min(chunk, count - offset));
+            MPI_Bcast(buf + offset, slice, mpi_datatype<T>::value, root, this->comm);
+        }
     }
 
     // void allreduce_matrix(matrix &mat_send, matrix &mat_recv) const;

@@ -18,7 +18,7 @@ ordinary G0W0 driver; it is not a material or a convergence benchmark.
 
 The full mesh is `(0, +1/3, -1/3)` along the first reciprocal direction.
 The input contains only `(0, +1/3)`, with star multiplicities `(1, 2)`;
-time reversal reconstructs the third point. Native preset 6 computes source
+time reversal reconstructs the third point. Native velocity computes source
 velocities from the retained H/S/r matrices in the supplied SCF frame.
 There is no velocity file, full-grid wavefunction cache or separate PyATB
 snapshot in `dataset.tar.gz`. Both analytic head and wing are nonzero.

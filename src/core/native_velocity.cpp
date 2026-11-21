@@ -192,7 +192,9 @@ librpa_int::NativeVelocityResult librpa_int::build_native_velocity(
                             }
                 });
         }
-    comm.bcast(velocity.data(), static_cast<int>(velocity.size()), 0);
+    // The full-grid buffer can exceed the MPI int count limit on a large
+    // symmetry-reduced case, so split the transfer.
+    comm.bcast_large(velocity.data(), velocity.size(), 0);
     result.coulomb_normalization = coulomb_normalization;
     return result;
 }

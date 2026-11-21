@@ -52,7 +52,7 @@ DriverParams::DriverParams():
     fn_dielfunc("dielecfunc_out"),
     fn_vxc_scf("vxc_out"),
     prefix_velocity("mommat_ks_kpt_"),
-    g0w0_headwing_velocity("file"),
+    option_velocity("pyatb"),
     g0w0_fn_hr(""),
     g0w0_fn_hr_spin1(""),
     g0w0_fn_sr(""),
@@ -67,7 +67,6 @@ DriverParams::DriverParams():
     i_state_low(0),
     i_state_high(default_i_state_high),
     output_hamgnn(false),
-    use_pyatb(false),
     output_gw_spec_func(false),
     sf_omega_start(0.0),
     sf_omega_end(1.0),
@@ -206,7 +205,6 @@ std::string DriverParams::format()
             normal_pair(output_energy_qp),
             normal_pair(output_gw_spec_func),
             normal_pair(output_hamgnn),
-            normal_pair(use_pyatb),
         };
     for (const auto &[k, v]: bool_params)
         ss << k << " = " << std::boolalpha << v << std::endl;
@@ -222,11 +220,6 @@ std::string DriverParams::format()
     std::string normalized_task = task;
     std::transform(normalized_task.begin(), normalized_task.end(),
                    normalized_task.begin(), [](unsigned char c) { return std::tolower(c); });
-    if (requested_option_dielect_func == 6)
-    {
-        ss << "option_dielect_func_requested = 6" << std::endl;
-        ss << "option_dielect_func_effective = 3" << std::endl;
-    }
     if (normalized_task == "hartree")
     {
         ss << "hartree_reference_scale = " << hartree_reference_scale << '\n';
@@ -234,8 +227,8 @@ std::string DriverParams::format()
     }
     if (normalized_task == "g0w0" || normalized_task == "g0w0_band")
     {
-        ss << "g0w0_headwing_velocity = " << g0w0_headwing_velocity << std::endl;
-        if (g0w0_headwing_velocity == "native")
+        ss << "option_velocity = " << option_velocity << std::endl;
+        if (option_velocity == "native")
         {
             ss << "g0w0_fn_hr = " << g0w0_fn_hr << std::endl;
             ss << "g0w0_fn_hr_spin1 = " << g0w0_fn_hr_spin1 << std::endl;
@@ -358,7 +351,6 @@ std::vector<std::pair<size_t, size_t>> local_atpair;
 librpa::Handler h;
 
 librpa::Options opts;
-int requested_option_dielect_func = 0;
 
 #define normal_pair(name) {#name, opts.name}
 #define bool_pair(name) {#name, get_bool(opts.name)}

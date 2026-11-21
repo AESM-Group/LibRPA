@@ -261,15 +261,11 @@ feedback. Value 5 follows upstream's input-dielectric s-subspace head
 correction for G0W0; it is not an alias for native-velocity feedback.
 The preset renumbering does not change the head/wing equations or feedback.
 
-The standalone `qsgw` driver accepts `option_dielect_func = 6`
+The standalone `qsgw` driver accepts `qsgw_headwing_velocity = current_hr`
 to recompute velocity internally from the complete current Hamiltonian and
 then apply the existing analytic head/wing prescription at every iteration.
-This preset selects `qsgw_headwing_velocity = current_hr` and resolves to
-numerical option 3. An omitted selector or explicit `current_hr` is accepted;
-explicit `reference` and `rotate_reference` are rejected for option 6. It
-requires `replace_w_head = true`, `use_scalapack_gw_wc = true`, and
-`use_pyatb = false`. The log records requested option 6 and effective option 3.
-The native mode remains experimental.
+It requires `replace_w_head = true`; with option 3 it also requires
+`use_scalapack_gw_wc = true`. The native mode remains experimental.
 
 Existing option 3 provides both analytic head and wing, and option 4 provides
 head only, with `replace_w_head = true`. Option 3 requires
@@ -290,7 +286,7 @@ each body/self-energy calculation. The analytic and body nodes are checked indiv
 when automatic minimax endpoints change. `rotate_reference` needs the original
 same-grid velocity input. It does not differentiate the updated Hamiltonian.
 
-For option 6, supply dimensionless native ABACUS `S(R)` and Bohr `r(R)` CSR
+For `current_hr`, supply dimensionless native ABACUS `S(R)` and Bohr `r(R)` CSR
 files, with their complete independent real-space supports, in addition to the
 ordinary QSGW inputs:
 
@@ -298,9 +294,9 @@ ordinary QSGW inputs:
 task = qsgw
 input_preset = abacus
 replace_w_head = true
-option_dielect_func = 6
+option_dielect_func = 3
+qsgw_headwing_velocity = current_hr
 use_scalapack_gw_wc = true
-use_pyatb = false
 use_kpara_scf_eigvec = false
 use_symmetry_rpa = false
 use_symmetry_gw = false
