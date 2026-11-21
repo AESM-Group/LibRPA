@@ -274,10 +274,11 @@ struct DriverParams
     //! `mommat_ks_kpt_`
     std::string prefix_velocity;
 
-    //! G0W0 analytic head/wing velocity source: file (existing reader) or native.
-    //! Native uses the original DFT H(R)/S(R)/r(R) and the loaded SCF E/C frame.
+    //! G0W0 analytic head/wing velocity source: `pyatb` reads the external
+    //! velocity matrix, `native` differentiates the original DFT H(R)/S(R)/r(R)
+    //! in the loaded SCF E/C frame. Both serve options 3, 4, and 53.
     //! @par Default
-    //! file
+    //! pyatb
     //! @par Status
     //! Experimental
     //! @since Unreleased

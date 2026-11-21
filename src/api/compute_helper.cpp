@@ -334,32 +334,11 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
                 ds->mf.get_n_kpoints(), headwing_meanfield.get_n_kpoints());
     }
     auto result = build_native_velocity(*velocity_mf, *velocity_pbc, comm, root_input, nullptr);
-    if (ds->headwing_full_bz_ready)
-    {
-        // Repack the full-BZ velocity so head/wing can consume it on that mesh.
-        const int n_hw_spins = ds->headwing_full_bz_mf.get_n_spins();
-        const int n_hw_kpoints = ds->headwing_full_bz_mf.get_n_kpoints();
-        const int n_hw_states = ds->headwing_full_bz_mf.get_n_states();
-        const std::size_t count = static_cast<std::size_t>(n_hw_spins) *
-                                  static_cast<std::size_t>(n_hw_kpoints) * 3 *
-                                  static_cast<std::size_t>(n_hw_states) *
-                                  static_cast<std::size_t>(n_hw_states);
-        if (result.velocity.size() != count)
-            throw LIBRPA_RUNTIME_ERROR("Full-BZ native velocity has an unexpected size");
-        initialize_velocity_matrix(ds->headwing_full_bz_velocity, n_hw_spins, n_hw_kpoints,
-                                   n_hw_states);
-        std::size_t cursor = 0;
-        for (int spin = 0; spin < n_hw_spins; ++spin)
-            for (int ik = 0; ik < n_hw_kpoints; ++ik)
-                for (int alpha = 0; alpha < 3; ++alpha)
-                    for (int row = 0; row < n_hw_states; ++row)
-                        for (int column = 0; column < n_hw_states; ++column, ++cursor)
-                            ds->headwing_full_bz_velocity[spin][ik][alpha](row, column) =
-                                result.velocity[cursor];
-    }
     // The public velocity matrix is indexed on the caller's k list. When the
     // differentiation ran on the expanded mesh, hand the setter only the
-    // representative k-points, in the caller's order.
+    // representative k-points, in the caller's order. Build this small subset
+    // first so the packed full-grid buffer can be released right after the
+    // repack instead of staying live through the setter.
     std::vector<cplxdb> ibz_velocity;
     const std::vector<cplxdb> *setter_velocity = &result.velocity;
     if (ds->headwing_full_bz_ready)
@@ -387,6 +366,31 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
                                                     per_k);
             }
         setter_velocity = &ibz_velocity;
+    }
+    if (ds->headwing_full_bz_ready)
+    {
+        // Repack the full-BZ velocity so head/wing can consume it on that mesh,
+        // then release the packed buffer. Only the repacked form survives.
+        const int n_hw_spins = ds->headwing_full_bz_mf.get_n_spins();
+        const int n_hw_kpoints = ds->headwing_full_bz_mf.get_n_kpoints();
+        const int n_hw_states = ds->headwing_full_bz_mf.get_n_states();
+        const std::size_t count = static_cast<std::size_t>(n_hw_spins) *
+                                  static_cast<std::size_t>(n_hw_kpoints) * 3 *
+                                  static_cast<std::size_t>(n_hw_states) *
+                                  static_cast<std::size_t>(n_hw_states);
+        if (result.velocity.size() != count)
+            throw LIBRPA_RUNTIME_ERROR("Full-BZ native velocity has an unexpected size");
+        initialize_velocity_matrix(ds->headwing_full_bz_velocity, n_hw_spins, n_hw_kpoints,
+                                   n_hw_states);
+        std::size_t cursor = 0;
+        for (int spin = 0; spin < n_hw_spins; ++spin)
+            for (int ik = 0; ik < n_hw_kpoints; ++ik)
+                for (int alpha = 0; alpha < 3; ++alpha)
+                    for (int row = 0; row < n_hw_states; ++row)
+                        for (int column = 0; column < n_hw_states; ++column, ++cursor)
+                            ds->headwing_full_bz_velocity[spin][ik][alpha](row, column) =
+                                result.velocity[cursor];
+        std::vector<cplxdb>().swap(result.velocity);
     }
     collective_all_stage(comm, "G0W0 native velocity setter",
                          [&]

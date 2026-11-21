@@ -476,9 +476,12 @@ static void print_wing_wfc_probe(const int ik_ibz, const Vector3_Order<double> &
 static void print_wing_cmnk_probe(const char *route, const int mu,
                                   const Vector3_Order<double> &kfrac,
                                   const ArrayDesc &desc_nband_nband,
-                                  const matrix_m<std::complex<double>> &C_mnk)
+                                  const matrix_m<std::complex<double>> &C_mnk,
+                                  const bool debug)
 {
-    if (!is_wing_wfc_probe_kpoint(kfrac) || !desc_nband_nband.is_src()) return;
+    // A BLACS source process holds only its local block, so these numbers depend
+    // on the process grid. Keep them out of the default output.
+    if (!debug || !is_wing_wfc_probe_kpoint(kfrac) || !desc_nband_nband.is_src()) return;
     // Dump the full matrix once, then one norm line per remaining auxiliary
     // index. Comparing only mu=0 hides whether a difference is in the Cs
     // projection or in the per-mu accumulation.
@@ -512,9 +515,10 @@ static void print_wing_cmnk_probe(const char *route, const int mu,
 static void print_wing_cnao_probe(const char *route, const int mu,
                                   const Vector3_Order<double> &kfrac,
                                   const ArrayDesc &desc_nao_nao,
-                                  const matrix_m<std::complex<double>> &C_nao_nao)
+                                  const matrix_m<std::complex<double>> &C_nao_nao,
+                                  const bool debug)
 {
-    if (mu != 0 || !is_wing_wfc_probe_kpoint(kfrac) || !desc_nao_nao.is_src()) return;
+    if (!debug || mu != 0 || !is_wing_wfc_probe_kpoint(kfrac) || !desc_nao_nao.is_src()) return;
     global::lib_printf(
         "Wing C_nao probe: route=%s mu=%d k=(% .12f,% .12f,% .12f) rows=AO columns=AO\n",
         route, mu, kfrac.x, kfrac.y, kfrac.z);
@@ -2233,7 +2237,8 @@ void diele_func::cal_wing_full_bz(const Cs_LRI &Cs_data, double coulomb_eigen_th
                         : transform_Cs2mnk(ik, mu, Cs_IJ, isp);
                 auto &desc_nband_nband = desc_C_mnk.first;
                 auto &C_mnk = desc_C_mnk.second;
-                print_wing_cmnk_probe("full_bz", mu, kfrac_band[ik], desc_nband_nband, C_mnk);
+                print_wing_cmnk_probe("full_bz", mu, kfrac_band[ik], desc_nband_nband, C_mnk,
+                                      debug);
                 const bool use_soc_wing = meanfield_df.get_n_spinor() > 1;
                 const auto &eigenvalues = this->meanfield_df.get_eigenvals();
                 const auto &wg = this->meanfield_df.get_weight()[isp];
@@ -2526,7 +2531,8 @@ void diele_func::cal_wing_symmetric(const Cs_LRI &Cs_data, double coulomb_eigen_
                                                       k_bz, &wfc_bz_ptrs, isp);
                     auto &desc_nband_nband = desc_C_mnk.first;
                     auto &C_mnk = desc_C_mnk.second;
-                    print_wing_cmnk_probe("sym_restored", mu, k_bz, desc_nband_nband, C_mnk);
+                    print_wing_cmnk_probe("sym_restored", mu, k_bz, desc_nband_nband, C_mnk,
+                                          debug);
                     const bool use_soc_wing = meanfield_df.get_n_spinor() > 1;
                     const auto &eigenvalues = this->meanfield_df.get_eigenvals();
                     const auto &wg = this->meanfield_df.get_weight()[isp];
@@ -2656,7 +2662,7 @@ std::pair<ArrayDesc, matrix_m<complex<double>>> diele_func::transform_Cs2mnk(
     collect_block_from_IJ_storage_tensor_transform_triple(C_nao_nao, desc_nao_nao,
                                                           atomic_basis_wfc_, atomic_basis_wfc_,
                                                           fourier, Cs_IJ, Mu, mu_local);
-    print_wing_cnao_probe("full_bz", mu, kfrac, desc_nao_nao, C_nao_nao);
+    print_wing_cnao_probe("full_bz", mu, kfrac, desc_nao_nao, C_nao_nao, debug);
     // if (ik == 1 && mu == 4)
     // {
     //     for (const auto IJRc : Cs_IJ)
@@ -2769,7 +2775,7 @@ std::pair<ArrayDesc, matrix_m<complex<double>>> diele_func::transform_Cs2mnk_kbl
                                                           atomic_basis_wfc_, atomic_basis_wfc_,
                                                           fourier, Cs_IJ, Mu, mu_local);
     print_wing_cnao_probe(wfc_override == nullptr ? "full_bz" : "sym_restored", mu, kfrac,
-                          desc_nao_nao, C_nao_nao);
+                          desc_nao_nao, C_nao_nao, debug);
     return rotate_Cs_nao2mnk_kblacs(ik, mu, C_nao_nao, desc_nao_nao, wing_blacs_h,
                                     desc_wfc_src, wfc_override, spin_filter);
 }
