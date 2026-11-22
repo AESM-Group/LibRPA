@@ -86,8 +86,9 @@ When you change the compiler or MPI installation, make sure you use a new build 
 
 ### CUDA with the current LibDDLA interface
 
-The dependency manifest pins LibDDLA `1ff05d9` and official LibRI `0e8afc3`
-with a small compatibility patch for LibDDLA's handle-selected public API.
+The dependency manifest pins unmodified LibDDLA 0.0.7 (`0a65e57`) and
+official LibRI `0e8afc3` with a small adapter patch for LibDDLA's
+handle-selected public API.
 Computational calls deduce the scalar type; the explicitly initialized
 handle selects CPU or GPU. Eigensolvers receive the required eigenvector
 count, and Cholesky uses the standard factor/solve interface.

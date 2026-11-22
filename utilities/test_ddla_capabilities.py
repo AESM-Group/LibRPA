@@ -28,13 +28,12 @@ template<class T> inline void diag_logdet(const DdlaHandle_t&, int, const T*, in
                                          std::complex<double>&) {}
 template<class T> inline void pdiag_logdet(const DdlaHandle_t&, int, const T*, const int*,
                                           std::complex<double>&) {}
-template<class R> std::size_t gemm_mixed_workspace_bytes(const DdlaHandle_t&, int, int, int, bool);
 """]
     z = "std::complex<R>"
     for a, b in (("R", z), (z, "R")):
         declarations.append(f"""
-template<class R> inline void gemm(const DdlaHandle_t&, char, char, int, int, int, const {z}&,
-    const {a}*, int, const {b}*, int, const {z}&, {z}*, int, void*, std::size_t) {{}}
+template<class R> void gemm(const DdlaHandle_t&, char, char, int, int, int, const {z}&,
+    const {a}*, int, const {b}*, int, const {z}&, {z}*, int);
 template<class R> inline void gemmVbatched(const DdlaHandle_t&, char, char, int*, int*, int*, {z},
     const {a}* const*, int*, const {b}* const*, int*, {z}, {z}**, int*, int) {{}}
 """)
@@ -81,12 +80,13 @@ file(GENERATE OUTPUT "${{CMAKE_BINARY_DIR}}/library-$<CONFIG>.txt" CONTENT "$<TA
     def build_provider(self, symbol=True):
         source = '#include <ddla/ddla.h>\n'
         if symbol:
-            source += """
-namespace ddla {
-template<class R> std::size_t gemm_mixed_workspace_bytes(const DdlaHandle_t&,int,int,int,bool)
-{ return 0; }
-template std::size_t gemm_mixed_workspace_bytes<double>(const DdlaHandle_t&,int,int,int,bool);
-}
+            z = "std::complex<double>"
+            for a, b in (("double", z), (z, "double")):
+                source += f"""
+namespace ddla {{
+template<> void gemm<double>(const DdlaHandle_t&, char, char, int, int, int,
+    const {z}&, const {a}*, int, const {b}*, int, const {z}&, {z}*, int) {{}}
+}}
 """
         else:
             source += "void fixture_without_new_symbol() {}\n"
@@ -142,6 +142,20 @@ endif()
     def test_current_imported_alias_compiles_and_links_without_changing_parent(self):
         result = self.configure_consumer(self.build_provider())
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_native_mixed_gemm_without_workspace_api_is_accepted(self):
+        self.assertNotIn("gemm_mixed_workspace_bytes", fixture_header())
+        result = self.configure_consumer(self.build_provider())
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_workspace_only_mixed_gemm_is_rejected(self):
+        library = self.build_provider()
+        header = self.header.read_text()
+        native = "const std::complex<R>&, std::complex<R>*, int);"
+        self.assertEqual(header.count(native), 2)
+        self.header.write_text(header.replace(
+            native, "const std::complex<R>&, std::complex<R>*, int, void*, std::size_t);"))
+        self.assert_actionable_failure(self.configure_consumer(library))
 
     def test_old_header_is_rejected(self):
         library = self.build_provider()

@@ -26,6 +26,13 @@ The first implementation covers:
   One CPU handle on `MPI_COMM_SELF` is reused across batches. No transform
   batch is uploaded to the GPU.
 
+cRPA pair-density coefficients remain real when a CPU handle is supplied for
+the mixed path. The contraction uses LibDDLA's native mixed GEMM; LibDDLA
+manages its scratch internally. LibRPA does not query or allocate caller-owned
+GEMM workspace. Missing CPU resources retain the conventional contraction.
+The mixed option and numerical precision are unchanged; this does not imply
+a peak-memory or performance improvement for every matrix shape.
+
 Gamma head/wing remains complex FP64. The ordinary full head/wing rewrite
 follows `use_gpu_replace_scalapack` directly, without an additional one-rank
 or minimum-matrix-size gate. It borrows the caller's three device buffers and

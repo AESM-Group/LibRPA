@@ -5,7 +5,6 @@
 #include <complex>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <set>
 #include <sstream>
 #include <utility>
@@ -19,7 +18,7 @@
 #include "../utils/profiler.h"
 
 #ifdef LIBRPA_USE_DDLA
-#include <ddla/ddla_vector.h>
+#include <ddla/ddla.h>
 #endif
 
 #ifdef LIBRPA_USE_LIBRI
@@ -252,17 +251,9 @@ SitePairDensityVertex build_site_pair_density_vertex_from_T(
             const int nij = n_i * n_j;
             bool use_mixed_block = false;
 #ifdef LIBRPA_USE_DDLA
-            std::optional<ddla::vector<char>> mixed_workspace;
-            if (mixed_coefficients && cpu_handle != nullptr && n_mu && nij)
-            {
-                const auto bytes = ddla::gemm_mixed_workspace_bytes<double>(
-                    cpu_handle, n_mu, npair, nij, false);
-                const auto coefficient_bytes = static_cast<std::size_t>(n_mu) * nij * sizeof(Complex);
-                // Replace the original promoted coefficient lifetime only when
-                // all padded DDLA scratch fits within those removed bytes.
-                use_mixed_block = bytes <= coefficient_bytes;
-                if (use_mixed_block) mixed_workspace.emplace(cpu_handle, bytes);
-            }
+            // Native mixed GEMM manages its scratch in LibDDLA. Keep Cs real
+            // whenever the caller supplies the CPU resource for this operation.
+            use_mixed_block = mixed_coefficients && cpu_handle != nullptr && n_mu && nij;
 #endif
             ComplexMatrix coefficients;
             if (!use_mixed_block)
@@ -326,8 +317,7 @@ SitePairDensityVertex build_site_pair_density_vertex_from_T(
                         // transpose only that real operand; never conjugate products.
                         ddla::gemm(cpu_handle, 'T', 'N', n_mu, npair, nij,
                                    Complex{1.0, 0.0}, std::begin(*Cs.data), nij, products.c, nij,
-                                   Complex{1.0, 0.0}, D.c, n_mu,
-                                   mixed_workspace->data(), mixed_workspace->size());
+                                   Complex{1.0, 0.0}, D.c, n_mu);
                     }
                     else
 #endif

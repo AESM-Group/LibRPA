@@ -10,6 +10,7 @@
 #include "../core/dielecmodel.h"
 #include "../interface/la_connector.h"
 #include "../math/utils_matrix_mpi.h"
+#include "../math/utils_matrix_m_mpi.h"
 #include "headwing_rewrite_test_utils.h"
 #ifdef LIBRPA_USE_DDLA
 #include <ddla/ddla_vector.h>

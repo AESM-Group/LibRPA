@@ -1,5 +1,11 @@
 # Maintaining third-party dependencies
 
+The managed LibDDLA dependency is the unmodified 0.0.7 release at commit
+`0a65e570d3d3bc70e4d53a7e992b2de60abc884c`. Its archive and extracted tree
+are hash checked. The historical LibDDLA consumer backports are not applied.
+External packages must expose the native mixed-GEMM interfaces checked by the
+compile/link probe; caller-owned mixed-GEMM workspace is not required.
+
 The tracked `thirdparty/manifest.cmake` declares each component's version, URL, archive filename, patches, license, archive SHA-256 and reference tree hashes.
 
 `ARCHIVE_SHA256` covers the compressed archive bytes and is checked after download and before extraction. A mismatch stops preparation. Failed downloads are removed; existing cached archives are preserved. Regenerated upstream archives can have different bytes even when their extracted files match, so a hash update needs review.

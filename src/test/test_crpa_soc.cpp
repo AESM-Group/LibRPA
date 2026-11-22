@@ -782,25 +782,14 @@ struct Fixture
         if (profile.find("Build and transform physical-spin pair-density vertices") == std::string::npos)
             throw std::runtime_error("cRPA workflow did not reach pair-density projection");
         const bool mixed_marker = profile.find("pair_vertex_mixed_coefficients") != std::string::npos;
-        bool eligibility_queried = false, eligible = false;
-        std::size_t workspace = 0, coefficient_bytes = 0;
 #ifdef LIBRPA_USE_DDLA
         if (ds.blacs_h.ddla_cpu_handle != original_cpu_handle)
             throw std::runtime_error("cRPA workflow changed its caller-owned CPU resource");
-        if (original_cpu_handle)
-        {
-            const int ni = ds.basis_wfc.get_atom_nb(0), nmu = ds.basis_aux.get_atom_nb(0);
-            const int norb = frame->get_sites().front().n_orbitals;
-            workspace = ddla::gemm_mixed_workspace_bytes<double>(
-                original_cpu_handle, nmu, norb * norb, ni * ni, false);
-            coefficient_bytes = static_cast<std::size_t>(nmu) * ni * ni * sizeof(Z);
-            eligible = workspace <= coefficient_bytes;
-            eligibility_queried = true;
-        }
+        if (original_cpu_handle && mixed_marker != mixed_ddla_requested)
+            throw std::runtime_error("cRPA workflow did not select native mixed coefficients");
 #endif
-        if ((!mixed_ddla_requested && mixed_marker) ||
-            (eligibility_queried && mixed_marker != (mixed_ddla_requested && eligible)))
-            throw std::runtime_error("cRPA workflow mixed coefficient path disagrees with its query");
+        if (!mixed_ddla_requested && mixed_marker)
+            throw std::runtime_error("Legacy cRPA workflow unexpectedly used mixed coefficients");
         Z checksum{};
         double norm = 0;
         const auto accumulate = [&](const ComplexMatrix& matrix) {
@@ -823,9 +812,7 @@ struct Fixture
                       << " linear=" << context.linear_algorithm << " eigen=" << context.eigensolver_method
                       << " gpu=" << context.use_gpu_replace_scalapack
                       << " components=" << components << " bands=" << bands
-                      << " projection_reached=1 eligibility_queried=" << eligibility_queried
-                      << " eligible=" << eligible << " mixed_marker=" << mixed_marker
-                      << " workspace=" << workspace << " coefficient_bytes=" << coefficient_bytes
+                      << " projection_reached=1 mixed_marker=" << mixed_marker
                       << " workflow_measured=1 seconds=" << seconds
                       << " checksum_re=" << checksum.real() << " checksum_im=" << checksum.imag()
                       << " checksum_norm=" << norm << std::endl;
@@ -1122,12 +1109,9 @@ void test_public_raw_crpa_options(bool gpu, bool mixed = true)
         {
             if (public_ds->blacs_h.ddla_cpu_handle == nullptr)
                 throw std::runtime_error("Public CPU DDLA options did not initialize their owning handle");
-            const auto bytes = ddla::gemm_mixed_workspace_bytes<double>(
-                public_ds->blacs_h.ddla_cpu_handle, 2, 1, 9, false);
-            const bool eligible = bytes <= 18 * sizeof(Z);
             const bool marker = profile.find("pair_vertex_mixed_coefficients") != std::string::npos;
-            if (marker != (mixed && eligible))
-                throw std::runtime_error("Public s-trial cRPA mixed marker disagrees with queried eligibility");
+            if (marker != mixed)
+                throw std::runtime_error("Public s-trial cRPA did not select native mixed coefficients");
         }
         else if (public_ds->blacs_h.ddla_handle == nullptr)
             throw std::runtime_error("Public raw GPU options did not initialize their owning GPU handle");

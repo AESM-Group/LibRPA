@@ -213,6 +213,14 @@ list(APPEND lib_sources interface/la_connector.cpp)
 
 # source must be PRIVATE to avoid recompilation when linking driver to this library
 target_sources(rpa_lib PRIVATE ${lib_sources})
+# base_blacs.h uses the runtime API in inline functions, so consumers need
+# the runtime's include directories and link requirements as well.
+if(LIBRPA_USE_CUDA)
+  target_link_libraries(rpa_lib PUBLIC ${CUDA_LIBRARIES})
+elseif(LIBRPA_USE_HIP)
+  target_link_libraries(rpa_lib PUBLIC ${HIP_LIBRARIES})
+endif()
+
 target_link_libraries(rpa_lib PRIVATE ${math_libs} ${parallel_libs})
 
 install(TARGETS rpa_lib

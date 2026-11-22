@@ -40,8 +40,8 @@ function(librpa_check_ddla_capabilities ddla_target)
   if(NOT _librpa_ddla_capable)
     message(FATAL_ERROR
       "The external LibDDLA target '${ddla_target}' lacks the required declarations or linkable APIs: "
-      "diag_logdet/pdiag_logdet, gemm_mixed_workspace_bytes, explicit-workspace mixed GEMM, "
-      "and mixed gemmVbatched/gemmVbatched2s. An older 0.0.6 installation is insufficient. "
+      "diag_logdet/pdiag_logdet, native mixed GEMM, "
+      "and mixed gemmVbatched/gemmVbatched2s. A version number alone does not establish compatibility. "
       "Rebuild/install the LibDDLA revision required by this LibRPA source, select that prefix "
       "with LIBDDLA_PATH, or remove LIBDDLA_PATH and supplied DDLA targets to use the managed dependency. "
       "See the CMake configure error log for the failed compile/link probe.")

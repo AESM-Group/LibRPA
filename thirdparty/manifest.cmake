@@ -32,13 +32,11 @@ librpa_thirdparty_declare(cereal
   LICENSE BSD-3-Clause)
 
 librpa_thirdparty_declare(LibDDLA
-  VERSION 1ff05d91559e52cf921ded8ad2aba34217e10f4d
-  URL "https://github.com/userchba/LibDDLA/archive/1ff05d91559e52cf921ded8ad2aba34217e10f4d.tar.gz"
-  ARCHIVE "LibDDLA-1ff05d9.tar.gz"
-  ARCHIVE_SHA256 86457772417d10e87b0802a702579e16c3f168daacf4ea3bc756dc023cb2f75a
-  PATCHES LibDDLA/0001-consumer-interfaces.patch LibDDLA/0002-backend-lu-pivots.patch
-  PRISTINE_SHA256 061b65292a66951a53a1f14f3537ea8bb33b26ba6fc27a55ba8b5bf5593ace99
-  TREE_SHA256 618d800372ed0413cbc7f706c4df513792155eeaeb5155577565b8d990172de6
+  VERSION 0.0.7
+  URL "https://github.com/userchba/LibDDLA/archive/0a65e570d3d3bc70e4d53a7e992b2de60abc884c.tar.gz"
+  ARCHIVE "LibDDLA-0.0.7.tar.gz"
+  ARCHIVE_SHA256 ef872aa94a4ca7733d51e85b8f2ba4becd0536eafb92629b99246ba945b2b63d
+  TREE_SHA256 5876cfbd423bfba6ebc4d64d65bbcae068cb55bfd20d54d34387a7f4bf80b7c5
   LICENSE LGPL-3.0)
 
 librpa_thirdparty_declare(greenX

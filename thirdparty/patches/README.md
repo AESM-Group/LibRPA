@@ -15,10 +15,10 @@ Each patch retains the upstream license. Upstream submission status for the exis
 | ELPA/0001-macos-thread-affinity.patch | Avoid Linux CPU-affinity APIs on macOS. |
 | greenX/0001-librpa-build-integration.patch | Select LibRPA components, use relative install paths, and preserve compiler-specific flags. |
 
-cereal uses unmodified upstream headers. The LibDDLA patch carries only the
-consumer interfaces and their focused tests; independent working-tree stream
-and eigensolver changes are excluded. Both the pristine and patched source
-trees are checked by the dependency manifest.
+cereal uses unmodified upstream headers. LibDDLA 0.0.7 uses the unmodified
+release archive, including backend pivot storage and process-stable device
+selection. LibRPA uses native mixed GEMM without the older caller-workspace
+extensions. Source trees are checked by the dependency manifest.
 
 For standard distributed `pgetrf`, `pgetrs` and public `plapiv`, pivots are
 host arrays for CPU handles and device arrays for GPU handles; pivot values
@@ -27,7 +27,7 @@ External LibDDLA installations must implement this storage contract too.
 The compile/link capability probe checks API availability; unchanged C++
 signatures do not let it distinguish the former host-only GPU-pivot contract.
 
-The second patch adapts the scoped November 16 LibDDLA pivot migration to
+For the older archive, the second patch adapts the November 16 pivot migration to
 the pinned source after the consumer-interface patch. It preserves this base's
 public `plapiv` workspace preparation and excludes an allocation-failure test
 whose source is absent from the pinned tree. Concurrent eigensolver/resource

@@ -218,16 +218,12 @@ void test_random_complex_vertex_against_literal_sum(
 }
 
 #ifdef LIBRPA_USE_DDLA
-void test_mixed_coefficient_memory_gate(const BlacsCtxtHandler &cpu_grid,
-                                       const bool eligible, const int n_spinor)
+void test_native_mixed_coefficient_shapes(const BlacsCtxtHandler &cpu_grid,
+                                       const bool larger, const int n_spinor)
 {
-    const int ni = eligible ? 4 : 2, nj = eligible ? 5 : 3;
-    const int nmu = eligible ? 16 : 2, norb = eligible ? 2 : 3;
+    const int ni = larger ? 4 : 2, nj = larger ? 5 : 3;
+    const int nmu = larger ? 16 : 2, norb = larger ? 2 : 3;
     const int nao = ni + nj, nij = ni * nj, npair = norb * norb;
-    const auto bytes = ddla::gemm_mixed_workspace_bytes<double>(
-        cpu_grid.ddla_cpu_handle, nmu, npair, nij, false);
-    const auto removed = static_cast<std::size_t>(nmu) * nij * sizeof(Complex);
-    assert((bytes <= removed) == eligible);
     const auto pbc = make_pbc(1);
     const auto qpoints = uniform_qx(1);
     const AtomicBasis ao(std::vector<std::size_t>{static_cast<std::size_t>(ni),
@@ -245,9 +241,9 @@ void test_mixed_coefficient_memory_gate(const BlacsCtxtHandler &cpu_grid,
     auto saved_profiler = std::move(global::profiler);
     global::profiler = Profiler{};
     const auto vertex = build_site_pair_density_vertex_from_T(
-        0, site("memory-gate", 0, norb), {t}, Cs, ao, abf, pbc, qpoints, &cpu_grid);
+        0, site("native-mixed", 0, norb), {t}, Cs, ao, abf, pbc, qpoints, &cpu_grid);
     const auto profile = global::profiler.get_profile_string(LIBRPA_VERBOSE_DEBUG);
-    assert((profile.find("pair_vertex_mixed_coefficients") != std::string::npos) == eligible);
+    assert(profile.find("pair_vertex_mixed_coefficients") != std::string::npos);
     ComplexMatrix expected(npair, nmu);
     for (int a = 0; a != norb; ++a)
         for (int b = 0; b != norb; ++b)
@@ -259,7 +255,7 @@ void test_mixed_coefficient_memory_gate(const BlacsCtxtHandler &cpu_grid,
                                 (std::conj(t(s * nao + i, a)) * t(s * nao + ni + j, b) +
                                  std::conj(t(s * nao + ni + j, a)) * t(s * nao + i, b));
     assert_matrix_close(vertex.q_blocks.at(qpoints[0]).at(0), expected, 2e-12);
-    // The same eligible shape with no borrowed handle must safely use legacy GEMM.
+    // The same shape with no borrowed handle must safely use conventional GEMM.
     global::profiler = Profiler{};
     const auto absent = build_site_pair_density_vertex_from_T(
         0, site("absent-handle", 0, norb), {t}, Cs, ao, abf, pbc, qpoints);
@@ -1189,8 +1185,7 @@ void benchmark_pair_vertex(int argc, char **argv, const MpiCommHandler &comm)
         if (mixed) throw std::runtime_error("Mixed benchmark requires DDLA");
 #endif
     }
-    std::size_t workspace = 0;
-    bool eligible = false;
+    bool cpu_owner = false;
     for (int repetition = -1; repetition != repeats; ++repetition)
     {
         global::profiler = Profiler{};
@@ -1212,12 +1207,7 @@ void benchmark_pair_vertex(int argc, char **argv, const MpiCommHandler &comm)
                 owned->init_ddla_handle(ddla::DdlaBackend::CPU);
                 grid = owned.get();
             }
-            if (repetition == -1 && mixed && grid)
-            {
-                workspace = ddla::gemm_mixed_workspace_bytes<double>(
-                    grid->ddla_cpu_handle, nmu, norb * norb, nij, false);
-                eligible = workspace <= static_cast<std::size_t>(nmu) * nij * sizeof(Complex);
-            }
+            cpu_owner = grid != nullptr && grid->ddla_cpu_handle != nullptr;
 #endif
             result = build_site_pair_density_vertex_from_T(
                 0, metadata, t, cs, ao, abf, pbc, qpoints, grid);
@@ -1228,7 +1218,7 @@ void benchmark_pair_vertex(int argc, char **argv, const MpiCommHandler &comm)
         MPI_Allreduce(&elapsed, &seconds, 1, MPI_DOUBLE, MPI_MAX, comm.comm);
         const auto profile = global::profiler.get_profile_string(LIBRPA_VERBOSE_DEBUG);
         const bool marker = profile.find("pair_vertex_mixed_coefficients") != std::string::npos;
-        assert(marker == (mixed && eligible));
+        assert(marker == (mixed && cpu_owner));
         const auto &d = result.q_blocks.at(qpoints[0]).at(0);
         assert_matrix_close(d, reference.q_blocks.at(qpoints[0]).at(0), 2e-12);
         Complex checksum{};
@@ -1242,8 +1232,8 @@ void benchmark_pair_vertex(int argc, char **argv, const MpiCommHandler &comm)
             std::cout << std::setprecision(17) << "BENCH_PAIR rep=" << repetition
                       << " ni=" << ni << " nj=" << nj << " nmu=" << nmu << " norb=" << norb
                       << " spinor=" << spinor << " mixed=" << mixed << " owner=" << owner
-                      << " eligible=" << eligible << " mixed_marker=" << marker
-                      << " workspace=" << workspace << " coefficient_bytes=" << nmu * nij * sizeof(Complex)
+                      << " cpu_owner=" << cpu_owner << " mixed_marker=" << marker
+                      << " coefficient_bytes=" << nmu * nij * sizeof(Complex)
                       << " workflow_measured=0 seconds=" << seconds << " start_monotonic=" << monotonic
                       << " checksum_re=" << checksum.real() << " checksum_im=" << checksum.imag()
                       << " checksum_norm=" << norm << std::endl;
@@ -1284,9 +1274,9 @@ int main(int argc, char **argv)
         test_random_complex_vertex_against_literal_sum(2, cpu_grid.get());
 #ifdef LIBRPA_USE_DDLA
         if (mixed)
-            for (const bool eligible : {false, true})
+            for (const bool larger : {false, true})
                 for (const int spinor : {1, 2})
-                    test_mixed_coefficient_memory_gate(*cpu_grid, eligible, spinor);
+                    test_native_mixed_coefficient_shapes(*cpu_grid, larger, spinor);
 #endif
         test_nonzero_R_wrap_and_minus_fourier_phase();
         test_multiple_atoms_and_sites_remain_separate();
