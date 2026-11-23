@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <limits>
 #include <sstream>
 #include <vector>
 
@@ -89,8 +88,8 @@ librpa_int::NativeVelocityResult librpa_int::build_native_velocity(
                     throw LIBRPA_RUNTIME_ERROR(
                         "G0W0 native velocity k weights disagree with the full-mesh star counts");
             }
-            if (count > static_cast<std::size_t>(std::numeric_limits<int>::max()))
-                throw LIBRPA_RUNTIME_ERROR("Native velocity exceeds the MPI buffer-count limit");
+            // The broadcast is chunked, so the packed buffer is not limited to
+            // the MPI int count.
             velocity.resize(count);
             if (!comm.is_root()) return;
             if (!root_input || root_input->n_spins != ns || !root_input->hamiltonian ||

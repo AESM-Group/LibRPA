@@ -286,8 +286,16 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     // eigenframe to the full mesh first, exactly as QSGW does for its reference
     // state, then differentiate H/S/r in that full frame. No eigenproblem is
     // solved, and the caller keeps its own IBZ mean field for P0 and W.
+    // TODO(memory): this route keeps the full-grid wavefunctions, the packed
+    // full-grid velocity, and its repacked copy on every rank. At production size
+    // (thousands of bands, tens of occupied k points) each of the two velocity
+    // forms is `3 * n_spin * n_k * n_band^2` complex values per rank, and the rank
+    // count does not divide it. Distributing the optical data across the k-point
+    // groups that consume it, or processing the k points in bounded batches and
+    // releasing each one, would remove that per-rank ceiling.
     MeanField headwing_meanfield;
     PeriodicBoundaryData headwing_pbc;
+    bool use_full_bz_frame = false;
     const MeanField *velocity_mf = source;
     const PeriodicBoundaryData *velocity_pbc = &ds->pbc;
     if (symmetry != nullptr && ds->mf.get_n_kpoints() != ds->pbc.get_n_cells_bvk())
@@ -322,11 +330,9 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
         headwing_pbc.kfull_to_k = headwing_pbc.k_to_kfull;
         headwing_pbc.kfull_to_k_relation.assign(
             static_cast<std::size_t>(headwing_meanfield.get_n_kpoints()), KFullToKRelation::DIRECT);
-        ds->headwing_full_bz_mf = headwing_meanfield;
-        ds->headwing_full_bz_pbc = headwing_pbc;
-        ds->headwing_full_bz_ready = true;
-        velocity_mf = &ds->headwing_full_bz_mf;
-        velocity_pbc = &ds->headwing_full_bz_pbc;
+        velocity_mf = &headwing_meanfield;
+        velocity_pbc = &headwing_pbc;
+        use_full_bz_frame = true;
         if (comm.is_root())
             global::lib_printf(
                 "G0W0 native velocity: expanded %d IBZ states to %d full-grid states; "
@@ -341,7 +347,7 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     // repack instead of staying live through the setter.
     std::vector<cplxdb> ibz_velocity;
     const std::vector<cplxdb> *setter_velocity = &result.velocity;
-    if (ds->headwing_full_bz_ready)
+    if (use_full_bz_frame)
     {
         const int n_spins = ds->mf.get_n_spins();
         const int n_kpoints = ds->mf.get_n_kpoints();
@@ -359,7 +365,7 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
                         "Native IBZ velocity cannot locate a representative k-point");
                 const auto *src = result.velocity.data() +
                                   ((static_cast<std::size_t>(spin) *
-                                        ds->headwing_full_bz_mf.get_n_kpoints() + ifull) *
+                                        headwing_meanfield.get_n_kpoints() + ifull) *
                                    per_k);
                 std::copy(src, src + per_k,
                           ibz_velocity.begin() + (static_cast<std::size_t>(spin) * n_kpoints + ik) *
@@ -367,13 +373,21 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
             }
         setter_velocity = &ibz_velocity;
     }
-    if (ds->headwing_full_bz_ready)
+    collective_all_stage(comm, "G0W0 native velocity setter",
+                         [&]
+                         {
+                             librpa_set_velocity_matrix_packed(
+                                 h, ds->mf.get_n_spins(), ds->mf.get_n_kpoints(),
+                                 ds->mf.get_n_states(),
+                                 reinterpret_cast<const double *>(setter_velocity->data()));
+                         });
+    if (use_full_bz_frame)
     {
         // Repack the full-BZ velocity so head/wing can consume it on that mesh,
         // then release the packed buffer. Only the repacked form survives.
-        const int n_hw_spins = ds->headwing_full_bz_mf.get_n_spins();
-        const int n_hw_kpoints = ds->headwing_full_bz_mf.get_n_kpoints();
-        const int n_hw_states = ds->headwing_full_bz_mf.get_n_states();
+        const int n_hw_spins = headwing_meanfield.get_n_spins();
+        const int n_hw_kpoints = headwing_meanfield.get_n_kpoints();
+        const int n_hw_states = headwing_meanfield.get_n_states();
         const std::size_t count = static_cast<std::size_t>(n_hw_spins) *
                                   static_cast<std::size_t>(n_hw_kpoints) * 3 *
                                   static_cast<std::size_t>(n_hw_states) *
@@ -392,14 +406,14 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
                                 result.velocity[cursor];
         std::vector<cplxdb>().swap(result.velocity);
     }
-    collective_all_stage(comm, "G0W0 native velocity setter",
-                         [&]
-                         {
-                             librpa_set_velocity_matrix_packed(
-                                 h, ds->mf.get_n_spins(), ds->mf.get_n_kpoints(),
-                                 ds->mf.get_n_states(),
-                                 reinterpret_cast<const double *>(setter_velocity->data()));
-                         });
+    if (use_full_bz_frame)
+    {
+        // The setter invalidates any previous frame, so publish this one after it
+        // runs. Splitting the readiness flag from the data keeps the two in step.
+        ds->headwing_full_bz_mf = std::move(headwing_meanfield);
+        ds->headwing_full_bz_pbc = std::move(headwing_pbc);
+        ds->headwing_full_bz_ready = true;
+    }
     if (comm.is_root())
         global::lib_printf(
             "G0W0 native velocity: metric %.8e frame_Ha %.8e hermiticity_Ha %.8e "
