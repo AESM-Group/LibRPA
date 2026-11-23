@@ -34,7 +34,9 @@ librpa_thirdparty_declare(LibDDLA
   URL "https://github.com/userchba/LibDDLA/archive/0a65e570d3d3bc70e4d53a7e992b2de60abc884c.tar.gz"
   ARCHIVE "LibDDLA-0.0.7.tar.gz"
   ARCHIVE_SHA256 ef872aa94a4ca7733d51e85b8f2ba4becd0536eafb92629b99246ba945b2b63d
-  TREE_SHA256 5876cfbd423bfba6ebc4d64d65bbcae068cb55bfd20d54d34387a7f4bf80b7c5
+  PATCHES LibDDLA/0001-macos-cpu-portability.patch
+  PRISTINE_SHA256 5876cfbd423bfba6ebc4d64d65bbcae068cb55bfd20d54d34387a7f4bf80b7c5
+  TREE_SHA256 6341a8b110533b2b8438e9e2c3a661dddcc62f8739972b7f9824c109ea4353d0
   LICENSE LGPL-3.0)
 
 librpa_thirdparty_declare(greenX

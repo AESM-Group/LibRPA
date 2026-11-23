@@ -1,10 +1,33 @@
 # Maintaining third-party dependencies
 
-The managed LibDDLA dependency is the unmodified 0.0.7 release at commit
-`0a65e570d3d3bc70e4d53a7e992b2de60abc884c`. Its archive and extracted tree
-are hash checked. The historical LibDDLA consumer backports are not applied.
-External packages must expose the native mixed-GEMM interfaces checked by the
-compile/link probe; caller-owned mixed-GEMM workspace is not required.
+(backend-dependency-compatibility)=
+## LibDDLA compatibility
+
+The manifest selects LibDDLA 0.0.7 at
+`0a65e570d3d3bc70e4d53a7e992b2de60abc884c`. Exact archive and tree hashes are
+in the manifest.
+
+The managed LibDDLA archive has one small portability patch for macOS optional
+BLAS-symbol lookup and resource profiling. It does not change numerical routines or the
+public API. The historical, larger consumer backports were removed: native
+mixed GEMM owns its scratch inside DDLA, so caller-workspace extensions are
+not required. The portability patch has not been submitted upstream; upstream
+adoption remains preferable to retaining a local patch.
+
+LibDDLA is needed for `LIBRPA_USE_DDLA=ON`, including CPU-only builds, and is
+enabled automatically by CUDA/HIP. Computational calls deduce scalar types;
+the initialized handle selects CPU or GPU. Eigensolvers take an explicit
+eigenvector count, and Cholesky uses the standard factor/solve interfaces.
+External LibDDLA packages must provide the native mixed-GEMM APIs checked by
+the compile/link probe and matching headers, libraries, MPI and backend.
+Version strings alone do not prove compatibility. In particular, older
+installations reporting 0.0.6 can expose a different API. External macOS
+libraries also need the portability fixes; LibRPA does not patch an installation.
+
+CPU handles store distributed LU pivots on the host; GPU handles store them
+on the device. Pivot values are one-based global rows and INFO stays on the
+host. Compile/link probes cannot detect an older GPU-pivot storage contract
+with unchanged C++ signatures.
 
 The tracked `thirdparty/manifest.cmake` declares each component's version, URL, archive filename, patches, license, archive SHA-256 and reference tree hashes.
 
@@ -129,7 +152,7 @@ A failed probe stops configuration. Target-provided LibComm uses the automatic `
 
 | Parent target | Selection requirement | Parent responsibilities |
 | --- | --- | --- |
-| `ddla::ddla` (or `LibDDLA::ddla`) | Enable CUDA or HIP | Supply a library, public include paths and link dependencies compatible with that backend |
+| `ddla::ddla` (or `LibDDLA::ddla`) | `LIBRPA_USE_DDLA=ON`, also enabled by CUDA/HIP | Supply a CPU or matching GPU library, compatible public headers and transitive link dependencies |
 | `ELPA::ELPA` | Detected automatically | Supply the library, headers and required link dependencies |
 | `LibGXMiniMax` or `greenX::LibGXMiniMax` | Detected automatically | Supply link dependencies and compatible modules: `Fortran_MODULE_DIRECTORY` for source builds, interface include directories for imported targets |
 

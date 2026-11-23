@@ -6,7 +6,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "../interface/la_connector.h"
+#include "../math/la_connector.h"
 
 using namespace librpa_int;
 

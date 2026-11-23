@@ -129,17 +129,32 @@ cmake -B build -DLIBRPA_USE_DDLA=ON \
 
 Choose an existing installation with `LIBDDLA_PATH`, a source tree with
 `LIBDDLA_SOURCE_DIR`, or leave both empty for the managed dependency. CPU-only
-managed builds disable CUDA, HIP, GPU collectives and GPU/CPU tunneling.
+managed builds disable CUDA, HIP and GPU collectives.
 They require host BLAS/LAPACK and MPI, but no GPU toolkit. Use
 `eigensolver_method = ddla` to select the DDLA CPU eigensolver at runtime.
 
 `linear_algorithm = scalapack|ddla` separately selects distributed screened-Coulomb
 GEMM and LU/Cholesky operations dispatched through `LaConnector`, including
 the shared matrix-power reconstruction. With `use_gpu_replace_scalapack = false`, DDLA
-uses its CPU interface. Host submatrix operations and rectangular-grid Cholesky
-retain ScaLAPACK where the DDLA interface cannot represent the operation.
-Explicitly native head/wing projections and general RPA energy log-determinants
-retain their ScaLAPACK implementations.
+uses its CPU interface. Unit-offset Cholesky factorization and solves use DDLA
+on both square and rectangular process grids. CPU submatrix operations with
+non-unit offsets retain the native route where the DDLA wrapper cannot
+represent the operation.
+
+RPA trace-log calculations also follow `linear_algorithm`. The DDLA route uses
+block-pivoted LU (`pgetrf_bpiv`) and `pdiag_logdet`, with `pgetrs_bpiv` for an
+associated thin right-hand side. Pivots are restricted to diagonal blocks:
+a nonsingular matrix can therefore fail when a diagonal block is singular,
+even if native row-pivoted LU would succeed. Both the general and Gamma-only
+helpers report a failed factorization before reading incomplete factors;
+there is no automatic retry with another LU method. The native general route
+uses row-pivoted LU and its permutation-aware diagonal log-determinant.
+
+Head/wing routing depends on the calculation. The retained Coulomb-basis
+projection in `compute_RPA_correlation_blacs_2d` uses native ScaLAPACK GEMM.
+The filtered head/wing projection and screened-interaction transformations
+dispatched through `LaConnector` follow the selected backend. Matrix
+redistribution through `pgemr2d` remains native.
 
 `use_gpu_replace_scalapack = true` requires a CUDA/HIP build. It promotes
 ScaLAPACK linear operations to DDLA and a ScaLAPACK eigensolver choice to ELPA.
@@ -571,7 +586,9 @@ Otherwise, it uses a nonempty CMake value first, then the environment variable o
 
 Headers matching the pinned upstream tree are used directly (`pinned`). Cereal has no managed patch, so it does not need an overlay. Other headers are used with an `unpinned` warning. The required LibRI compile probe checks the selected combination.
 
-If no target or path is supplied, LibRPA prepares managed headers. The manifest pins cereal to `d81e2f7df7b334fee057e53017388d02e555a836`, which includes the tuple-serialization fix used by this LibRI revision.
+If no target or path is supplied, LibRPA prepares managed headers, including
+the tuple-serialization support needed by LibRI. Exact revisions and patch
+status are recorded in [third-party maintenance](../develop/thirdparty.md).
 
 ```sh
 cmake -B build -DCEREAL_INCLUDE_DIR=/path/to/cereal/include
@@ -596,12 +613,15 @@ Managed sources are the recommended starting point: leave both options empty to 
 A parent target or a source build is another way to match LibDDLA to your toolchain.
 For a prebuilt installation, CMake displays a reminder about compiler and flag compatibility on each configuration.
 
-The installation must provide the LibDDLA 0.0.6 or newer CMake package in
+The installation must provide a compatible LibDDLA CMake package in
 `lib/cmake/LibDDLA` or `lib64/cmake/LibDDLA`. LibRPA links its exported
 `ddla::ddla` target, which supplies public headers and link dependencies.
 Missing or incompatible package metadata causes an error. Installed libraries
 are not checked against the manifest's source-tree hash. The installation
 must match the selected backend, compiler and MPI environment.
+See [dependency compatibility](../develop/thirdparty.md#backend-dependency-compatibility)
+for the required public APIs and platform fixes; a version string alone is
+insufficient.
 
 ```sh
 cmake -B build -DLIBRPA_USE_CUDA=ON -DLIBDDLA_PATH=/path/to/libddla

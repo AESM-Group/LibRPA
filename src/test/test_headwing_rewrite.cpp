@@ -15,7 +15,7 @@
 #include "../core/dielecmodel.h"
 #include "../core/epsilon.h"
 #include "../utils/constants.h"
-#include "../interface/la_connector.h"
+#include "../math/la_connector.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "mpi_test_config.h"
 #include "headwing_rewrite_test_utils.h"

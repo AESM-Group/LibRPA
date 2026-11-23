@@ -1,0 +1,94 @@
+name: macOS CPU build and tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: CPU DDLA ${{ matrix.ddla }}
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        ddla: ['OFF', 'ON']
+    defaults:
+      run:
+        shell: bash
+    env:
+      OMP_NUM_THREADS: 1
+      OPENBLAS_NUM_THREADS: 1
+      OMPI_MCA_rmaps_base_oversubscribe: 1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install GCC, MPI and math libraries
+        run: brew install gcc open-mpi openblas scalapack cmake
+      - name: Cache third-party archives
+        uses: actions/cache@v4
+        with:
+          path: thirdparty/downloads
+          key: thirdparty-${{ hashFiles('thirdparty/manifest.cmake') }}
+      - name: Configure, build and test the CPU backend
+        env:
+          USE_DDLA: ${{ matrix.ddla }}
+        run: |
+          gcc_root=$(brew --prefix gcc)
+          mpi_root=$(brew --prefix open-mpi)
+          blas_root=$(brew --prefix openblas)
+          scalapack_root=$(brew --prefix scalapack)
+          # Use the installed GCC version with the runner's current SDK.
+          cxx=("$gcc_root"/bin/g++-[0-9]*)
+          test "${#cxx[@]}" = 1 && test -x "${cxx[0]}"
+          gcc_major=${cxx[0]##*-}
+          export OMPI_CC="$gcc_root/bin/gcc-$gcc_major"
+          export OMPI_CXX="${cxx[0]}"
+          export OMPI_FC="$gcc_root/bin/gfortran-$gcc_major"
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON \
+            "-DCMAKE_CXX_COMPILER=$OMPI_CXX" "-DCMAKE_Fortran_COMPILER=$OMPI_FC" \
+            "-DMPI_CXX_COMPILER=$mpi_root/bin/mpicxx" \
+            "-DMPI_Fortran_COMPILER=$mpi_root/bin/mpifort" \
+            "-DBLAS_LIBRARIES=$blas_root/lib/libopenblas.dylib" \
+            "-DLAPACK_LIBRARIES=$blas_root/lib/libopenblas.dylib" \
+            "-DDDLA_CPU_BLAS_LIBRARY=$blas_root/lib/libopenblas.dylib" \
+            "-DScaLAPACK_LIBRARY=$scalapack_root/lib/libscalapack.dylib" \
+            "-DLIBRPA_USE_DDLA=$USE_DDLA" -DLIBRPA_USE_CUDA=OFF -DLIBRPA_USE_HIP=OFF \
+            -DLIBRPA_USE_ELPA=OFF -DLIBRPA_USE_LIBRI=ON \
+            -DLIBRPA_ENABLE_FORTRAN_BIND=ON -DLIBRPA_ENABLE_TEST=ON \
+            -DENABLE_GREENX_CTEST=OFF 2>&1 | tee configure.log
+          targets=(rpa_exe rpa_f03_lib GXTabulateGrids test_la_connector_single_rank
+            test_wc_cholesky test_linear_algebra_options test_inputfile_backend_options)
+          if [[ "$USE_DDLA" == ON ]]; then
+            targets+=(test_ddla_cpu_connector test_rpa_gamma_lu)
+          fi
+          cmake --build build --parallel 3 --target "${targets[@]}" 2>&1 | tee build.log
+          ctest --test-dir build --output-on-failure \
+            -R '^(test_la_connector_single_rank|test_la_connector_single_rank_subcommunicators|test_wc_cholesky|test_wc_cholesky_serial|test_linear_algebra_options|test_inputfile_backend_options|test_ddla_cpu_connector|test_ddla_cpu_connector_serial|test_ddla_cpu_connector_rectangular|test_rpa_gamma_lu)$' \
+            2>&1 | tee test.log
+          prefix="$GITHUB_WORKSPACE/install"
+          cmake --install build --prefix "$prefix" 2>&1 | tee install.log
+          cat > installed-consumer.cpp <<'CPP'
+          #include <librpa/librpa.h>
+          int main() {
+              LibrpaOptions options;
+              librpa_init_options(&options);
+              return 0;
+          }
+          CPP
+          "$mpi_root/bin/mpicxx" installed-consumer.cpp -I"$prefix/include" \
+            -L"$prefix/lib" -Wl,-rpath,"$prefix/lib" -lrpa -o installed-consumer
+          ./installed-consumer
+      - name: Save diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-cpu-ddla-${{ matrix.ddla }}
+          path: |
+            configure.log
+            build.log
+            test.log
+            install.log
+            build/CMakeCache.txt
+            build/Testing/Temporary/LastTest.log

@@ -770,7 +770,7 @@ Matz serial_inverse(const Matz &input)
     return inverse;
 }
 
-void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
+void test_wc_layout(const BlacsCtxtHandler &blacs_h, const std::string &linear_algorithm)
 {
     PeriodicBoundaryData pbc;
     pbc.set_latvec({1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
@@ -795,7 +795,7 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
         std::map<double, std::map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>>;
     // Inject a fixed response to test the production Wc paths independently of chi0 construction.
     auto &response_blocks = const_cast<ResponseMap &>(chi0.get_chi0_q());
-    atpair_k_cplx_mat_t bare_blocks, cut_blocks, parallel_cut_blocks;
+    atpair_k_cplx_mat_t bare_blocks, cut_blocks;
     std::map<double, std::map<Vector3_Order<double>, Matz>> expected;
     for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
     {
@@ -819,10 +819,8 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
             {
                 bare_blocks[i][j][q] = std::make_shared<ComplexMatrix>(1, 1);
                 cut_blocks[i][j][q] = std::make_shared<ComplexMatrix>(1, 1);
-                parallel_cut_blocks[i][j][q] = std::make_shared<ComplexMatrix>(1, 1);
                 (*bare_blocks[i][j][q])(0, 0) = bare(i, j);
                 (*cut_blocks[i][j][q])(0, 0) = cut(i, j);
-                (*parallel_cut_blocks[i][j][q])(0, 0) = cut(i, j);
             }
         for (std::size_t iw = 0; iw != grids.get_freq_nodes().size(); ++iw)
         {
@@ -861,17 +859,16 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
                         for (int l = 0; l != 2; ++l) wc(i, j) += t(i, k) * inverse(k, l) * t(l, j);
         }
     }
-    const auto dense = compute_Wc_freq_q(chi0, bare_blocks, cut_blocks, 0.0, {}, false, ".", 0);
-    // Dense input is replicated; ScaLAPACK collects atom blocks additively from their owners.
+    // The shared solver collects atom blocks additively from their owners.
     if (blacs_h.myid != 0)
     {
         bare_blocks.clear();
-        parallel_cut_blocks.clear();
+        cut_blocks.clear();
         response_blocks.clear();
     }
     const auto parallel =
-        compute_Wc_freq_q_blacs(chi0, bare_blocks, parallel_cut_blocks, 0.0, false, 0, {}, nullptr,
-                                blacs_h, desc_aux, false, ".", false, false, false);
+        compute_Wc_freq_q(chi0, bare_blocks, cut_blocks, 0.0, false, 0, {}, nullptr,
+                          blacs_h, desc_aux, false, ".", false, "scalapack", linear_algorithm);
     double local_error = 0.0;
     const auto compare =
         [&](const std::complex<double> actual, const std::complex<double> reference)
@@ -885,11 +882,8 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
     for (const auto &[freq, q_wc] : expected)
         for (const auto &[q, reference] : q_wc)
         {
-            const auto &actual = dense.at(freq).at(q);
-            assert(actual.major() == MAJOR::COL);
-            for (int i = 0; i != 2; ++i)
-                for (int j = 0; j != 2; ++j) compare(actual(i, j), reference(i, j));
             const auto &distributed = parallel.at(freq).at(q);
+            assert(distributed.major() == MAJOR::COL);
             for (int i = 0; i != desc_aux.m_loc(); ++i)
                 for (int j = 0; j != desc_aux.n_loc(); ++j)
                     compare(distributed(i, j),
@@ -898,7 +892,8 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
     double max_error = 0.0;
     MPI_Allreduce(&local_error, &max_error, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     if (blacs_h.myid == 0)
-        std::cout << "Dense/ScaLAPACK Wc analytic control: max_error=" << max_error << std::endl;
+        std::cout << "Wc analytic layout control (" << linear_algorithm
+                  << "): max_error=" << max_error << std::endl;
     assert(max_error < 1e-12);
 }
 
@@ -1246,7 +1241,10 @@ int main(int argc, char *argv[])
         test_dense_wc_real_ct_matches_legacy_real_part(blacs_h, MAJOR::COL, true);
         test_dense_wc_real_ct_projects_large_imaginary_residual();
 #ifdef LIBRPA_USE_LIBRI
-        test_dense_wc_layout(blacs_h);
+        test_wc_layout(blacs_h, "scalapack");
+#ifdef LIBRPA_USE_DDLA
+        test_wc_layout(blacs_h, "ddla");
+#endif
         test_gamma_wc_retained_identity(blacs_h);
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
         if (argc > 1 && std::string(argv[1]) == "--headwing-gpu")

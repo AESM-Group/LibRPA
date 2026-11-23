@@ -11,15 +11,9 @@ Each patch retains the upstream license. Upstream submission status for the exis
 | LibComm/0001-wait-for-receive-task.patch | Wait explicitly for the receive task, which avoids the unused-result warning of `std::async`. |
 | ELPA/0001-macos-thread-affinity.patch | Avoid Linux CPU-affinity APIs on macOS. |
 | greenX/0001-librpa-build-integration.patch | Select LibRPA components, use relative install paths, and preserve compiler-specific flags. |
+| LibDDLA/0001-macos-cpu-portability.patch | LibDDLA 0.0.7: look up optional BLAS thread controls at runtime on macOS and label process resource counters when per-thread counters are unavailable. LGPL-3.0. Not submitted upstream; temporary portability fix while validating effects on other configurations. |
 
-cereal uses unmodified upstream headers. LibDDLA 0.0.7 uses the unmodified
-release archive, including backend pivot storage and process-stable device
-selection. LibRPA uses native mixed GEMM without the older caller-workspace
-extensions. Source trees are checked by the dependency manifest.
-
-For standard distributed `pgetrf`, `pgetrs` and public `plapiv`, pivots are
-host arrays for CPU handles and device arrays for GPU handles; pivot values
-remain one-based global rows, and distributed LU `info` remains on the host.
-External LibDDLA installations must implement this storage contract too.
-The compile/link capability probe checks API availability; unchanged C++
-signatures do not let it distinguish the former host-only GPU-pivot contract.
+LibRI and cereal use unmodified upstream headers. LibDDLA uses its release
+archive with the focused portability patch above. Numerical implementations
+and public APIs are unchanged. Compatibility and storage contracts are in
+[third-party maintenance](../../docs/develop/thirdparty.md#backend-dependency-compatibility).

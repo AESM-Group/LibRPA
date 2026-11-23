@@ -2,8 +2,8 @@
 #define SCALAPACK_CONNECTOR_H
 
 #include <complex>
-#include "blacs_scalapack.h"
-#include "../blas_lapack/lapack_connector.h"
+#include "../interface/scalapack/blacs_scalapack.h"
+#include "lapack_connector.h"
 
 namespace librpa_int {
 

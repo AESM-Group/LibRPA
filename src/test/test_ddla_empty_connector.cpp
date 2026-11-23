@@ -6,7 +6,7 @@
 
 #include <ddla/ddla_vector.h>
 
-#include "../interface/la_connector.h"
+#include "../math/la_connector.h"
 
 using namespace librpa_int;
 using Z = std::complex<double>;

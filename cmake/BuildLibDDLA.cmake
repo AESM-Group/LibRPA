@@ -90,6 +90,7 @@ endif()
 list(APPEND _libddla_forward_variables
   DDLA_CPU_BLAS_LIBRARY DDLA_LAPACK_LIBRARY
   BLA_VENDOR BLAS_LIBRARIES LAPACK_LIBRARIES
+  CMAKE_OSX_DEPLOYMENT_TARGET CMAKE_OSX_ARCHITECTURES CMAKE_OSX_SYSROOT
   DDLA_CUDA_MATH_LIBRARY_DIR
   CUBLAS_LIBRARY CUBLASLT_LIBRARY CURAND_LIBRARY CUSOLVER_LIBRARY CUDART_LIBRARY
 )
@@ -127,6 +128,19 @@ set_target_properties(LibDDLA::ddla PROPERTIES
   IMPORTED_LOCATION "${_libddla_library}"
   INTERFACE_INCLUDE_DIRECTORIES "${_libddla_include_dir}"
 )
+if(APPLE)
+  # The library is not built yet, so CMake cannot read its @rpath install name.
+  # Supply the same major-version name as upstream's SOVERSION property;
+  # otherwise the build executables have no runtime path to managed DDLA.
+  file(READ "${_libddla_source_dir}/src/version.h" _libddla_version_header)
+  string(REGEX MATCH "LIBDDLA_MAJOR_VERSION[ \t]+([0-9]+)"
+    _libddla_version_match "${_libddla_version_header}")
+  if(NOT _libddla_version_match)
+    message(FATAL_ERROR "Cannot determine managed LibDDLA's macOS install name")
+  endif()
+  set_property(TARGET LibDDLA::ddla PROPERTY IMPORTED_SONAME
+    "@rpath/libddla.${CMAKE_MATCH_1}.dylib")
+endif()
 
 set(LIBRPA_DDLA_TARGET LibDDLA::ddla)
 set(LIBRPA_BUNDLED_DDLA_PROJECT_TARGET librpa_bundled_libddla)

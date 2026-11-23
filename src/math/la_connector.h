@@ -11,10 +11,10 @@
 #include <ddla/ddla.h>
 #endif
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include "ddla/device_connector.h"
+#include "../interface/ddla/device_connector.h"
 #endif
-#include "../math/matrix_m.h"
-#include "scalapack/scalapack_connector.h"
+#include "matrix_m.h"
+#include "scalapack_connector.h"
 #include "../mpi/base_blacs.h"
 #ifdef LIBRPA_USE_ELPA
 #include <elpa/elpa.h>

@@ -8,7 +8,7 @@
 #include "librpa.h"
 
 #include "../core/dielecmodel.h"
-#include "../interface/la_connector.h"
+#include "../math/la_connector.h"
 #include "../math/utils_matrix_mpi.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "headwing_rewrite_test_utils.h"

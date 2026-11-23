@@ -12,9 +12,9 @@
 #include <unordered_map>
 
 #include "../io/stl_io_helper.h"
-#include "../interface/blas_lapack/lapack_connector.h"
+#include "../math/lapack_connector.h"
 #include "../math/matrix_m.h"
-#include "../interface/scalapack/scalapack_connector.h"
+#include "../math/scalapack_connector.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "../utils/constants.h"
 #include "../utils/profiler.h"

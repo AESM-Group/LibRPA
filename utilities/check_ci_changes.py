@@ -61,12 +61,14 @@ def successful_build_run(event, *, environ, get_json=github_json):
     merge_sha = environ["GITHUB_SHA"]
     workflow_paths = {
         f'{environ["GITHUB_REPOSITORY"]}/.github/workflows/{workflow}@{merge_sha}'
-        for workflow in ("ci-oneapi.yml", "ci-gpu.yml")
+        for workflow in ("ci-oneapi.yml", "ci-gpu.yml", "ci-macos.yml")
     }
     required_jobs = {
         "oneAPI / ONEAPI",
         "GPU builds / CPU+CUDA build + install",
         "GPU builds / CPU+HIP build + install",
+        "macOS builds / CPU DDLA OFF",
+        "macOS builds / CPU DDLA ON",
     }
     page = 1
     while True:
@@ -121,10 +123,10 @@ def scheduled_build_required(event, *, environ, cwd=None, get_json=github_json):
         try:
             run_id = successful_build_run(event, environ=environ, get_json=get_json)
         except (URLError, TimeoutError, ValueError, KeyError) as error:
-            print(f"Cannot verify earlier CPU/CUDA/HIP builds; build again: {error}", file=sys.stderr)
+            print(f"Cannot verify earlier CPU/CUDA/HIP/macOS builds; build again: {error}", file=sys.stderr)
         else:
             if run_id is not None:
-                print(f"Reuse successful CPU/CUDA/HIP builds from run {run_id}.", file=sys.stderr)
+                print(f"Reuse successful CPU/CUDA/HIP/macOS builds from run {run_id}.", file=sys.stderr)
                 return False
     return True
 

@@ -1,19 +1,6 @@
 # Changelog
 
-- Add `linear_algorithm` alongside `eigensolver_method`. The existing
-  `use_gpu_replace_scalapack` flag promotes ScaLAPACK operations to DDLA and ScaLAPACK
-  diagonalization to ELPA, using GPU DDLA when ELPA is unavailable. CPU DDLA
-  matrix operations are selectable independently of the Coulomb eigensolver.
-
 ## [Unreleased]
-
-- Align the managed dependency and linear-algebra adapters with LibDDLA
-  `1ff05d9`: handle-selected computational calls, explicit full eigenvector
-  counts, standard Cholesky solves on rectangular grids, and no obsolete
-  GPU/CPU tunnel build option. Patch the official LibRI GPU adapter for this API.
-
-- Centralize one-rank host BLAS/LAPACK fallback in `LaConnector`, retaining
-  explicit DDLA/ELPA choices. Remove the separate replicated LAPACK Wc path.
 
 ### Breaking changes
 
@@ -41,6 +28,10 @@
 
 ### Added
 
+- Added `linear_algorithm = scalapack|ddla` alongside `eigensolver_method` for
+  independent dense-operation and Coulomb-eigensolver selection. The existing
+  `use_gpu_replace_scalapack` flag promotes native operations to DDLA and native
+  diagonalization to ELPA, or GPU DDLA when ELPA is unavailable.
 - Added `LIBRPA_USE_DDLA` independently of CUDA/HIP, allowing CPU-only DDLA
   eigensolvers and managed builds without GPU toolkits. GPU builds enable DDLA
   by default; CPU-only builds keep it optional and disabled by default.
@@ -70,6 +61,14 @@
 
 ### Changed
 
+- Aligned backend adapters with the released LibDDLA public interfaces and
+  upstream LibRI's staged GPU callbacks. Use native mixed GEMM without custom
+  caller-workspace extensions. See [third-party maintenance](docs/develop/thirdparty.md)
+  for exact dependency revisions and portability patches.
+- Kept C++ linear-algebra connectors together under `src/math`, with raw
+  external declarations under `src/interface`. Centralized one-rank host
+  BLAS/LAPACK dispatch in `LaConnector`, retaining explicit DDLA/ELPA choices,
+  and removed the separate replicated LAPACK Wc path.
 - Unified distributed matrix powers in `power_hemat_la` and `power_hemat_la_real`.
   ScaLAPACK, DDLA and ELPA share diagonalization, filtering, scaling and
   reconstruction on the caller's distribution. Outer calculations supply
@@ -82,8 +81,8 @@
 - Renamed ELPA source-build settings to `LIBRPA_ELPA_KERNEL`, `LIBRPA_ELPA_OPENMP`, `LIBRPA_ELPA_CONFIGURE_ARGS` and `LIBRPA_ELPA_LIBS`. Source versions now come from the selected source tree; the manifest controls the downloaded release.
 - Standardized installation prefix options as `LIBDDLA_PATH`, `ELPA_PATH` and `GREENX_PATH`.
 - Unified ELPA selection under `LIBRPA_USE_ELPA`, which defaults to `OFF`. Setting it to `ON` builds managed sources when no dependency is supplied. A parent ELPA target, source path or installation prefix enables ELPA automatically.
-- Updated cereal to `d81e2f7df7b334fee057e53017388d02e555a836`.
-- Updated LibRI to `ab81ac9`, which includes the portable allocator cleanup. LibRPA no longer patches LibRI. Headers of `a0661cb` with the former patch now have status `unpinned`.
+- Updated cereal for LibRI tuple serialization and LibRI for its portable
+  allocator and public DDLA adapter. LibRPA no longer patches LibRI.
 
 ### Deprecated
 
@@ -99,7 +98,14 @@
 - Fixed mixed matrix layouts in the dense LAPACK screened-interaction path (`use_scalapack_gw_wc = false`), present in v0.5.0 through v0.9.0. The mismatch caused an assertion failure and could give incorrect complex screened interactions when assertions were disabled. The numerical error depends on the input ([#66](https://github.com/AESM-Group/LibRPA/issues/66)).
 - Ignored Git metadata (`.git` file or directory) at the root of a user-supplied source path when computing third-party tree hashes. A submodule or clone at the pinned commit now has status `pinned` and not `unpinned`. Overlay copies leave out the root `.git`, so patching works for a submodule.
 - Detected parent greenX targets automatically, avoiding duplicate targets.
-- Corrected the LibDDLA revision in the license list to `0d576d4`.
+- Synchronized dependency versions in the license list with the manifest.
+- Made the managed LibDDLA CPU build portable to macOS: optional BLAS thread
+  controls remain optional at link time, and unsupported per-thread resource
+  counters use explicitly labeled process counters. Added a macOS CPU build check.
+- Rejected failed Gamma RPA block LU factorizations before reading incomplete
+  factors in Release builds, with collective status checks and GPU cleanup.
+- Trimmed and validated backend input names so inline comments and trailing
+  whitespace do not silently change the selected backend.
 - Passed the OpenMP runtime to the ELPA source build with MKL, so that ELPA's `configure` can link `mkl_intel_thread`.
 - Handled ranks with no local Wc elements in the complex cosine transform of Wc, which divided by zero when computing batch sizes ([#65](https://github.com/AESM-Group/LibRPA/pull/65)).
 

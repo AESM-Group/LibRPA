@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "../core/dielecmodel.h"
-#include "../interface/la_connector.h"
+#include "../math/la_connector.h"
 #ifdef LIBRPA_USE_DDLA
 #include <ddla/ddla_vector.h>
 #endif

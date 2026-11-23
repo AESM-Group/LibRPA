@@ -22,7 +22,7 @@ LibRPA uses the third-party libraries below:
 | GreenX | Always |
 | LibRI, LibComm, cereal | `LIBRPA_USE_LIBRI=ON` (the default) |
 | ELPA | `LIBRPA_USE_ELPA=ON` or a supplied ELPA target or path |
-| LibDDLA | `LIBRPA_USE_CUDA=ON` or `LIBRPA_USE_HIP=ON` |
+| LibDDLA | `LIBRPA_USE_DDLA=ON`, including CPU-only builds; CUDA/HIP enables it automatically |
 
 You do not have to install them beforehand: CMake downloads and prepares the ones that the selected options need.
 In case your machine does not have network acess or you would like to use your own copies of these libraries,
@@ -84,19 +84,12 @@ The build produces the following files. Installation paths are relative to `CMAK
 Fortran binding is built when `-DLIBRPA_ENABLE_FORTRAN_BIND=ON`.
 When you change the compiler or MPI installation, make sure you use a new build directory to avoid potential incompatibility issue.
 
-### CUDA with the current LibDDLA interface
+### CUDA build
 
-The dependency manifest pins unmodified LibDDLA 0.0.7 (`0a65e57`) and
-official LibRI `589f6f8`, which includes LibDDLA's handle-selected public API
-and separate callbacks for the GPU contraction stages. Neither dependency
-requires a managed patch.
-Computational calls deduce the scalar type; the explicitly initialized
-handle selects CPU or GPU. Eigensolvers receive the required eigenvector
-count, and Cholesky uses the standard factor/solve interface.
-Older LibDDLA installations can also report version 0.0.6 while exposing an
-incompatible API. Use the pinned revision or a compatible newer installation,
-with matching headers and libraries. An external LibRI must provide the same
-public DDLA adapter and staged GPU symmetry callbacks as the pinned revision.
+Use compatible LibDDLA headers and libraries, and LibRI headers with the
+public DDLA adapter and staged GPU symmetry callbacks. See
+[third-party maintenance](../develop/thirdparty.md#backend-dependency-compatibility)
+for dependency compatibility, exact revisions and managed patch status.
 GPU communication defaults to CCL in the managed build; host-staged MPI is
 available through LibDDLA's runtime communication policy, without a build option.
 

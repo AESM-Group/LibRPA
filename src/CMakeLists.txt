@@ -209,7 +209,7 @@ if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   )
 endif()
 
-list(APPEND lib_sources interface/la_connector.cpp)
+list(APPEND lib_sources math/la_connector.cpp)
 
 # source must be PRIVATE to avoid recompilation when linking driver to this library
 target_sources(rpa_lib PRIVATE ${lib_sources})
