@@ -758,7 +758,7 @@ typedef struct
     //! Experimental
     int ifreq_output_wc_end;
 
-    //! Export bare chi0 at the grid node of smallest |omega|, in the full auxiliary basis, to output_dir/chi0_lowest (task rpa and g0w0 only; formats in the chi0 export guide).
+    //! Export bare chi0 at the grid node of smallest |omega|, in the full auxiliary basis, to output_dir/chi0_lowest (task rpa and g0w0 only).
     //! @par Default
     //! false
     //! @par Status
