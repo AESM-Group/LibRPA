@@ -880,6 +880,18 @@ CorrEnergy compute_RPA_correlation_blacs_2d_gamma_only(Chi0 &chi0, atpair_k_cplx
         ddla::DDLA_CHECK(ddla::ddlaMalloc(blacs_h.ddla_handle, (void**)&ipiv_ptr, ipiv.size() * sizeof(int)));
     }
 #endif
+    const auto release_gpu_buffers = [&]()
+    {
+#if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
+        if (use_gpu_replace_scalapack)
+        {
+            ddla::DDLA_CHECK(ddla::ddlaFree(blacs_h.ddla_handle, chi0_block_ptr));
+            ddla::DDLA_CHECK(ddla::ddlaFree(blacs_h.ddla_handle, coul_block_ptr));
+            ddla::DDLA_CHECK(ddla::ddlaFree(blacs_h.ddla_handle, coul_chi0_block_ptr));
+            ddla::DDLA_CHECK(ddla::ddlaFree(blacs_h.ddla_handle, ipiv_ptr));
+        }
+#endif
+    };
     const auto &qpts = chi0.active_qpoints();
     complex<double> tot_RPA_energy(0.0, 0.0);
     map<Vector3_Order<double>, complex<double>> cRPA_q;
@@ -1046,6 +1058,19 @@ CorrEnergy compute_RPA_correlation_blacs_2d_gamma_only(Chi0 &chi0, atpair_k_cplx
             int info = -1;
             double det_begin = omp_get_wtime();
             LaConnector::pgetrf_bpiv(n_abf, n_abf, coul_chi0_block_ptr, 1, 1, desc_nabf_nabf_opt, ipiv_ptr, info);
+            // All ranks in the owning grid must reject incomplete factors,
+            // including Release builds where assert checks are disabled.
+            int lowest = 0, highest = 0;
+            MPI_Allreduce(&info, &lowest, 1, MPI_INT, MPI_MIN, desc_nabf_nabf_opt.comm());
+            MPI_Allreduce(&info, &highest, 1, MPI_INT, MPI_MAX, desc_nabf_nabf_opt.comm());
+            info = lowest < 0 ? lowest : highest;
+            if (info != 0)
+            {
+                release_gpu_buffers();
+                throw std::runtime_error("RPA Gamma LU factorization failed with info=" +
+                                         std::to_string(info) +
+                                         "; no alternative LU method was attempted");
+            }
 #if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
             if (use_gpu_replace_scalapack)
             {
@@ -1053,7 +1078,6 @@ CorrEnergy compute_RPA_correlation_blacs_2d_gamma_only(Chi0 &chi0, atpair_k_cplx
                 ddla::DDLA_CHECK(ddla::ddlaSynchronize(blacs_h.ddla_handle));
             }
 #endif
-            assert(info == 0);
             double trf_end = omp_get_wtime();
 
             double ln_det_loc = 0.0;
@@ -1095,15 +1119,7 @@ CorrEnergy compute_RPA_correlation_blacs_2d_gamma_only(Chi0 &chi0, atpair_k_cplx
             }
         }
     }
-#if defined(LIBRPA_USE_HIP) || defined(LIBRPA_USE_CUDA)
-    if(use_gpu_replace_scalapack){
-        ddla::DDLA_CHECK(ddla::ddlaFree(blacs_h.ddla_handle, chi0_block_ptr));
-        ddla::DDLA_CHECK(ddla::ddlaFree(blacs_h.ddla_handle, coul_block_ptr));
-        ddla::DDLA_CHECK(ddla::ddlaFree(blacs_h.ddla_handle, coul_chi0_block_ptr));
-        ddla::DDLA_CHECK(ddla::ddlaFree(blacs_h.ddla_handle, ipiv_ptr));
-    }
-
-#endif
+    release_gpu_buffers();
 #else
     throw std::logic_error("need compilation with LibRI");
 #endif

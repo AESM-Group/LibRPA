@@ -755,16 +755,20 @@ void parse_inputfile_to_params(const std::string &fn)
         if (flag == 0) opts.read_sigc_mat_rf = get_switch(btmp);
     }
     _parse_switch(opts, use_gpu_replace_scalapack);
-    parser.parse_string("linear_algorithm", stmp, flag);
-    if (flag == 0)
+    if (get_last_assigned_value(parser, "linear_algorithm", stmp))
     {
+        if (stmp != "scalapack" && stmp != "ddla")
+            throw std::runtime_error("Invalid linear_algorithm: '" + stmp +
+                                     "'; expected scalapack or ddla");
         if (stmp.size() >= sizeof(opts.linear_algorithm))
             throw std::runtime_error("linear_algorithm is too long");
         std::strcpy(opts.linear_algorithm, stmp.c_str());
     }
-    parser.parse_string("eigensolver_method", stmp, flag);
-    if (flag == 0)
+    if (get_last_assigned_value(parser, "eigensolver_method", stmp))
     {
+        if (stmp != "scalapack" && stmp != "ddla" && stmp != "elpa")
+            throw std::runtime_error("Invalid eigensolver_method: '" + stmp +
+                                     "'; expected scalapack, ddla or elpa");
         if (stmp.size() >= sizeof(opts.eigensolver_method))
             throw std::runtime_error("eigensolver_method is too long");
         std::strcpy(opts.eigensolver_method, stmp.c_str());

@@ -4,6 +4,16 @@ add_executable(
   ../input_parser.cpp
 )
 add_test(NAME test_input_parser COMMAND $<TARGET_FILE:test_input_parser>)
+
+add_executable(test_inputfile_backend_options test_inputfile_backend_options.cpp
+  ../inputfile.cpp ../input_parser.cpp ../driver.cpp)
+target_link_libraries(test_inputfile_backend_options PRIVATE librpa_file_reader rpa_lib)
+if(BUILD_SHARED_LIBS)
+  target_link_libraries(test_inputfile_backend_options PRIVATE ${math_libs} ${parallel_libs})
+endif()
+add_test(NAME test_inputfile_backend_options
+  COMMAND $<TARGET_FILE:test_inputfile_backend_options>
+    ${CMAKE_CURRENT_BINARY_DIR}/backend-options.in)
 add_test(NAME test_removed_scalapack_options
   COMMAND ${CMAKE_COMMAND}
     -DLIBRPA_DRIVER=$<TARGET_FILE:rpa_exe>
