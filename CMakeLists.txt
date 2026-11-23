@@ -521,6 +521,17 @@ if(LIBRPA_VERBOSE_OUTPUT)
   add_compile_definitions("LIBRPA_VERBOSE")
 endif()
 
+# Initialize the install RPATH before GreenX and the Fortran binding create
+# their targets. RUNPATH is not inherited by transitive shared dependencies.
+if(LIBRPA_ENABLE_DRIVER OR LIBRPA_DDLA_TARGET)
+  if(APPLE)
+    list(APPEND CMAKE_INSTALL_RPATH "@loader_path" "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+  elseif(UNIX)
+    list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN" "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+  endif()
+  list(REMOVE_DUPLICATES CMAKE_INSTALL_RPATH)
+endif()
+
 include(ResolveGreenX)
 message(STATUS "Third-party sources: ${LIBRPA_THIRDPARTY_SUMMARY}")
 
@@ -562,15 +573,6 @@ endif()
 if(LIBRPA_ENABLE_DRIVER)
   message(STATUS "LibRPA driver enabled")
 endif()
-if(LIBRPA_ENABLE_DRIVER OR LIBRPA_DDLA_TARGET)
-  if(APPLE)
-    list(APPEND CMAKE_INSTALL_RPATH "@loader_path" "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
-  elseif(UNIX)
-    list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN" "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
-  endif()
-  list(REMOVE_DUPLICATES CMAKE_INSTALL_RPATH)
-endif()
-
 add_subdirectory(src)
 add_subdirectory(driver/reader)
 
