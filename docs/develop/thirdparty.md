@@ -2,9 +2,9 @@
 
 The tracked `thirdparty/manifest.cmake` declares each component's version, URL, archive filename, patches, license, archive SHA-256 and reference tree hashes.
 
-`ARCHIVE_SHA256` covers the compressed archive bytes. Downloads must match before they enter the cache. Cached archives must match before extraction. A failed download check removes the temporary file and stops preparation. A cached archive mismatch stops preparation and leaves that archive unchanged. Regenerated upstream archives can have different bytes even when their extracted files match. Review such a change before updating `ARCHIVE_SHA256`.
+`ARCHIVE_SHA256` covers the compressed archive bytes and is checked after download and before extraction. A mismatch stops preparation. Failed downloads are removed; existing cached archives are preserved. Regenerated upstream archives can have different bytes even when their extracted files match, so a hash update needs review.
 
-Tree hashes identify source versions and detect local changes. A difference produces a warning and status `unpinned`, and configuration continues with those sources. Header-only libraries are hashed over `include/`; LibDDLA, ELPA and greenX are hashed over the whole extracted tree.
+Tree hashes identify source versions and detect local changes during configuration or source preparation. A mismatch produces a warning and status `unpinned`; the sources remain in use. Header-only libraries are hashed over `include/`; LibDDLA, ELPA and greenX are hashed over the whole extracted tree.
 
 ## Tree hash definition
 
@@ -14,29 +14,9 @@ Tree hashes identify source versions and detect local changes. A difference prod
 <lowercase file SHA256><two spaces><relative path><newline>
 ```
 
-Directory names, file modes and timestamps are not included. Preparation and verification of managed trees hash every file. For a source tree that the user supplies, a `.git` file or directory at `root` is skipped (the `IGNORE_GIT` argument). Directory symlinks are explicitly excluded because GLOB_RECURSE can list them even with `LIST_DIRECTORIES false`. Preserve upstream symbolic links when extracting or copying archives; expanding directory links changes the file list. The equivalent shell check for a tree without symbolic links is:
+The hash includes file contents and relative paths, but excludes file modes, timestamps and directory symlinks. Expanding directory symlinks changes the file list. For user-supplied trees, `IGNORE_GIT` also excludes the root `.git` file or directory; nested `.git` entries remain included.
 
-```sh
-(cd ROOT && find . -type f | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r f; do
-  printf '%s  %s\n' "$(shasum -a 256 "$f" | cut -d' ' -f1)" "$f"; done) | shasum -a 256
-```
-
-To mirror the check of a user-supplied source path, which ignores a root `.git`, write `find . -path ./.git -prune -o -type f -print` instead of `find . -type f`.
-
-Use the CMake helper as the authoritative definition for all trees, including those containing links. `TREE_SHA256` covers patched content. `PRISTINE_SHA256` covers unpatched content and defaults to `TREE_SHA256` when no patch is needed.
-
-## Updating a component
-
-1. Download the selected upstream archive into a fresh scratch directory. Record its SHA-256 with `shasum -a 256 ARCHIVE`, then extract it without running its scripts. Check the version and license. Preserve symbolic links and original line endings.
-2. Compare it with the currently selected tree. Keep only required portability and integration changes; do not carry unrelated formatting or generated files.
-3. Generate `-p1` patches with `a/` and `b/` paths relative to the archive root. Record the source, reason, upstream submission status and license in the patch header and `thirdparty/patches/README.md`.
-4. Apply the patches to a fresh upstream tree. Compute pristine and patched hashes with `cmake/LibRPAThirdparty.cmake`, and independently cross-check a header tree with the shell command above.
-5. Update the declaration's full version, URL, archive name, patch list and hashes. Update the license list in `docs/develop/licensing.md`, then run `python3 utilities/update_readme_licensing_list.py`.
-6. Prepare sources in a fresh LibRPA checkout. Test upstream downloads, cached archives with downloads disabled, repeated configuration, archive hash rejection, and warnings that preserve modified managed trees. For LibComm, greenX and ELPA, also check pristine-path overlays and verify that the original tree is unchanged.
-7. Run `python3 utilities/test_thirdparty.py` to check helper failure paths, overlays, concurrent preparation and directory-symlink handling.
-8. Build with and without LibRI, run unit and numerical regression tests, and run the QSGW, Hartree and cRPA verification scripts used in CI. Check parent targets and explicit paths. For ELPA and greenX, verify the source hashes again after building.
-
-A minimal hash script is:
+`TREE_SHA256` covers patched content. `PRISTINE_SHA256` covers unpatched content and defaults to `TREE_SHA256` when omitted. The CMake helper defines both hashes:
 
 ```cmake
 cmake_minimum_required(VERSION 3.13)
@@ -45,21 +25,51 @@ librpa_thirdparty_tree_sha256(hash "/path/to/tree/include")
 message("${hash}")
 ```
 
-Run it with `cmake -P hash.cmake`. You can edit a managed tree during development. Configuration warns about differences in the declared hash scope and preserves the changes. This comparison does not need Git tracking. A separate Git checkout with an explicit source path is useful when you want to track and commit dependency changes. To distribute an update, record it in the manifest and patches.
+Run this script with `cmake -P hash.cmake`. For whole-tree hashes, use the source root instead of `include/`. Add `IGNORE_GIT` as the third argument to match the check of a user-supplied tree.
 
-## Preparation and concurrent builds
+## Local patch for upstream
 
-`cmake/LibRPADownloadThirdparty.cmake` downloads and verifies selected archives for transfer or shared storage. It populates the archive directory even when prepared sources already exist.
+Local third-party patches are intended for small, focused fixes and integration changes.
+They are appropriate in either of these cases:
 
-`cmake/LibRPAPrepareThirdparty.cmake` extracts and patches sources in the local checkout, downloading missing archives when needed. Like normal configuration, it reuses existing sources directly. Both scripts accept `COMPONENTS` to select dependencies; the default is all components in the manifest. The user procedure is in {ref}`Offline installation <install-offline>`.
+- We do not directly control the upstream project.
+- We maintain the upstream project, but the effect on its other users and configurations still needs verification.
 
-Managed sources and patched copies always use `thirdparty/src/` in the LibRPA checkout. Archives default to `thirdparty/downloads/` in the same checkout. You can select a separate archive directory with {ref}`LIBRPA_THIRDPARTY_ARCHIVE_DIR <librpa-thirdparty-archive-dir>`. Its derived default stays uncached. Downloads use temporary files in that directory before renaming, so other configurations cannot read partial downloads. Shared archives are preserved when extraction or hash verification fails.
+For dependencies that we maintain, the preferred approach is to make the change upstream and then update the pinned version in LibRPA.
+A local patch can serve as a temporary solution while its wider effects are verified.
+Large features, API changes and extensive implementation changes belong upstream where possible.
 
-Whole-tree path overlays use `file(COPY)` without `FOLLOW_SYMLINK_CHAIN`. This preserves directory symbolic links on macOS and Linux. The copied tree must match the original hash before patches are applied. The user tree remains unchanged. The hash of a user-supplied source tree ignores Git metadata at its root (`.git` as a file or a directory), so a submodule or clone can match the manifest. A `.git` entry in a subdirectory is hashed. An overlay copy leaves out the root `.git` entry.
+The patch header and its entry in `thirdparty/patches/README.md` record the upstream source, version, purpose, license, and upstream submission status.
+They also explain why a local patch is needed.
 
-Read-only pristine trees can supply header and whole-tree overlays. The copy becomes owner-writable before patch application, and executable files keep their execute permissions. Overlays require a writable `thirdparty/src/` directory in the LibRPA checkout. The supplied tree keeps its contents and permissions.
+When updating an upstream component (see below), we should remove any local patch whose changes are already included in the new version.
 
-Each preparation uses a separate temporary directory. After extraction and patch application, the prepared tree is renamed into the directory selected by the manifest tree hash. Concurrent configurations reuse a tree published by another process; no filesystem lock is required. The name identifies the reference version; local edits do not rename the directory. Reuse compares its contents with the reference hash and warns on differences. Normal configuration reuses existing trees and overlays, preserving local edits. Use the download script to populate an archive directory independently of existing sources. Build outputs must stay in build directories. In particular, copy greenX's Python directory to scratch space before installing it, because Python packaging writes build files into its source directory.
+## Updating a component
+
+1. Download the selected upstream archive into a scratch directory. Record its SHA-256 with `shasum -a 256 ARCHIVE`. Extract it and check the version and license, preserving symbolic links and original line endings.
+2. Compare it with the currently selected tree. Keep only required portability and integration changes; do not carry unrelated formatting or generated files.
+3. Generate any required `-p1` patches with `a/` and `b/` paths relative to the archive root, following the scope and documentation requirements above.
+4. Compute the pristine tree hash with the CMake helper above, then apply the patches and compute the patched tree hash.
+5. Update the declaration's full version, URL, archive name, patch list and hashes. Update the license list in `docs/develop/licensing.md`, then run `python3 utilities/update_readme_licensing_list.py`.
+6. Prepare the updated component in a fresh LibRPA checkout with `cmake -DCOMPONENTS=NAME -P cmake/LibRPAPrepareThirdparty.cmake`, replacing `NAME` with the component name.
+7. Run `python3 utilities/test_thirdparty.py`. It covers archive handling, source reuse, overlays, path selection and concurrent preparation.
+8. Build configurations that use the updated component and run the relevant unit and numerical regression tests. If dependency selection changes, also test the affected parent targets and explicit paths.
+
+Managed trees can be edited during development; configuration preserves local changes and reports them as `unpinned`. A separate checkout with an explicit source path allows Git tracking. Distributed updates belong in the manifest and patches.
+
+## Dependency source preparation
+
+`cmake/LibRPADownloadThirdparty.cmake` downloads and verifies archives, even when prepared sources already exist.
+
+`cmake/LibRPAPrepareThirdparty.cmake` reuses existing sources or extracts and patches archives, downloading missing archives when needed. Both scripts accept `COMPONENTS` to select dependencies; the default is all manifest components. Commands for offline use are in {ref}`Offline installation <install-offline>`.
+
+Managed sources and patched copies use `thirdparty/src/` in the LibRPA checkout. Archives default to `thirdparty/downloads/`, or the directory selected by {ref}`LIBRPA_THIRDPARTY_ARCHIVE_DIR <librpa-thirdparty-archive-dir>`. Downloads use temporary files before renaming. Existing archives are preserved if preparation fails.
+
+For pristine supplied sources that need patches, LibRPA prepares or reuses a patched copy in `thirdparty/src/`. New copies preserve symbolic links and omit the root `.git` entry. LibRPA verifies the copy's hash before applying patches. The original tree remains unchanged.
+
+Read-only pristine trees are supported: the copy becomes owner-writable and retains execute permissions. The checkout's `thirdparty/src/` directory must be writable.
+
+Each preparation uses a separate temporary directory, then renames the prepared tree to `src/<Name>-<hash12>`. Concurrent configurations reuse a tree published by another process. The directory name comes from the manifest's tree hash; local edits do not rename it. CI installs greenX's Python package from a scratch copy of its `python/` directory.
 
 (thirdparty-parent-projects)=
 ## Parent-project integration
@@ -101,13 +111,13 @@ set_target_properties(cereal::cereal PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "/path/to/cereal/include")
 ```
 
-Each target independently takes precedence over its path variable and managed source. A parent may provide only some of these targets. LibRPA resolves the others through their paths or managed sources.
+Each target takes precedence over its path variable and managed source. Dependencies without a parent target use their paths or managed sources.
 
-Header targets have status `target`. LibRPA does not hash or patch them. The parent must supply compatible headers, including required portability fixes. Use a path variable instead if pristine pinned LibComm headers need LibRPA's managed patch overlay.
+Header targets have status `target`. LibRPA does not hash or patch them, so the parent supplies compatible headers with any required fixes. A path variable allows LibRPA to apply an overlay to pristine pinned LibComm headers.
 
-The required configure-time compile probe reads each target's direct `INTERFACE_INCLUDE_DIRECTORIES`. Absolute paths and simple `BUILD_INTERFACE` expressions are supported. `INSTALL_INTERFACE` entries are ignored, and other generator expressions cause an error. The probe does not traverse transitive include directories or inherit arbitrary target compile definitions. Expose the required header paths directly on these targets.
+With `LIBRPA_USE_LIBRI=ON`, a configure-time probe compiles the selected header combination. It reads each target's direct `INTERFACE_INCLUDE_DIRECTORIES`, without transitive includes or target compile definitions. Absolute paths and simple `BUILD_INTERFACE` expressions are supported. `INSTALL_INTERFACE` entries are ignored; other generator expressions cause an error.
 
-The header combination must compile before configuration can continue. This check does not prove numerical compatibility. Target-provided LibComm also keeps the conservative automatic `MPI_THREAD_MULTIPLE` selection. See {ref}`Compile Options <librpa-mpi-thread-level>`.
+A failed probe stops configuration. Target-provided LibComm uses the automatic `MPI_THREAD_MULTIPLE` selection. See {ref}`Compile Options <librpa-mpi-thread-level>`.
 
 ### Compiled dependency targets
 

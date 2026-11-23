@@ -1,7 +1,10 @@
 # Third-party patches
 
-Paths are relative to each upstream archive's top-level directory; apply with `-p1`.
-Each patch retains the upstream license. Upstream submission status is not recorded.
+Local patches cover small, focused changes. Upstream changes are preferred for dependencies that we maintain and for large changes.
+The [local patch policy](../../docs/develop/thirdparty.md#local-patch-for-upstream) describes their scope and maintenance.
+
+Patch paths are relative to each upstream archive's top-level directory and use `-p1`.
+Each patch retains the upstream license. Upstream submission status for the existing patches below is not recorded.
 
 | Patch | Purpose |
 | --- | --- |
