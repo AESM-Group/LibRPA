@@ -458,6 +458,8 @@ std::string format_runtime_options(const librpa::Options &opts) noexcept
             bool_pair(output_gw_sigc_mat_rt),
             bool_pair(output_wc_rf),
             bool_pair(output_wc_rf_atom_pair),
+            bool_pair(output_chi0_rf),
+            bool_pair(output_chi0_static),
             bool_pair(use_qpe_adaptive_damp),
             bool_pair(use_qpe_legacy_update),
             bool_pair(override_qpe_solver_nan),

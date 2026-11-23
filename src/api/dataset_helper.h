@@ -26,7 +26,17 @@ void initialize_ds_atpairs_local(Dataset &ds, LibrpaParallelRouting routing);
 // Initialize response function component
 void initialize_ds_chi0(Dataset &ds, const LibrpaOptions &opts);
 void initialize_ds_chi0_qstar(Dataset &ds, const LibrpaOptions &opts);
-void export_ds_chi0(Dataset &ds, const LibrpaOptions &opts, LibrpaParallelRouting routing);
+
+// Construct export and main responses with the same band and symmetry settings.
+std::unique_ptr<Chi0> create_ds_chi0(Dataset &ds, const LibrpaOptions &opts, bool qstar_only,
+                                     const AtomicBasis &chi0_aux_basis,
+                                     const TFGrids &chi0_tfg);
+
+// Bare chi0 export (output_chi0_rf / output_chi0_static), see export_chi0.cpp.
+// Reject an unsupported static grid before building the main response.
+void prepare_ds_chi0_export(Dataset &ds, const LibrpaOptions &opts);
+void export_ds_chi0(Dataset &ds, const LibrpaOptions &opts, LibrpaParallelRouting routing,
+                    LibrpaMethod chi0_method);
 
 // Initialize EXX component
 void initialize_ds_exx(Dataset &ds, const LibrpaOptions &opts);

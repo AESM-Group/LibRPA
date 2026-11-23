@@ -758,10 +758,18 @@ typedef struct
     //! Experimental
     int ifreq_output_wc_end;
 
-    //! Export bare chi0(R,iw_min), original auxiliary basis, before screening.
+    //! Export bare chi0 at the grid node of smallest |omega|, in the full auxiliary basis, to output_dir/chi0_lowest (task rpa and g0w0 only; formats in the chi0 export guide).
+    //! @par Default
+    //! false
+    //! @par Status
+    //! Experimental
     LibrpaSwitch output_chi0_rf;
-    //! Additionally integrate chi0(R,tau) at physical omega=0 using rescaled minimax
-    //! time quadrature. This is a separate response build, not node index 0.
+
+    //! Export bare chi0 at omega = 0 from a separate build on the rescaled minimax time grid, in the full auxiliary basis, to output_dir/chi0_static (task rpa and g0w0 only).
+    //! @par Default
+    //! false
+    //! @par Status
+    //! Experimental
     LibrpaSwitch output_chi0_static;
 
 } LibrpaOptions;

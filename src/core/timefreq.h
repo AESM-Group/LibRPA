@@ -92,9 +92,14 @@ class TFGrids
                         double emax = -1, double tmin = -1, double tinterval = -1,
                         double regulation = 0.0);
 
-        //! Dedicated export grid: rescale the minimax time quadrature to the
-        //! single-response energy interval and set row 0 by chi(i0)=2*integral_0^infty chi(tau) d tau. Never use
-        //! this grid for GW self-energy integration/inverse transforms.
+        //! Dedicated export grid for the static bare chi0 (output_chi0_static).
+        //! The minimax time nodes and weights are doubled, and row 0 of the
+        //! time-to-frequency transform is set by
+        //!   chi(i*0) = 2 * integral_0^infty chi(tau) d tau.
+        //! Only frequency node 0 (omega = 0) is meaningful: the other freq_nodes are
+        //! copies of the source grid and their transform rows are zero, so a response
+        //! built on this grid is zero there. Never use this grid for GW self-energy
+        //! integration or inverse transforms.
         void generate_static_export(const TFGrids &source);
         //! Generate the even-spaced frequency grid
         void generate_evenspaced(double emin, double interval);

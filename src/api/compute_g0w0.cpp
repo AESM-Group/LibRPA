@@ -671,11 +671,14 @@ std::vector<librpa_int::cplxdb> collect_sigc_diag_to_callers(
 void librpa_build_g0w0_sigma(LibrpaHandler* h, const LibrpaOptions *p_opts)
 {
     auto dataset = librpa_int::api::get_dataset_instance(h);
-    librpa_int::api::build_gw_sigma_for_task(*dataset, *p_opts);
+    // Single-shot G0W0: the response is built once, so it may be exported.
+    const bool export_bare_chi0 = true;
+    librpa_int::api::build_gw_sigma_for_task(*dataset, *p_opts, {}, export_bare_chi0);
 }
 
 void librpa_int::api::build_gw_sigma_for_task(
-    Dataset& dataset, const LibrpaOptions& opts, const qsgw::ResponseObserver& on_response)
+    Dataset& dataset, const LibrpaOptions& opts, const qsgw::ResponseObserver& on_response,
+    bool export_bare_chi0)
 {
     using namespace librpa_int;
     using librpa_int::global::lib_printf;
@@ -780,6 +783,15 @@ void librpa_int::api::build_gw_sigma_for_task(
         initialize_ds_chi0(*pds, opts);
     auto &chi0 = *(pds->p_chi0);
 
+    const bool chi0_export_requested = opts.output_chi0_rf == LIBRPA_SWITCH_ON ||
+                                       opts.output_chi0_static == LIBRPA_SWITCH_ON;
+    if (chi0_export_requested && !export_bare_chi0)
+        global::lib_printf_root(
+            "Warning: output_chi0_rf/output_chi0_static are ignored for this task; "
+            "bare chi0 is exported only by task = rpa and task = g0w0\n");
+    // Validate the static export grid before the expensive build.
+    if (export_bare_chi0) prepare_ds_chi0_export(*pds, opts);
+
     if (opts.read_sigc_mat_rf == LIBRPA_SWITCH_ON)
     {
         ensure_exx();
@@ -803,7 +815,7 @@ void librpa_int::api::build_gw_sigma_for_task(
     chi0.build(routing, LIBRPA_METHOD_SPACE_TIME, cs_data_chi0, pds->atpairs_local,
                basis_aux_chi0, sinvS_chi0, pds->blacs_h);
     profiler.stop("chi0_build");
-    export_ds_chi0(*pds, opts, routing);
+    if (export_bare_chi0) export_ds_chi0(*pds, opts, routing, LIBRPA_METHOD_SPACE_TIME);
     pds->comm_h.barrier();
     if (on_response) on_response(chi0.get_chi0_q());
 
