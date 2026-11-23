@@ -9,8 +9,6 @@ Each patch retains the upstream license. Upstream submission status for the exis
 | Patch | Purpose |
 | --- | --- |
 | LibRI/0001-current-ddla-api.patch | Use the public GPU capability guard and handle-selected LibDDLA variable-batch calls. |
-| LibDDLA/0001-consumer-interfaces.patch | Backport diagonal log determinants, native mixed variable batches, explicit mixed GEMM workspace, and the mixed single-rank shortcut to the pinned archive. |
-| LibDDLA/0002-backend-lu-pivots.patch | Align standard distributed LU/permutation pivots with the handle backend, including native solve workspaces, bindings and focused tests. |
 | LibComm/0001-wait-for-receive-task.patch | Wait explicitly for the receive task, which avoids the unused-result warning of `std::async`. |
 | ELPA/0001-macos-thread-affinity.patch | Avoid Linux CPU-affinity APIs on macOS. |
 | greenX/0001-librpa-build-integration.patch | Select LibRPA components, use relative install paths, and preserve compiler-specific flags. |
@@ -26,9 +24,3 @@ remain one-based global rows, and distributed LU `info` remains on the host.
 External LibDDLA installations must implement this storage contract too.
 The compile/link capability probe checks API availability; unchanged C++
 signatures do not let it distinguish the former host-only GPU-pivot contract.
-
-For the older archive, the second patch adapts the November 16 pivot migration to
-the pinned source after the consumer-interface patch. It preserves this base's
-public `plapiv` workspace preparation and excludes an allocation-failure test
-whose source is absent from the pinned tree. Concurrent eigensolver/resource
-agreement changes from the independent LibDDLA checkout are not imported.
