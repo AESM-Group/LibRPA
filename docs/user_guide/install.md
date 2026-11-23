@@ -146,6 +146,12 @@ cd build && ctest --output-on-failure
 This runs the LibRPA unit tests.
 Some tests use several MPI processes (at most 4).
 
+With Intel MKL (`MKLROOT` set, for example by oneAPI), the 4-rank
+`test_wc_cholesky` is disabled and CTest lists it as *Not Run (Disabled)*.
+Its LU-fallback check uses an exactly singular matrix, and MKL `PZGETRF`
+returns `INFO=0` for it, while netlib ScaLAPACK reports the zero pivot.
+`test_wc_cholesky_serial` still runs.
+
 For regression tests and comparisons with reference results, see the [regression test guide](https://github.com/AESM-Group/LibRPA/blob/master/regression_tests/README.md#run-automatic-regression-test-and-analysis).
 
 (install-thirdparty-details)=

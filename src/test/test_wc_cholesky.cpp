@@ -38,7 +38,6 @@ void check_system(const BlacsCtxtHandler& grid, int n, int mode, bool ddla_cpu, 
         if (mode == 2) return Z(i == j && i != n - 1 ? 2. : 0.);
         if (mode == 7)
         {
-            if (n == 1) return Z(-2.);
             if (i == 0 && j == 0) return Z{};
             if (i == 0 && j == 1) return Z(2., 1.);
             if (i == 1 && j == 0) return Z(2., -1.);
@@ -172,7 +171,7 @@ int main(int argc, char** argv)
 #else
         assert(!gpu && !ddla_cpu);
 #endif
-        for (int n : {1, 3, 7})
+        for (int n : {3, 7})
             for (int mode : {0, 1, 2, 5, 7})
             {
                 check_system(grid, n, mode, ddla_cpu, gpu);

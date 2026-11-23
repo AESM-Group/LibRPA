@@ -475,7 +475,11 @@ ArrayDesc::ArrayDesc(const int &ictxt)
 {
     // TODO: how to check if ictxt is a valid context?
     int nprocs, myid, nprows, npcols, myprow, mypcol;
-    MPI_Comm comm = Cblacs2sys_handle(ictxt);
+    // A grid context is not a system handle: BLACS_GET(10) returns the
+    // grid communicator handle (netlib and MKL number them differently).
+    int system_handle = -1;
+    Cblacs_get(ictxt, 10, &system_handle);
+    MPI_Comm comm = Cblacs2sys_handle(system_handle);
     Cblacs_gridinfo(ictxt, &nprows, &npcols, &myprow, &mypcol);
     myid = Cblacs_pnum(ictxt, myprow, mypcol);
     nprocs = nprows * npcols;
