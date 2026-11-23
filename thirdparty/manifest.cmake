@@ -1,14 +1,12 @@
 # Pinned archives and reference tree hashes (see docs/develop/thirdparty.md).
 
 librpa_thirdparty_declare(LibRI
-  VERSION 0e8afc3931ee4cdf564699811ca220215570dd6b
-  URL "https://github.com/abacusmodeling/LibRI/archive/0e8afc3931ee4cdf564699811ca220215570dd6b.tar.gz"
-  ARCHIVE "LibRI-0e8afc3.tar.gz"
-  ARCHIVE_SHA256 d352323a101e0d397222f7bf80b74525ab78e6939858251c06f50940afa4205c
+  VERSION 589f6f8c6df3916575a1ba41e840de919d40d345
+  URL "https://github.com/abacusmodeling/LibRI/archive/589f6f8c6df3916575a1ba41e840de919d40d345.tar.gz"
+  ARCHIVE "LibRI-589f6f8.tar.gz"
+  ARCHIVE_SHA256 da1c47ee9bd7404d9819fbf00c44f64b6da5594f8779cf8b3a1f4ccfc2b51097
   HASH_SUBDIR include
-  PATCHES LibRI/0001-current-ddla-api.patch
-  PRISTINE_SHA256 4df54680362b17789af178e6ae7d379a572ee39fe1ab57b06dd30dd1901e5cbc
-  TREE_SHA256 715752313b154b19759dc9fbda68bacebdd35508d923c53f8ce911086d19ee53
+  TREE_SHA256 a92734eb01f92f819345570e9184d71c879c8f11344d41c0262677ad3e0fb562
   LICENSE LGPL-3.0)
 
 librpa_thirdparty_declare(LibComm

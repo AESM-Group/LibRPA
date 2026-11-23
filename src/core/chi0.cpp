@@ -44,7 +44,6 @@
 #include <RI/parallel/Parallel_LRI_Equally_Weighted.h>
 #endif
 #include <RI/physics/RPA.h>
-#include <RI/physics/symmetry/Symmetry_Filter.h>
 #endif
 #include <array>
 #include <map>
@@ -549,42 +548,6 @@ static bool can_use_chi0_rspace_symmetry(
         Rlist_gf.size();
     return symmetry_ctx.count_irreducible_blocks() < n_full_blocks;
 }
-
-template <typename TA, typename TC, typename Tdata>
-class OutputOnlyFilter_Chi0_Symmetry : public RI::Filter_Atom<TA, std::pair<TA, TC>>
-{
-  public:
-    using TAC = std::pair<TA, TC>;
-
-    OutputOnlyFilter_Chi0_Symmetry(
-        const TC &period,
-        const std::map<std::pair<TA, TA>, std::set<TC>> &irreducible_sector)
-        : symmetry_(period, irreducible_sector)
-    {
-    }
-
-    bool filter_for2(const RI::Label::ab_ab &label,
-                     const TA &A1,
-                     const TAC &A2) const override
-    {
-        if (label == RI::Label::ab_ab::a1b2_a2b1)
-            return !this->symmetry_.in_irreducible_sector(A1, A2);
-        return false;
-    }
-
-    bool filter_for32(const RI::Label::ab_ab &label,
-                      const TA &A1,
-                      const TAC &,
-                      const TAC &A3) const override
-    {
-        if (label == RI::Label::ab_ab::a1b1_a2b2)
-            return !this->symmetry_.in_irreducible_sector(A1, A3);
-        return false;
-    }
-
-  private:
-    RI::Symmetry_Filter<TA, TC, Tdata> symmetry_;
-};
 
 template <typename Tdata>
 static RI::Tensor<Tdata> convert_complex_matrix_to_libri_tensor_chi0(
@@ -2347,9 +2310,7 @@ void Chi0::build_chi0_q_space_time_LibRI_routing(const Cs_LRI &Cs,
         if (comm_h.is_root())
             global::lib_printf(
                 "Reducing chi0 real-space blocks with symmetry irreducible sectors\n");
-        rpa.lri.filter_atom =
-            std::make_shared<OutputOnlyFilter_Chi0_Symmetry<int, std::array<int, 3>, Tdata>>(
-                rpa.lri.period, libri_chi0_irreducible_sector);
+        rpa.set_symmetry(true, libri_chi0_irreducible_sector);
     }
     // rpa.chi0s is still produced on the global LibRI communicator.  The q/uhap
     // split narrows the requested atom pairs first; once Cs/Gs are scoped to the

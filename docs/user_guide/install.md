@@ -87,15 +87,16 @@ When you change the compiler or MPI installation, make sure you use a new build 
 ### CUDA with the current LibDDLA interface
 
 The dependency manifest pins unmodified LibDDLA 0.0.7 (`0a65e57`) and
-official LibRI `0e8afc3` with a small adapter patch for LibDDLA's
-handle-selected public API.
+official LibRI `589f6f8`, which includes LibDDLA's handle-selected public API
+and separate callbacks for the GPU contraction stages. Neither dependency
+requires a managed patch.
 Computational calls deduce the scalar type; the explicitly initialized
 handle selects CPU or GPU. Eigensolvers receive the required eigenvector
 count, and Cholesky uses the standard factor/solve interface.
 Older LibDDLA installations can also report version 0.0.6 while exposing an
 incompatible API. Use the pinned revision or a compatible newer installation,
-with matching headers and libraries. An external LibRI must include the same
-adapter changes; the managed patch is under `thirdparty/patches/LibRI/`.
+with matching headers and libraries. An external LibRI must provide the same
+public DDLA adapter and staged GPU symmetry callbacks as the pinned revision.
 GPU communication defaults to CCL in the managed build; host-staged MPI is
 available through LibDDLA's runtime communication policy, without a build option.
 

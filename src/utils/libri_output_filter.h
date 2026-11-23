@@ -10,6 +10,7 @@
 
 #include <RI/physics/symmetry/Symmetry_Filter.h>
 #include <RI/ri/Filter_Atom.h>
+#include <RI/ri/Label_Tools.h>
 // clang-format on
 
 namespace librpa_int
@@ -86,6 +87,35 @@ public:
                 return false;
         }
     }
+
+#ifdef __GPU_RI
+    bool filter_GPU_for32(const RI::Label::ab_ab& label, const TA& A1, const TAC& A2,
+                          const TAC& A3) const override
+    {
+        // GPU stage 2 uses a different argument order from the CPU callbacks.
+        // Filter only the output pair; all construction stages remain no-ops.
+        switch (RI::Label_Tools::to_Aab_Aab(label))
+        {
+            case RI::Label::Aab_Aab::a01b01_a01b01:  // Aa01, Aa2, Ab2
+                return !symmetry_.in_irreducible_sector(A2, A3);
+            case RI::Label::Aab_Aab::a01b01_a01b2:  // Aa01, Ab01, Aa2
+                return !symmetry_.in_irreducible_sector(A3, A2);
+            case RI::Label::Aab_Aab::a01b01_a2b01:  // Aa01, Ab01, Ab2
+            case RI::Label::Aab_Aab::a01b2_a2b01:  // Aa01, Aa2, Ab01
+                return !symmetry_.in_irreducible_sector(A1, A3);
+            case RI::Label::Aab_Aab::a01b01_a2b2:  // Aa01, Ab01, Ab2
+                return !symmetry_.in_irreducible_sector(A1, A2);
+            default:
+                return false;
+        }
+    }
+
+    bool filter_GPU_for23(const RI::Label::ab_ab&, const TA& A1, const TAC& A2) const override
+    {
+        // Stage 3 of a01b2_a2b01 visits the final (Aa01, Ab01) output pair.
+        return !symmetry_.in_irreducible_sector(A1, A2);
+    }
+#endif
 
 private:
     RI::Symmetry_Filter<TA, TC, Tdata> symmetry_;
