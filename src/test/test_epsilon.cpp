@@ -723,6 +723,138 @@ Matz serial_inverse(const Matz &input)
     return inverse;
 }
 
+void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
+{
+    PeriodicBoundaryData pbc;
+    pbc.set_latvec({1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
+    pbc.set_kgrids_kvec(3, 1, 1,
+                        {0.0, 0.0, 0.0, 2.0 * PI / 3.0, 0.0, 0.0, -2.0 * PI / 3.0, 0.0, 0.0});
+    AtomicBasis wfc_basis({2}), aux_basis(std::vector<std::size_t>{1, 1});
+    MeanField mf(1, 3, 2, 2);
+    for (int ik = 0; ik != 3; ++ik)
+    {
+        mf.get_eigenvals()[0](ik, 0) = -1.0;
+        mf.get_eigenvals()[0](ik, 1) = 1.0;
+    }
+    TFGrids grids(3);
+    grids.generate_evenspaced_tf(0.1, 0.1, 0.25, 0.1);
+    KPointBlacsParallelContext kctx(KPointBlacsProcessShape(1, blacs_h.nprocs), MPI_COMM_WORLD, 3);
+    ArrayDesc desc_wfc(blacs_h), desc_aux(blacs_h);
+    desc_wfc.init(2, 2, 1, 1, 0, 0);
+    desc_aux.init(2, 2, 1, 1, 0, 0);
+    const SymmetryContext context;
+    Chi0 chi0(mf, wfc_basis, aux_basis, pbc, context, grids, kctx, desc_wfc, false, false);
+    using ResponseMap =
+        std::map<double, std::map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>>;
+    // Inject a fixed response to test the production Wc paths independently of chi0 construction.
+    auto &response_blocks = const_cast<ResponseMap &>(chi0.get_chi0_q());
+    atpair_k_cplx_mat_t bare_blocks, cut_blocks, parallel_cut_blocks;
+    std::map<double, std::map<Vector3_Order<double>, Matz>> expected;
+    for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
+    {
+        const auto &q = pbc.klist[iq];
+        const double phase = iq == 0 ? 0.0 : (iq == 1 ? 1.0 : -1.0);
+        // Positive-definite, noncommuting square roots. At +/-q the matrices are conjugates.
+        const Matz s({{{2.0, 0.0}, {0.2, 0.3 * phase}}, {{0.2, -0.3 * phase}, {1.5, 0.0}}},
+                     MAJOR::COL);
+        const Matz t({{{1.1, 0.0}, {-0.1, 0.2 * phase}}, {{-0.1, -0.2 * phase}, {0.8, 0.0}}},
+                     MAJOR::COL);
+        Matz bare(2, 2, MAJOR::COL), cut(2, 2, MAJOR::COL);
+        for (int i = 0; i != 2; ++i)
+            for (int j = 0; j != 2; ++j)
+                for (int k = 0; k != 2; ++k)
+                {
+                    bare(i, j) += s(i, k) * s(k, j);
+                    cut(i, j) += t(i, k) * t(k, j);
+                }
+        for (int i = 0; i != 2; ++i)
+            for (int j = i; j != 2; ++j)
+            {
+                bare_blocks[i][j][q] = std::make_shared<ComplexMatrix>(1, 1);
+                cut_blocks[i][j][q] = std::make_shared<ComplexMatrix>(1, 1);
+                parallel_cut_blocks[i][j][q] = std::make_shared<ComplexMatrix>(1, 1);
+                (*bare_blocks[i][j][q])(0, 0) = bare(i, j);
+                (*cut_blocks[i][j][q])(0, 0) = cut(i, j);
+                (*parallel_cut_blocks[i][j][q])(0, 0) = cut(i, j);
+            }
+        for (std::size_t iw = 0; iw != grids.get_freq_nodes().size(); ++iw)
+        {
+            const double freq = grids.get_freq_nodes()[iw];
+            Matz response(
+                {{{-0.3, 0.0}, {0.04, 0.05 * phase}}, {{0.04, -0.05 * phase}, {-0.2, 0.0}}},
+                MAJOR::COL);
+            response *= iw == 2 ? 0.0 : 1.0 / (iw + 1);
+            for (int i = 0; i != 2; ++i)
+                for (int j = i; j != 2; ++j)
+                {
+                    auto &block = response_blocks[freq][q][i][j];
+                    block.create(1, 1);
+                    block(0, 0) = response(i, j);
+                }
+            // Wc = T [(I - S chi0 S)^(-1) - I] T. Use scalar products and
+            // the explicit 2x2 inverse, independent of the production BLAS/eigensolver calls.
+            Matz eps(2, 2, MAJOR::COL);
+            for (int i = 0; i != 2; ++i)
+                for (int j = 0; j != 2; ++j)
+                {
+                    eps(i, j) = i == j ? 1.0 : 0.0;
+                    for (int k = 0; k != 2; ++k)
+                        for (int l = 0; l != 2; ++l)
+                            eps(i, j) -= s(i, k) * response(k, l) * s(l, j);
+                }
+            const auto det = eps(0, 0) * eps(1, 1) - eps(0, 1) * eps(1, 0);
+            Matz inverse({{eps(1, 1) / det - 1.0, -eps(0, 1) / det},
+                          {-eps(1, 0) / det, eps(0, 0) / det - 1.0}},
+                         MAJOR::COL);
+            auto &wc = expected[freq][q];
+            wc = Matz(2, 2, MAJOR::COL);
+            for (int i = 0; i != 2; ++i)
+                for (int j = 0; j != 2; ++j)
+                    for (int k = 0; k != 2; ++k)
+                        for (int l = 0; l != 2; ++l) wc(i, j) += t(i, k) * inverse(k, l) * t(l, j);
+        }
+    }
+    const auto dense = compute_Wc_freq_q(chi0, bare_blocks, cut_blocks, 0.0, {}, false, ".", 0);
+    // Dense input is replicated; ScaLAPACK collects atom blocks additively from their owners.
+    if (blacs_h.myid != 0)
+    {
+        bare_blocks.clear();
+        parallel_cut_blocks.clear();
+        response_blocks.clear();
+    }
+    const auto parallel =
+        compute_Wc_freq_q_blacs(chi0, bare_blocks, parallel_cut_blocks, 0.0, false, 0, {}, nullptr,
+                                blacs_h, desc_aux, false, ".", false, false, false);
+    double local_error = 0.0;
+    const auto compare =
+        [&](const std::complex<double> actual, const std::complex<double> reference)
+    {
+        if (!std::isfinite(actual.real()) || !std::isfinite(actual.imag()) ||
+            !std::isfinite(reference.real()) || !std::isfinite(reference.imag()))
+            local_error = std::numeric_limits<double>::infinity();
+        else
+            local_error = std::max(local_error, std::abs(actual - reference));
+    };
+    for (const auto &[freq, q_wc] : expected)
+        for (const auto &[q, reference] : q_wc)
+        {
+            const auto &actual = dense.at(freq).at(q);
+            assert(actual.major() == MAJOR::COL);
+            for (int i = 0; i != 2; ++i)
+                for (int j = 0; j != 2; ++j) compare(actual(i, j), reference(i, j));
+            const auto &distributed = parallel.at(freq).at(q);
+            for (int i = 0; i != desc_aux.m_loc(); ++i)
+                for (int j = 0; j != desc_aux.n_loc(); ++j)
+                    compare(distributed(i, j),
+                            reference(desc_aux.indx_l2g_r(i), desc_aux.indx_l2g_c(j)));
+        }
+    double max_error = 0.0;
+    MPI_Allreduce(&local_error, &max_error, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    if (blacs_h.myid == 0)
+        std::cout << "Dense/ScaLAPACK Wc analytic control: max_error=" << max_error << std::endl;
+    assert(max_error < 1e-12);
+}
+
 double rectangular_gamma_volume_ratio()
 {
     // The fixture's 2x1x1 mesh in a unit reciprocal cube has Gamma box
@@ -922,6 +1054,7 @@ int main(int argc, char *argv[])
         test_dense_wc_real_ct_matches_legacy_real_part();
         test_dense_wc_real_ct_projects_large_imaginary_residual();
 #ifdef LIBRPA_USE_LIBRI
+        test_dense_wc_layout(blacs_h);
         test_gamma_wc_retained_identity(blacs_h);
 #endif
     }
