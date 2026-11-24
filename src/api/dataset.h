@@ -192,8 +192,9 @@ public:
     void reset_band_eigvecs_kpara_state();
 
     //! Drop the full-BZ eigenframe and velocity that the native head/wing route
-    //! built, together with the optical object it feeds. Call this whenever the
-    //! inputs the frame was differentiated from change.
+    //! built, together with the optical object it feeds. Call this when the inputs
+    //! the frame was differentiated from change, and when a task that never builds
+    //! such a frame starts on a handler that may carry one.
     void invalidate_native_headwing_frame();
 
     void invalidate_compute_objects();

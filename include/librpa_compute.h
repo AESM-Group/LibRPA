@@ -375,7 +375,9 @@ typedef int (*LibrpaQsgwOutputSink)(const LibrpaQsgwOutput *, void *user_data);
  * Keep the handler alive until the task is deleted. After preparation keep
  * its SCF eigenframe/grid fixed; finish band/Coulomb/velocity input before
  * run. Do not modify or reenter the handler during run or its callbacks. Call prepare and
- * set_input collectively before the single run call. */
+ * set_input collectively before the single run call. Creating the task also
+ * drops any native head/wing full-grid frame that an earlier G0W0/cRPA task of
+ * the same handler left behind: that frame belongs to the task that armed it. */
 LibrpaQsgwTask *librpa_create_qsgw_task(LibrpaHandler *, const LibrpaOptions *,
                                         const LibrpaQsgwControls *);
 /** Collective preparation. If IBZ expansion is triggered, the handler's SCF

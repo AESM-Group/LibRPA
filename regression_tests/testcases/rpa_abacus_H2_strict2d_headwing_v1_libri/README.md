@@ -8,4 +8,4 @@ for file presence.
 
 The case requires `librpa_2d_coulomb_head.txt` and runs the reader-v1,
 full-2D-Ewald, q-averaged RPA path. It intentionally uses the ABACUS velocity
-matrix (`use_pyatb = f`) to keep the smoke test compact.
+matrix (`option_velocity = pyatb`) to keep the smoke test compact.
