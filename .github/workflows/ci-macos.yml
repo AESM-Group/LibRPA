@@ -21,7 +21,8 @@ jobs:
     env:
       OMP_NUM_THREADS: 1
       OPENBLAS_NUM_THREADS: 1
-      OMPI_MCA_rmaps_base_oversubscribe: 1
+      # Open MPI 5 uses PRRTE to launch the four-rank tests on smaller runners.
+      PRTE_MCA_rmaps_default_mapping_policy: ":oversubscribe"
     steps:
       - uses: actions/checkout@v4
       - name: Install GCC, MPI and math libraries
