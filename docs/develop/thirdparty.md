@@ -1,34 +1,5 @@
 # Maintaining third-party dependencies
 
-(backend-dependency-compatibility)=
-## LibDDLA compatibility
-
-The manifest selects LibDDLA 0.0.7 at
-`0a65e570d3d3bc70e4d53a7e992b2de60abc884c`. Exact archive and tree hashes are
-in the manifest.
-
-The managed LibDDLA archive has one small portability patch for macOS optional
-BLAS-symbol lookup and resource profiling. It does not change numerical routines or the
-public API. The historical, larger consumer backports were removed: native
-mixed GEMM owns its scratch inside DDLA, so caller-workspace extensions are
-not required. The portability patch has not been submitted upstream; upstream
-adoption remains preferable to retaining a local patch.
-
-LibDDLA is needed for `LIBRPA_USE_DDLA=ON`, including CPU-only builds, and is
-enabled automatically by CUDA/HIP. Computational calls deduce scalar types;
-the initialized handle selects CPU or GPU. Eigensolvers take an explicit
-eigenvector count, and Cholesky uses the standard factor/solve interfaces.
-External LibDDLA packages must provide the native mixed-GEMM APIs checked by
-the compile/link probe and matching headers, libraries, MPI and backend.
-Version strings alone do not prove compatibility. In particular, older
-installations reporting 0.0.6 can expose a different API. External macOS
-libraries also need the portability fixes; LibRPA does not patch an installation.
-
-CPU handles store distributed LU pivots on the host; GPU handles store them
-on the device. Pivot values are one-based global rows and INFO stays on the
-host. Compile/link probes cannot detect an older GPU-pivot storage contract
-with unchanged C++ signatures.
-
 The tracked `thirdparty/manifest.cmake` declares each component's version, URL, archive filename, patches, license, archive SHA-256 and reference tree hashes.
 
 `ARCHIVE_SHA256` covers the compressed archive bytes and is checked after download and before extraction. A mismatch stops preparation. Failed downloads are removed; existing cached archives are preserved. Regenerated upstream archives can have different bytes even when their extracted files match, so a hash update needs review.
@@ -161,6 +132,25 @@ Define these targets before adding LibRPA. An ELPA target automatically enables 
 In a parent project, prefer a target when the parent already builds the dependency; otherwise let LibRPA use managed sources. See {ref}`Choosing dependency sources <install-dependency-sources>` for the general recommendation and the path rules.
 
 Use `rpa_lib` to link a C or C++ consumer. With `LIBRPA_ENABLE_FORTRAN_BIND=ON`, the Fortran target is `rpa_f03_lib`, which also exposes its build-time module directory. LibRPA does not currently install a package configuration or target export for `find_package(librpa)`.
+
+(backend-dependency-compatibility)=
+## Dependency compatibility
+
+### LibDDLA
+
+`LIBRPA_USE_DDLA=ON` requires LibDDLA, including CPU-only builds; CUDA/HIP
+enables it automatically. The manifest selects release 0.0.7 at
+`0a65e570d3d3bc70e4d53a7e992b2de60abc884c`. The
+[macOS portability patch](../../thirdparty/patches/LibDDLA/0001-macos-cpu-portability.patch)
+records its purpose and upstream status. An external macOS installation must
+already contain those fixes; LibRPA only patches managed sources.
+
+External packages must supply the native mixed-GEMM APIs, eigensolvers with
+an explicit eigenvector count, and the standard Cholesky factor/solve
+interfaces, with headers, libraries, MPI and backend selected consistently.
+The configure-time compile/link probe checks interfaces, not numerical
+behavior or pivot-storage contracts. A matching version string alone does
+not establish compatibility.
 
 ## Migration from vendored sources
 

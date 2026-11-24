@@ -128,5 +128,5 @@ LibRPA uses the following third-party components as selected by the build config
 - [cereal (`d81e2f7`)](https://github.com/USCiLab/cereal/tree/d81e2f7df7b334fee057e53017388d02e555a836): BSD-3-Clause
 - [LibRI (`589f6f8`)](https://github.com/abacusmodeling/LibRI/tree/589f6f8c6df3916575a1ba41e840de919d40d345): LGPL-3.0
 - [LibComm (`12457e7`)](https://github.com/abacusmodeling/LibComm/tree/12457e7ebd2092dfb6b5d6d0e1fd956c1eb12c53): LGPL-3.0
-- [LibDDLA (0.0.7)](https://github.com/userchba/LibDDLA/tree/0a65e570d3d3bc70e4d53a7e992b2de60abc884c): LGPL-3.0, with a managed macOS portability patch
+- [LibDDLA (0.0.7)](https://github.com/userchba/LibDDLA/tree/0a65e570d3d3bc70e4d53a7e992b2de60abc884c): LGPL-3.0
 - [ELPA (2026.02.001)](https://elpa.mpcdf.mpg.de/): LGPL-3.0

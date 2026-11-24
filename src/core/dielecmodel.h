@@ -23,9 +23,16 @@
 namespace librpa_int
 {
 
-// Solve epsilon*X=B in the caller's memory space. Returns true for Cholesky.
-// Only Gamma head corrections permit LU retry. Their caller supplies a full
-// local backup (non-aliasing, same layout/backend); ordinary solves need none.
+/** Solve epsilon*X=B in the caller's memory space; return true for Cholesky.
+ *
+ * Gamma head or head/wing corrections can make the dielectric matrix indefinite.
+ * Only those callers may set allow_lu_fallback, supplying a non-aliasing local
+ * backup with the same layout/backend. POTRF is destructive: after collective
+ * positive INFO, restore that original matrix before standard GETRF/GETRS.
+ * Negative INFO is an argument error and does not permit retry. The RHS is
+ * untouched until factorization succeeds; an unsuccessful solve is reported.
+ * Ordinary-q Cholesky failures are reported without LU retry or a backup.
+ */
 bool solve_dielectric_system(std::complex<double>* epsilon, std::complex<double>* rhs,
     const ArrayDesc& desc, const ArrayDesc& rhs_desc,
     bool allow_lu_fallback, std::complex<double>* backup = nullptr);

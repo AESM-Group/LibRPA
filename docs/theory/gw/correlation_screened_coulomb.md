@@ -38,3 +38,22 @@ $$
 
 When the two Coulomb matrices are equal, this expression reduces to
 $W^{\mathrm{c}}=W-V$.
+
+## Positive definiteness on the imaginary axis
+
+For a Hermitian negative-semidefinite response $\chi_0$ and a
+positive-semidefinite Coulomb matrix $V$, let $S=V^{1/2}$. For every nonzero
+vector $x$,
+
+$$
+x^{\dagger}\tilde{\varepsilon}x
+= \lVert x\rVert^2-(Sx)^{\dagger}\chi_0(Sx)
+\geq \lVert x\rVert^2>0.
+$$
+
+Thus the unmodified symmetrized dielectric matrix is positive definite and
+admits Cholesky factorization. A filtered Coulomb channel with $Sx=0$ retains
+the identity contribution. Applying the inverse to the required right-hand
+side through factorization and solves avoids forming an explicit inverse.
+This argument applies before any Gamma-point head or head/wing correction;
+such a correction can change definiteness.
