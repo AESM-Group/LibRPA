@@ -125,7 +125,7 @@ iteration writes `KS_band_spin_S_N.dat`, `EXX_band_spin_S_N.dat`, and
 `QSGW_band_spin_S_N.dat` for plotting. Native per-update QP diagnostics are
 written when `qsgw_output_qp = true`; see [QSGW](qsgw.md#quasiparticle-roots-during-iteration). The driver writes energy data rather
 than PNG figures. Continue a checkpoint with the same band-channel presence
-and original band inputs. See [QSGW](qsgw.md) for the full Vxc input, option-6
+and original band inputs. See [QSGW](qsgw.md) for the full Vxc input, analytic
 head/wing feedback, output and restart requirements.
 
 ### Native G0W0 head/wing velocity
@@ -179,9 +179,12 @@ once into Ha/Bohr. S is dimensionless, and the structure reader supplies the lat
 in Bohr. Option 4 uses the same native velocity for the existing analytic head-only
 prescription. The `g0w0_band` task alias accepts the same options.
 
-The current native mode requires complete square AO/band frames and a uniform full-BZ
-mesh, with scalar or SOC wavefunctions. Symmetry reduction and k-point-parallel
-SCF eigenvectors are unsupported. It checks the metric residual against 1e-6, Hamiltonian frame and
+The current native mode requires complete square AO/band frames, with scalar or SOC
+wavefunctions. Both a uniform full-BZ mesh and a symmetry-reduced grid whose k stars
+cover the full mesh are accepted; SOC additionally needs the magnetic spin operations.
+K-point-parallel SCF eigenvectors are accepted too: the head/wing frame is replicated
+from the owning ranks first, and a run whose blocks cannot be completed stops there
+instead of differentiating a partial frame. It checks the metric residual against 1e-6, Hamiltonian frame and
 Hermiticity residuals against 1e-4 eV, and the imaginary velocity diagonal against
 1e-8 Ha Bohr. These input checks establish frame consistency within their tolerances;
 they do not certify material or basis convergence.

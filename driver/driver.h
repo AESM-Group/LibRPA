@@ -585,10 +585,9 @@ struct DriverParams
     //! rotate_reference (fixed initial operator in current eigenstates), or
     //! current_hr (velocity of the complete current native-baseline Hamiltonian,
     //! matching formal HR export; requires native hrs1/hrs2_nao.csr in Ry).
-    //! Standalone option_dielect_func=6 selects current_hr if omitted and
-    //! rejects an explicit reference or rotate_reference. It resolves to
-    //! numerical option 3, with the same current-HR calculation and scope.
-    //! The QSGW option-6 preset selects current_hr; explicit option 4 keeps reference.
+    //! The former standalone option_dielect_func=6 preset, which selected
+    //! current_hr, is gone: set this key explicitly and pick the numerics with
+    //! option_dielect_func. Explicit option 4 keeps reference.
     //! @par Default
     //! reference
     //! @par Status
