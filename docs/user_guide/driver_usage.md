@@ -161,8 +161,8 @@ use_symmetry_exx = false
 
 Native velocity requires `replace_w_head = true`; with option 3 or 53 it also
 requires `use_scalapack_gw_wc = true` to consume the analytic wings. Direct
-library/API callers use option 3 and either supply velocity through the public
-setter or construct it with `librpa_prepare_native_velocity`.
+library/API callers use option 3, 4, or 53 and either supply velocity through the
+public setter or construct it with `librpa_prepare_native_velocity`.
 
 The source selector is `option_velocity`, with `pyatb` (default) and `native`:
 
