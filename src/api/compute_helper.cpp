@@ -292,7 +292,10 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     // forms is `3 * n_spin * n_k * n_band^2` complex values per rank, and the rank
     // count does not divide it. Distributing the optical data across the k-point
     // groups that consume it, or processing the k points in bounded batches and
-    // releasing each one, would remove that per-rank ceiling.
+    // releasing each one, would remove that per-rank ceiling. QSGW already keeps a
+    // complete `nk x n x n` velocity copy per rank
+    // (`src/core/qsgw/headwing_velocity.cpp`), so this follows an existing
+    // tradeoff instead of introducing one; the wavefunction copy is the new part.
     MeanField headwing_meanfield;
     PeriodicBoundaryData headwing_pbc;
     bool use_full_bz_frame = false;
@@ -385,6 +388,8 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     {
         // Repack the full-BZ velocity so head/wing can consume it on that mesh,
         // then release the packed buffer. Only the repacked form survives.
+        // TODO(memory): the repacked copy is the allocation this route cannot
+        // avoid today; see the ceiling noted before the expansion above.
         const int n_hw_spins = headwing_meanfield.get_n_spins();
         const int n_hw_kpoints = headwing_meanfield.get_n_kpoints();
         const int n_hw_states = headwing_meanfield.get_n_states();

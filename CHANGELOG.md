@@ -71,6 +71,7 @@
   (IBZ) list and the full-Brillouin-zone list, are now accepted and reach the
   same accumulation.
 - Linked `mkl_gnu_thread` for GCC C++ and selected the MKL BLACS library from the MPI headers. Configuration rejects detected OpenMP runtime conflicts in ELPA source builds and prebuilt dependencies.
+- Kept the native head/wing full-grid frame with the task that armed it. Both public velocity setters now drop it, and creating a QSGW task drops an inherited one, so a handler reused across tasks can no longer differentiate a stale mesh and velocity while producing plausible numbers.
 
 ## [0.9.0] - 2026-10-31
 

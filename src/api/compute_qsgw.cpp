@@ -154,6 +154,13 @@ LibrpaQsgwTask* librpa_create_qsgw_task(LibrpaHandler* handler, const LibrpaOpti
     using namespace librpa_int;
     using namespace librpa_int::qsgw;
     auto ds = api::get_dataset_instance(handler);
+    // The native G0W0/cRPA route arms an expanded full-BZ eigenframe on the dataset.
+    // That frame belongs to the task that built it: make_analytic_headwing selects it
+    // on `headwing_full_bz_ready` alone, so a QSGW task would otherwise differentiate
+    // its own live H/S/r on the previous task's mesh and velocity, and would also drop
+    // the symmetric wing path. QSGW never arms a frame of its own, so drop any
+    // inherited one here; the G0W0/cRPA prepare step arms its frame after this point.
+    ds->invalidate_native_headwing_frame();
     TaskControls input;
     collective_all_stage(
         ds->comm_h, "QSGW task controls",

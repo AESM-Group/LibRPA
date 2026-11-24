@@ -19,7 +19,6 @@ sqrt_coulomb_threshold = 0
 use_scalapack_gw_wc = true
 use_shrink_abfs = false
 use_shrink_chi = false
-use_pyatb = false
 use_fullcoul_exx = false
 use_fullcoul_eps = true
 use_fullcoul_wc = false
@@ -34,6 +33,9 @@ qsgw_min_iter = 1
 qsgw_max_iter = 3
 qsgw_cut_mode = 0
 qsgw_headwing_velocity = current_hr
+# No Hartree update here: this case has no dedicated Hartree Coulomb/RI inputs,
+# and the driver default is true (periodic-Hartree density feedback).
+qsgw_update_hartree = false
 qsgw_fn_sr = srs1_nao.csr
 qsgw_fn_rr = rr.csr
 qsgw_write_iteration_matrices = true

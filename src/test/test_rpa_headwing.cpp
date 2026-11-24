@@ -4939,6 +4939,39 @@ void test_velocity_setters_invalidate_native_headwing_frame()
     check_cleared("librpa_set_velocity_matrix");
 }
 
+// make_analytic_headwing selects the expanded frame on `headwing_full_bz_ready` alone,
+// and QSGW reaches it through initialize_ds_headwing. Nothing else scopes that flag to a
+// task, so a handler reused for native G0W0/cRPA and then QSGW would build the QSGW
+// head/wing from the previous task's mesh and velocity. Creating a QSGW task must drop
+// the inherited frame; QSGW never arms one of its own.
+void test_qsgw_task_creation_drops_native_headwing_frame()
+{
+    librpa::Handler handler(MPI_COMM_WORLD);
+    const auto ds = librpa_int::api::get_dataset_instance(handler);
+    ds->headwing_full_bz_mf = MeanField(1, 1, 2, 2);
+    ds->headwing_full_bz_pbc = PeriodicBoundaryData{};
+    initialize_velocity_matrix(ds->headwing_full_bz_velocity, 1, 1, 2);
+    ds->headwing_full_bz_ready = true;
+
+    auto *c_handler = const_cast<LibrpaHandler *>(handler.get_c_handler());
+    bool rejected_incomplete_controls = false;
+    try
+    {
+        // Missing controls abort inside create; the frame is dropped on entry, so this
+        // also exercises the path that has to clear before any task state is built.
+        librpa_create_qsgw_task(c_handler, nullptr, nullptr);
+    }
+    catch (const std::exception &)
+    {
+        rejected_incomplete_controls = true;
+    }
+    if (!rejected_incomplete_controls)
+        throw std::runtime_error("librpa_create_qsgw_task accepted missing controls");
+    if (ds->headwing_full_bz_ready || ds->headwing_full_bz_mf.initialized() ||
+        !ds->headwing_full_bz_velocity.empty())
+        throw std::runtime_error("librpa_create_qsgw_task kept the native head/wing frame");
+}
+
 #ifdef LIBRPA_USE_LIBRI
 void test_native_optical_uses_handler_communicator()
 {
@@ -5121,6 +5154,7 @@ int main(int argc, char *argv[])
         blacs_h.init();
         blacs_h.set_square_grid();
 
+        test_qsgw_task_creation_drops_native_headwing_frame();
 #ifdef LIBRPA_USE_LIBRI
         test_velocity_setters_invalidate_native_headwing_frame();
         test_native_optical_uses_handler_communicator();
