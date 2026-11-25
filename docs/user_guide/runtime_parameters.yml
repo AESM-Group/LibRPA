@@ -427,6 +427,8 @@ blocks:
       - api.output_wc_rf_atom_pair
       - api.ifreq_output_wc_start
       - api.ifreq_output_wc_end
+      - api.output_chi0_rf
+      - api.output_chi0_static
 
   - heading: Driver Compatibility Aliases
     markdown: |

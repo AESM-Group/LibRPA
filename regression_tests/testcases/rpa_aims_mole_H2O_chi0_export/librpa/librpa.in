@@ -1,0 +1,8 @@
+# Driver parameters
+task = rpa
+input_dir = ../dataset
+# API runtime
+nfreq = 16
+# Bare chi0 export: lowest minimax node and static omega = 0 response
+output_chi0_rf = t
+output_chi0_static = t

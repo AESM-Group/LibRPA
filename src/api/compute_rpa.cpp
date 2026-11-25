@@ -117,6 +117,8 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
     // Initialize response function object
     initialize_ds_chi0(*pds, opts);
     auto &chi0 = *(pds->p_chi0);
+    // Validate the static export grid before the expensive build.
+    prepare_ds_chi0_export(*pds, opts);
 
     // std::cout << "n_abf & " << chi0.atbasis_abf.nb_total;
     // std::cout << "n_abf * " << pds->p_chi0->atbasis_abf.nb_total;
@@ -125,6 +127,7 @@ double librpa_get_rpa_correlation_energy(LibrpaHandler *h, const LibrpaOptions *
     chi0.build(routing, opts.chi0_method, pds->cs_data, pds->atpairs_local, pds->basis_aux,
                pds->sinvS, pds->blacs_h);
     profiler.stop("chi0_build");
+    export_ds_chi0(*pds, opts, routing, opts.chi0_method);
 
     if (debug)
     { // debug, check chi0

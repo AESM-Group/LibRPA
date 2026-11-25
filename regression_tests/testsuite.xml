@@ -27,6 +27,44 @@
       />
     </testcase>
     
+    <testcase name="Water molecule in box, bare chi0 export (aims input, non-LibRI)" directory="rpa_aims_mole_H2O_chi0_export">
+      <run ntasks_disable="none"
+           nthreads_disable="none"
+           ntasks_enable="none"
+           nthreads_enable="none"
+      />
+      <!-- The export must not change the RPA result of rpa_aims_mole_H2O. -->
+      <validate name="Correlation energy"
+                regex="Total EcRPA: \s+([-+]?\d*\.\d+)"
+                comparison="cmp_float.abs_diff(1e-4)"
+      />
+      <!-- Small complete diagonal and off-diagonal blocks; unchanged numerical references. -->
+      <validate name="chi0(R, iw_min) atom blocks"
+                file="librpa/librpa.d/chi0_lowest/Chi0_Mu_1_Nu_[12]_iR_0_ifreq_0.mtx"
+                comparison="cmp_mtx.abs_diff(1e-8)"
+      />
+      <validate name="chi0_rf.info of the lowest node: omega, n_aux, period"
+                file="librpa/librpa.d/chi0_lowest/chi0_rf.info"
+                regex="^([-+0-9.eE]+) (\d+) (\d+) (\d+) (\d+)$"
+                comparison="cmp_table.abs_diff(1e-12)"
+      />
+      <validate name="chi0_rf.info of the lowest node: grid index"
+                file="librpa/librpa.d/chi0_lowest/chi0_rf.info"
+                regex="^grid_index (\d+) n_grid_nodes (\d+)"
+                comparison="cmp_table.abs_diff(0)"
+      />
+      <!-- Static chi0(R, i0) from the separate build on the rescaled time grid. -->
+      <validate name="chi0(R, i0) atom blocks"
+                file="librpa/librpa.d/chi0_static/Chi0_Mu_1_Nu_[12]_iR_0_ifreq_0.mtx"
+                comparison="cmp_mtx.abs_diff(1e-8)"
+      />
+      <validate name="chi0_rf.info of the static export: omega, n_aux, period"
+                file="librpa/librpa.d/chi0_static/chi0_rf.info"
+                regex="^([-+0-9.eE]+) (\d+) (\d+) (\d+) (\d+)$"
+                comparison="cmp_table.abs_diff(1e-12)"
+      />
+    </testcase>
+
     <testcase name="Water molecule in box, conventional GL grid (aims input)" directory="rpa_aims_mole_H2O_GL">
       <run ntasks_disable="none"
            nthreads_disable="none"

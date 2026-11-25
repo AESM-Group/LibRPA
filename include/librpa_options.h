@@ -757,6 +757,20 @@ typedef struct
     //! Experimental
     int ifreq_output_wc_end;
 
+    //! Export bare chi0 at the grid node of smallest |omega|, in the full auxiliary basis, to output_dir/chi0_lowest (task rpa and g0w0 only).
+    //! @par Default
+    //! false
+    //! @par Status
+    //! Experimental
+    LibrpaSwitch output_chi0_rf;
+
+    //! Export bare chi0 at omega = 0 from a separate build on the rescaled minimax time grid, in the full auxiliary basis, to output_dir/chi0_static (task rpa and g0w0 only).
+    //! @par Default
+    //! false
+    //! @par Status
+    //! Experimental
+    LibrpaSwitch output_chi0_static;
+
 } LibrpaOptions;
 
 /**

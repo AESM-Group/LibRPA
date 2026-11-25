@@ -286,6 +286,31 @@ void initialize_ds_exx(Dataset &ds, const LibrpaOptions &opts)
     global::profiler.stop("initialize_ds_exx");
 }
 
+std::unique_ptr<librpa_int::Chi0> create_ds_chi0(Dataset &ds, const LibrpaOptions &opts,
+                                                 bool qstar_only,
+                                                 const AtomicBasis &chi0_aux_basis,
+                                                 const TFGrids &chi0_tfg)
+{
+    // The main response and the bare-chi0 export objects are both built here,
+    // so they always share the band selection, thresholds and symmetry route.
+    const bool use_symmetry = opts.use_symmetry_rpa == LIBRPA_SWITCH_ON;
+    const bool is_eigvec_k_distributed = opts.use_kpara_scf_eigvec == LIBRPA_SWITCH_ON;
+    const ArrayDesc &desc_scf_wfc =
+        ds.eigvecs_kpara_2d_ready() ? ds.desc_wfc_kb : ds.desc_wfc_kb_full;
+    auto chi0_object = std::make_unique<librpa_int::Chi0>(
+        ds.mf, ds.basis_wfc, chi0_aux_basis, ds.pbc, ds.symmetry_context, chi0_tfg,
+        ds.scfk_blacs_ctxt, desc_scf_wfc, is_eigvec_k_distributed, use_symmetry);
+    chi0_object->qstar_only_symmetry = qstar_only;
+    chi0_object->gf_threshold = opts.gf_threshold;
+    chi0_object->libri_collect_s0_chunk = opts.libri_chi0_collect_s0_chunk;
+    chi0_object->libri_collect_max_bytes = opts.libri_chi0_collect_max_bytes;
+    chi0_object->nbands_G = opts.n_bands_chi0;
+    chi0_object->n_bands_exclude = opts.n_bands_exclude_chi0;
+    chi0_object->libri_threshold_C = opts.libri_chi0_threshold_C;
+    chi0_object->libri_threshold_G = opts.libri_chi0_threshold_G;
+    return chi0_object;
+}
+
 static void initialize_ds_chi0_impl(Dataset &ds, const LibrpaOptions &opts, bool qstar_only)
 {
     global::profiler.start("initialize_ds_chi0");
@@ -313,25 +338,9 @@ static void initialize_ds_chi0_impl(Dataset &ds, const LibrpaOptions &opts, bool
             ds.sinvS = restore_symmetry_rectangular_q_map(
                 ds.sinvS, ds.pbc, view, ds.symmetry_context, ds.basis_aux_shrink, ds.basis_aux);
     }
-    const bool is_eigvec_k_distributed = opts.use_kpara_scf_eigvec == LIBRPA_SWITCH_ON;
-    const ArrayDesc &desc_scf_wfc =
-        ds.eigvecs_kpara_2d_ready() ? ds.desc_wfc_kb : ds.desc_wfc_kb_full;
-    if (opts.use_shrink_abfs == LIBRPA_SWITCH_ON)
-        ds.p_chi0 = std::make_unique<librpa_int::Chi0>(
-            ds.mf, ds.basis_wfc, ds.basis_aux_shrink, ds.pbc, ds.symmetry_context, ds.tfg,
-            ds.scfk_blacs_ctxt, desc_scf_wfc, is_eigvec_k_distributed, use_symmetry);
-    else
-        ds.p_chi0 = std::make_unique<librpa_int::Chi0>(
-            ds.mf, ds.basis_wfc, ds.basis_aux, ds.pbc, ds.symmetry_context, ds.tfg,
-            ds.scfk_blacs_ctxt, desc_scf_wfc, is_eigvec_k_distributed, use_symmetry);
-    ds.p_chi0->qstar_only_symmetry = qstar_only;
-    ds.p_chi0->gf_threshold = opts.gf_threshold;
-    ds.p_chi0->libri_collect_s0_chunk = opts.libri_chi0_collect_s0_chunk;
-    ds.p_chi0->libri_collect_max_bytes = opts.libri_chi0_collect_max_bytes;
-    ds.p_chi0->nbands_G = opts.n_bands_chi0;
-    ds.p_chi0->n_bands_exclude = opts.n_bands_exclude_chi0;
-    ds.p_chi0->libri_threshold_C = opts.libri_chi0_threshold_C;
-    ds.p_chi0->libri_threshold_G = opts.libri_chi0_threshold_G;
+    const AtomicBasis &chi0_aux_basis =
+        opts.use_shrink_abfs == LIBRPA_SWITCH_ON ? ds.basis_aux_shrink : ds.basis_aux;
+    ds.p_chi0 = create_ds_chi0(ds, opts, qstar_only, chi0_aux_basis, ds.tfg);
     global::profiler.stop("initialize_ds_chi0");
 }
 
