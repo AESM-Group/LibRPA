@@ -12,7 +12,6 @@ replace_w_head = t
 rpa_headwing_mode = qavg
 rpa_headwing_body_start = 1
 use_2d_dielectric = t
-use_pyatb = f
 use_fullcoul_eps = t
 use_fullcoul_wc = t
 use_scalapack_ecrpa = t

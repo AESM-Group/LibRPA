@@ -125,18 +125,19 @@ iteration writes `KS_band_spin_S_N.dat`, `EXX_band_spin_S_N.dat`, and
 `QSGW_band_spin_S_N.dat` for plotting. Native per-update QP diagnostics are
 written when `qsgw_output_qp = true`; see [QSGW](qsgw.md#quasiparticle-roots-during-iteration). The driver writes energy data rather
 than PNG figures. Continue a checkpoint with the same band-channel presence
-and original band inputs. See [QSGW](qsgw.md) for the full Vxc input, option-6
+and original band inputs. See [QSGW](qsgw.md) for the full Vxc input, analytic
 head/wing feedback, output and restart requirements.
 
 ### Native G0W0 head/wing velocity
 
 For analytic head/wing correction, the standalone `g0w0` driver and its
-`g0w0_band` alias accept `option_dielect_func = 6`. This experimental preset adds
-an internal velocity calculation from the original DFT H(R), S(R), and r(R),
-then uses the existing option-3 analytic head/wing prescription. Velocity is
-evaluated in the SCF eigenframe already loaded by the driver, retaining the SCF
-energies, wavefunctions, occupations, and frequency/response prescription. No
-PyATB velocity export or second eigensolve is required.
+`g0w0_band` alias take the velocity from `option_velocity`. `option_velocity =
+native` builds it internally from the original DFT H(R), S(R), and r(R) instead
+of reading an external velocity matrix. Velocity is evaluated in the SCF
+eigenframe already loaded by the driver, retaining the SCF energies,
+wavefunctions, occupations, and frequency/response prescription. No velocity
+export or second eigensolve is required. Every analytic option (3, 4, 53)
+accepts both sources.
 
 An ABACUS example, in addition to the ordinary RI/Coulomb and mean-field inputs, is:
 
@@ -144,36 +145,30 @@ An ABACUS example, in addition to the ordinary RI/Coulomb and mean-field inputs,
 task = g0w0
 input_preset = abacus
 replace_w_head = true
-option_dielect_func = 6
+option_dielect_func = 3
+option_velocity = native
 use_scalapack_gw_wc = true
 g0w0_fn_hr = OUT.ABACUS/data-HR-sparse_SPIN0.csr
 g0w0_fn_sr = OUT.ABACUS/data-SR-sparse_SPIN0.csr
 g0w0_fn_rr = OUT.ABACUS/data-rR-sparse.csr
 g0w0_hr_unit = Ry
 g0w0_rr_unit = Bohr
-use_pyatb = false
 use_kpara_scf_eigvec = false
 use_symmetry_rpa = false
 use_symmetry_gw = false
 use_symmetry_exx = false
 ```
 
-Option 6 requires `replace_w_head = true`, `use_scalapack_gw_wc = true`, and
-`use_pyatb = false`. It selects `g0w0_headwing_velocity = native` when the selector
-is omitted; an explicit `native` is also accepted, while an explicit `file` is
-rejected. The driver log records requested option 6 and effective numerical
-option 3. Other tasks reject option 6. Direct library/API callers must use
-option 3 and either supply velocity through the public setter or construct it with
-`librpa_prepare_native_velocity`; option 6 is
-resolved only by the standalone G0W0 driver.
+Native velocity requires `replace_w_head = true`; with option 3 or 53 it also
+requires `use_scalapack_gw_wc = true` to consume the analytic wings. Direct
+library/API callers use option 3, 4, or 53 and either supply velocity through the
+public setter or construct it with `librpa_prepare_native_velocity`.
 
-The previous explicit selection remains supported with the same H/S/r inputs
-and other settings. Native option 3 also requires `use_scalapack_gw_wc = true`
-to consume the analytic wings:
+The source selector is `option_velocity`, with `pyatb` (default) and `native`:
 
 ```ini
 option_dielect_func = 3
-g0w0_headwing_velocity = native
+option_velocity = native
 ```
 
 Use filenames that match the producer. For two collinear spin channels, also set
@@ -184,15 +179,21 @@ once into Ha/Bohr. S is dimensionless, and the structure reader supplies the lat
 in Bohr. Option 4 uses the same native velocity for the existing analytic head-only
 prescription. The `g0w0_band` task alias accepts the same options.
 
-The current native mode requires complete square AO/band frames and a uniform full-BZ
-mesh, with scalar or SOC wavefunctions. Symmetry reduction and k-point-parallel
-SCF eigenvectors are unsupported. It checks the metric residual against 1e-6, Hamiltonian frame and
+The current native mode requires complete square AO/band frames, with scalar or SOC
+wavefunctions. Both a uniform full-BZ mesh and a symmetry-reduced grid whose k stars
+cover the full mesh are accepted; SOC additionally needs the magnetic spin operations.
+K-point-parallel SCF eigenvectors are accepted too: the head/wing frame is replicated
+from the owning ranks first, and a run whose blocks cannot be completed stops there
+instead of differentiating a partial frame. It checks the metric residual against 1e-6, Hamiltonian frame and
 Hermiticity residuals against 1e-4 eV, and the imaginary velocity diagonal against
 1e-8 Ha Bohr. These input checks establish frame consistency within their tolerances;
 they do not certify material or basis convergence.
 
-For options 3 and 4, the default `g0w0_headwing_velocity = file` preserves the
-existing reader. Option 6 does not change either existing prescription. With
+For options 3, 4, and 53, the default `option_velocity = pyatb` preserves the
+existing reader: it looks for a velocity matrix produced by an external optical
+code under `pyatb_librpa_df/`. When ABACUS writes the real-space H(R), S(R) and
+r(R) blocks, prefer `option_velocity = native` — LibRPA then differentiates
+those blocks itself and no external velocity file is needed. With
 `output_level = debug`, either path writes `g0w0_velocity.csv` and
 `g0w0_headwing.csv` under `output_dir`, containing complete complex velocity, head
 and auxiliary-wing arrays. The head/wing snapshot is written before Wc consumes the

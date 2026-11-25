@@ -274,14 +274,15 @@ struct DriverParams
     //! `mommat_ks_kpt_`
     std::string prefix_velocity;
 
-    //! G0W0 analytic head/wing velocity source: file (existing reader) or native.
-    //! Native uses the original DFT H(R)/S(R)/r(R) and the loaded SCF E/C frame.
+    //! G0W0 analytic head/wing velocity source: `pyatb` reads the external
+    //! velocity matrix, `native` differentiates the original DFT H(R)/S(R)/r(R)
+    //! in the loaded SCF E/C frame. Both serve options 3, 4, and 53.
     //! @par Default
-    //! file
+    //! pyatb
     //! @par Status
     //! Experimental
     //! @since Unreleased
-    std::string g0w0_headwing_velocity;
+    std::string option_velocity;
 
     //! Original DFT H(R) CSR for spin 0, relative to input_dir or absolute.
     //! @par Default
@@ -407,13 +408,6 @@ struct DriverParams
     //! @par Status
     //! Experimental
     bool output_hamgnn;
-
-    //! Use PyATB mean-field data for dielectric head/wing calculations.
-    //! @par Default
-    //! false
-    //! @par Status
-    //! Experimental
-    bool use_pyatb;
 
     //! Output GW spectral-function data.
     //! @par Default
@@ -591,10 +585,9 @@ struct DriverParams
     //! rotate_reference (fixed initial operator in current eigenstates), or
     //! current_hr (velocity of the complete current native-baseline Hamiltonian,
     //! matching formal HR export; requires native hrs1/hrs2_nao.csr in Ry).
-    //! Standalone option_dielect_func=6 selects current_hr if omitted and
-    //! rejects an explicit reference or rotate_reference. It resolves to
-    //! numerical option 3, with the same current-HR calculation and scope.
-    //! The QSGW option-6 preset selects current_hr; explicit option 4 keeps reference.
+    //! The former standalone option_dielect_func=6 preset, which selected
+    //! current_hr, is gone: set this key explicitly and pick the numerics with
+    //! option_dielect_func. Explicit option 4 keeps reference.
     //! @par Default
     //! reference
     //! @par Status
@@ -946,7 +939,6 @@ extern librpa::Options opts;
 
 // Original dielectric-method request for driver diagnostics, before preset
 // resolution. This is not an input keyword or a numerical API option.
-extern int requested_option_dielect_func;
 
 // TODO: consider move to public API
 std::string format_runtime_options(const librpa::Options &opts) noexcept;

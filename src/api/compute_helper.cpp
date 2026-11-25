@@ -6,11 +6,14 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <numeric>
 #include <set>
 #include <string>
 
 #include "../core/dielecmodel.h"
 #include "../core/epsilon.h"
+#include "../core/meanfield_mpi.h"
+#include "../math/utils_matrix_mpi.h"
 #include "../core/native_velocity.h"
 #include "../mpi/collective_stage.h"
 #include "dataset_helper.h"
@@ -206,45 +209,216 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
         {
             if (!p_opts)
                 throw LIBRPA_INVALID_ARGUMENT("Native velocity requires numerical options");
-            if (p_opts->option_dielect_func != 3 && p_opts->option_dielect_func != 4)
+            if (p_opts->option_dielect_func != 3 && p_opts->option_dielect_func != 4 &&
+                p_opts->option_dielect_func != 53)
                 throw LIBRPA_INVALID_ARGUMENT(
-                    "Native velocity API options must use numerical values 3/4");
+                    "Native velocity API options must use numerical values 3/4/53");
             if (prepare_optical && p_opts->replace_w_head != LIBRPA_SWITCH_ON)
                 throw LIBRPA_INVALID_ARGUMENT(
                     "Native optical preparation requires replace_w_head enabled");
-            if (prepare_optical && p_opts->option_dielect_func == 3 &&
+            if (prepare_optical &&
+                (p_opts->option_dielect_func == 3 || p_opts->option_dielect_func == 53) &&
                 p_opts->use_scalapack_gw_wc != LIBRPA_SWITCH_ON)
                 throw LIBRPA_INVALID_ARGUMENT(
-                    "Native head/wing preparation with option_dielect_func = 3 requires "
+                    "Native head/wing preparation with option_dielect_func = 3 or 53 requires "
                     "use_scalapack_gw_wc enabled to consume analytic wings");
         });
     const auto &opts = *p_opts;
+    // A cached full-BZ frame belongs to the inputs that built it. Drop it before
+    // reading the new ones, so a rebuild cannot select a stale frame.
+    ds->headwing_full_bz_mf = MeanField{};
+    ds->headwing_full_bz_pbc = PeriodicBoundaryData{};
+    ds->headwing_full_bz_velocity.clear();
+    ds->headwing_full_bz_ready = false;
+
+    // The differentiation needs one complete AO x band block per k point. A
+    // k-point-parallel layout can split a single block across the ranks of its
+    // k-group, so rebuild the replicated layout whenever the stored one is
+    // split. This depends on the wave-function layout, not on whether the SCF
+    // grid happens to be the full mesh.
+    const bool blocks_split =
+        ds->eigvecs_kpara_2d_ready() && ds->scfk_blacs_ctxt.is_initialized() &&
+        ds->desc_wfc_kb.is_initialized() && ds->desc_wfc_kb_full.is_initialized() &&
+        (ds->desc_wfc_kb.mb() < ds->desc_wfc_kb.m() ||
+         ds->desc_wfc_kb.nb() < ds->desc_wfc_kb.n());
+    MeanField replicated_source;
+    const MeanField *source = &ds->mf;
+    if (blocks_split)
+    {
+        replicated_source = ds->mf;
+        int failed = 0;
+        try
+        {
+            redistribute_meanfield_eigvecs_kblacs(replicated_source, ds->scfk_blacs_ctxt,
+                                                  ds->desc_wfc_kb, ds->desc_wfc_kb_full,
+                                                  "native head/wing");
+        }
+        catch (const std::exception &)
+        {
+            failed = 1;
+        }
+        // Each k-group reports on its own communicator; agree on the whole
+        // handler before any rank enters the next collective.
+        int any_failed = 0;
+        comm.allreduce(&failed, &any_failed, 1, MPI_MAX);
+        if (any_failed)
+            throw LIBRPA_RUNTIME_ERROR(
+                "Native head/wing cannot replicate the split k-point-parallel "
+                "wave-function blocks");
+        source = &replicated_source;
+    }
+
     const SymmetryContext *symmetry = nullptr;
     collective_all_stage(
         comm, "Native magnetic velocity frame",
         [&]
         {
             if (ds->mf.get_n_kpoints() == ds->pbc.get_n_cells_bvk()) return;
-            const bool use_symmetry = opts.use_symmetry_rpa == LIBRPA_SWITCH_ON ||
-                                      opts.use_symmetry_gw == LIBRPA_SWITCH_ON;
-            if (ds->mf.get_n_spinor() != 2 || !use_symmetry ||
-                opts.use_kpara_scf_eigvec == LIBRPA_SWITCH_ON)
-                throw LIBRPA_RUNTIME_ERROR(
-                    "IBZ native velocity requires SOC magnetic symmetry and undistributed "
-                    "AO/band WFC blocks");
+            // A symmetry-reduced SCF grid is accepted whenever the k-stars can
+            // restore the full mesh; the expansion below supplies the frame that
+            // the per-k differentiation needs.
             initialize_symmetry_context(*ds, true);
-            require_symmetry_shell_layouts(*ds, "native SOC head/wing");
+            require_symmetry_shell_layouts(*ds, "native IBZ head/wing");
             symmetry = &ds->symmetry_context;
         });
-    auto result = build_native_velocity(ds->mf, ds->pbc, comm, root_input, symmetry);
+    // A symmetry-reduced SCF grid cannot feed the head/wing velocity directly: the
+    // per-k blocks only exist on the IBZ representatives. Expand the loaded
+    // eigenframe to the full mesh first, exactly as QSGW does for its reference
+    // state, then differentiate H/S/r in that full frame. No eigenproblem is
+    // solved, and the caller keeps its own IBZ mean field for P0 and W.
+    // TODO(memory): this route keeps the full-grid wavefunctions, the packed
+    // full-grid velocity, and its repacked copy on every rank. At production size
+    // (thousands of bands, tens of occupied k points) each of the two velocity
+    // forms is `3 * n_spin * n_k * n_band^2` complex values per rank, and the rank
+    // count does not divide it. Distributing the optical data across the k-point
+    // groups that consume it, or processing the k points in bounded batches and
+    // releasing each one, would remove that per-rank ceiling. QSGW already keeps a
+    // complete `nk x n x n` velocity copy per rank
+    // (`src/core/qsgw/headwing_velocity.cpp`), so this follows an existing
+    // tradeoff instead of introducing one; the wavefunction copy is the new part.
+    MeanField headwing_meanfield;
+    PeriodicBoundaryData headwing_pbc;
+    bool use_full_bz_frame = false;
+    const MeanField *velocity_mf = source;
+    const PeriodicBoundaryData *velocity_pbc = &ds->pbc;
+    if (symmetry != nullptr && ds->mf.get_n_kpoints() != ds->pbc.get_n_cells_bvk())
+    {
+        MeanField replicated = *source;
+        for (int ispin = 0; ispin < replicated.get_n_spins(); ++ispin)
+            for (int ispinor = 0; ispinor < replicated.get_n_spinor(); ++ispinor)
+                for (int ik = 0; ik < replicated.get_n_kpoints(); ++ik)
+                {
+                    auto *local = replicated.find_wfc(ispin, ispinor, ik);
+                    const bool complete = local != nullptr &&
+                                          local->nr == replicated.get_n_states() &&
+                                          local->nc == replicated.get_n_aos();
+                    const int owner = find_mpi_owner_rank(complete, comm.comm);
+                    if (owner < 0)
+                        throw LIBRPA_RUNTIME_ERROR(
+                            "Native IBZ expansion is missing a complete source WFC block");
+                    auto &block = replicated.get_eigenvectors()[ispin][ispinor][ik];
+                    broadcast_ComplexMatrix(block, owner, comm.comm);
+                }
+        const auto expanded =
+            expand_symmetry_meanfield(replicated, ds->basis_wfc, ds->pbc, *symmetry);
+        headwing_meanfield = expanded.meanfield;
+        headwing_pbc = ds->pbc;
+        headwing_pbc.klist = headwing_pbc.klist_full;
+        headwing_pbc.kfrac_list = headwing_pbc.kfrac_list_full;
+        headwing_pbc.weight_k.assign(
+            static_cast<std::size_t>(headwing_meanfield.get_n_kpoints()),
+            1.0 / static_cast<double>(headwing_meanfield.get_n_kpoints()));
+        headwing_pbc.k_to_kfull.resize(static_cast<std::size_t>(headwing_meanfield.get_n_kpoints()));
+        std::iota(headwing_pbc.k_to_kfull.begin(), headwing_pbc.k_to_kfull.end(), 0);
+        headwing_pbc.kfull_to_k = headwing_pbc.k_to_kfull;
+        headwing_pbc.kfull_to_k_relation.assign(
+            static_cast<std::size_t>(headwing_meanfield.get_n_kpoints()), KFullToKRelation::DIRECT);
+        velocity_mf = &headwing_meanfield;
+        velocity_pbc = &headwing_pbc;
+        use_full_bz_frame = true;
+        if (comm.is_root())
+            global::lib_printf(
+                "G0W0 native velocity: expanded %d IBZ states to %d full-grid states; "
+                "no eigenproblem solved\n",
+                ds->mf.get_n_kpoints(), headwing_meanfield.get_n_kpoints());
+    }
+    auto result = build_native_velocity(*velocity_mf, *velocity_pbc, comm, root_input, nullptr);
+    // The public velocity matrix is indexed on the caller's k list. When the
+    // differentiation ran on the expanded mesh, hand the setter only the
+    // representative k-points, in the caller's order. Build this small subset
+    // first so the packed full-grid buffer can be released right after the
+    // repack instead of staying live through the setter.
+    std::vector<cplxdb> ibz_velocity;
+    const std::vector<cplxdb> *setter_velocity = &result.velocity;
+    if (use_full_bz_frame)
+    {
+        const int n_spins = ds->mf.get_n_spins();
+        const int n_kpoints = ds->mf.get_n_kpoints();
+        const int n_states = ds->mf.get_n_states();
+        const std::size_t per_k = static_cast<std::size_t>(3) * n_states * n_states;
+        ibz_velocity.resize(static_cast<std::size_t>(n_spins) * n_kpoints * per_k);
+        for (int spin = 0; spin < n_spins; ++spin)
+            for (int ik = 0; ik < n_kpoints; ++ik)
+            {
+                const int ifull = fold_fractional_kpoint_to_targets(
+                                      ds->pbc.kfrac_list[ik], ds->pbc.kfrac_list_full, 1e-8)
+                                      .target_k_index;
+                if (ifull < 0)
+                    throw LIBRPA_RUNTIME_ERROR(
+                        "Native IBZ velocity cannot locate a representative k-point");
+                const auto *src = result.velocity.data() +
+                                  ((static_cast<std::size_t>(spin) *
+                                        headwing_meanfield.get_n_kpoints() + ifull) *
+                                   per_k);
+                std::copy(src, src + per_k,
+                          ibz_velocity.begin() + (static_cast<std::size_t>(spin) * n_kpoints + ik) *
+                                                    per_k);
+            }
+        setter_velocity = &ibz_velocity;
+    }
     collective_all_stage(comm, "G0W0 native velocity setter",
                          [&]
                          {
                              librpa_set_velocity_matrix_packed(
                                  h, ds->mf.get_n_spins(), ds->mf.get_n_kpoints(),
                                  ds->mf.get_n_states(),
-                                 reinterpret_cast<const double *>(result.velocity.data()));
+                                 reinterpret_cast<const double *>(setter_velocity->data()));
                          });
+    if (use_full_bz_frame)
+    {
+        // Repack the full-BZ velocity so head/wing can consume it on that mesh,
+        // then release the packed buffer. Only the repacked form survives.
+        // TODO(memory): the repacked copy is the allocation this route cannot
+        // avoid today; see the ceiling noted before the expansion above.
+        const int n_hw_spins = headwing_meanfield.get_n_spins();
+        const int n_hw_kpoints = headwing_meanfield.get_n_kpoints();
+        const int n_hw_states = headwing_meanfield.get_n_states();
+        const std::size_t count = static_cast<std::size_t>(n_hw_spins) *
+                                  static_cast<std::size_t>(n_hw_kpoints) * 3 *
+                                  static_cast<std::size_t>(n_hw_states) *
+                                  static_cast<std::size_t>(n_hw_states);
+        if (result.velocity.size() != count)
+            throw LIBRPA_RUNTIME_ERROR("Full-BZ native velocity has an unexpected size");
+        initialize_velocity_matrix(ds->headwing_full_bz_velocity, n_hw_spins, n_hw_kpoints,
+                                   n_hw_states);
+        std::size_t cursor = 0;
+        for (int spin = 0; spin < n_hw_spins; ++spin)
+            for (int ik = 0; ik < n_hw_kpoints; ++ik)
+                for (int alpha = 0; alpha < 3; ++alpha)
+                    for (int row = 0; row < n_hw_states; ++row)
+                        for (int column = 0; column < n_hw_states; ++column, ++cursor)
+                            ds->headwing_full_bz_velocity[spin][ik][alpha](row, column) =
+                                result.velocity[cursor];
+        std::vector<cplxdb>().swap(result.velocity);
+    }
+    if (use_full_bz_frame)
+    {
+        // The setter invalidates any previous frame, so publish this one after it
+        // runs. Splitting the readiness flag from the data keeps the two in step.
+        ds->headwing_full_bz_mf = std::move(headwing_meanfield);
+        ds->headwing_full_bz_pbc = std::move(headwing_pbc);
+        ds->headwing_full_bz_ready = true;
+    }
     if (comm.is_root())
         global::lib_printf(
             "G0W0 native velocity: metric %.8e frame_Ha %.8e hermiticity_Ha %.8e "
@@ -257,7 +431,8 @@ void librpa_prepare_native_velocity(LibrpaHandler *h, const LibrpaOptions *p_opt
     // Preserve the numerical grid/head/wing lifecycle behind the public API.
     initialize_ds_global_ddla(*ds, opts);
     initialize_ds_tfgrids(*ds, opts);
-    initialize_ds_headwing(*ds, opts, opts.option_dielect_func == 3);
+    initialize_ds_headwing(*ds, opts,
+                           opts.option_dielect_func == 3 || opts.option_dielect_func == 53);
     comm.bcast(coulomb_normalization.data(), 2, 0);
     collective_all_stage(
         comm, "Native head/wing Coulomb normalization",

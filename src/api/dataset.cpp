@@ -614,6 +614,18 @@ void Dataset::reset_band_eigvecs_kpara_state()
     if (bandk_blacs_ctxt.is_initialized()) bandk_blacs_ctxt.finalize();
 }
 
+void Dataset::invalidate_native_headwing_frame()
+{
+    // The optical object is rebuilt from `velocity_matrix`, but the native route
+    // also keeps an expanded full-BZ frame and its repacked velocity. A rebuild
+    // would select those unless they go with the object.
+    p_headwing.reset();
+    headwing_full_bz_mf = MeanField{};
+    headwing_full_bz_pbc = PeriodicBoundaryData{};
+    headwing_full_bz_velocity.clear();
+    headwing_full_bz_ready = false;
+}
+
 void Dataset::redistribute_eigvecs_kpara_2d()
 {
     if (eigvecs_kpara_2d_redistributed_) return;

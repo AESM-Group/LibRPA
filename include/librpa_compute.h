@@ -299,7 +299,7 @@ void librpa_get_g0w0_spectral_function_band_k(
 
 /** Collective velocity computation and setter; optional analytic head/wing
  * preparation reuses the ordinary numerical API. Options use API values 3/4,
- * never driver preset 6. Optical preparation requires replace_w_head enabled.
+ * with a numerical option. Optical preparation requires replace_w_head enabled.
  * Option 3 also requires use_scalapack_gw_wc to consume the analytic wing.
  * Input is borrowed only for this call; input structures are in librpa_input.h.
  */
@@ -375,7 +375,9 @@ typedef int (*LibrpaQsgwOutputSink)(const LibrpaQsgwOutput *, void *user_data);
  * Keep the handler alive until the task is deleted. After preparation keep
  * its SCF eigenframe/grid fixed; finish band/Coulomb/velocity input before
  * run. Do not modify or reenter the handler during run or its callbacks. Call prepare and
- * set_input collectively before the single run call. */
+ * set_input collectively before the single run call. Creating the task also
+ * drops any native head/wing full-grid frame that an earlier G0W0/cRPA task of
+ * the same handler left behind: that frame belongs to the task that armed it. */
 LibrpaQsgwTask *librpa_create_qsgw_task(LibrpaHandler *, const LibrpaOptions *,
                                         const LibrpaQsgwControls *);
 /** Collective preparation. If IBZ expansion is triggered, the handler's SCF

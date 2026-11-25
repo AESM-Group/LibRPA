@@ -4,6 +4,7 @@
 
 ### Breaking changes
 
+- Replaced the `g0w0_headwing_velocity` selector with `option_velocity`, whose values are `pyatb` (default) and `native`, and removed the `option_dielect_func = 6` driver preset. Every analytic head/wing option (`3`, `4`, `53`) accepts either velocity source through the new selector, so the preset no longer served a distinct purpose. Inputs that still set `option_dielect_func = 6` must switch to `option_dielect_func = 3` with `option_velocity = native`; inputs that set `g0w0_headwing_velocity = file` must use `option_velocity = pyatb`. The `use_pyatb` switch is gone; it only guarded rejections. The external optical bundle directory is `pyatb_librpa_df/`.
 - Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone download and source-preparation scripts remain compatible with 3.13.
 - Stopped shipping third-party sources. Default configuration uses network access, cached archives or prepared sources. For offline builds, download archives with `cmake/LibRPADownloadThirdparty.cmake` on a connected machine and transfer them to the build machine.
 - Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
@@ -71,6 +72,7 @@
   (IBZ) list and the full-Brillouin-zone list, are now accepted and reach the
   same accumulation.
 - Linked `mkl_gnu_thread` for GCC C++ and selected the MKL BLACS library from the MPI headers. Configuration rejects detected OpenMP runtime conflicts in ELPA source builds and prebuilt dependencies.
+- Kept the native head/wing full-grid frame with the task that armed it. Both public velocity setters now drop it, and creating a QSGW task drops an inherited one, so a handler reused across tasks can no longer differentiate a stale mesh and velocity while producing plausible numbers.
 
 ## [0.9.0] - 2026-10-31
 

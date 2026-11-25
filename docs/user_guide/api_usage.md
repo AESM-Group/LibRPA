@@ -388,8 +388,8 @@ Only its rank zero supplies the borrowed operator views; other ranks pass a
 null input pointer. The operators remain valid until the call returns. The
 calculation preserves the loaded SCF energies, occupations and eigenvectors,
 sets the velocity through the existing public setter, and optionally prepares
-analytic head/wing. Pass numerical option 3 or 4, not driver preset 6. For
-option 3 with optical preparation, enable `use_scalapack_gw_wc` so that
+analytic head/wing. Pass numerical option 3, 4, or 53. For
+option 3 or 53 with optical preparation, enable `use_scalapack_gw_wc` so that
 screening consumes the analytic wing. For strict 2D, also supply the area and
 auxiliary monopole normalization decoded from the matching producer export.
 

@@ -380,11 +380,11 @@ choosing A or B.
 
 For a gapped three-dimensional input, `replace_w_head = true` with
 `option_dielect_func = 3` uses analytic head and wings from the current
-one-particle eigenpairs and their velocity matrices. The driver preset
-`option_dielect_func = 6` selects the same full head/wing calculation and
-computes velocity from native H(R), S(R) and r(R), using the existing
-`g0w0_fn_hr`, `g0w0_fn_sr`, `g0w0_fn_rr` and unit parameters. With option 3,
-select either that native source or the existing `velocity_matrix` file. Full
+one-particle eigenpairs and their velocity matrices. `option_velocity = native`
+selects the same full head/wing calculation and computes velocity from native
+H(R), S(R) and r(R), using the existing `g0w0_fn_hr`, `g0w0_fn_sr`,
+`g0w0_fn_rr` and unit parameters. With option 3, select either that native
+source or the existing `velocity_matrix` file through `option_velocity = pyatb`. Full
 screening uses every physical transition; constrained screening omits a pair
 only when both original endpoints belong to A. The RI optical charge vertex
 sums equal spinor components. Only the angular Gamma-cell weights are
@@ -509,7 +509,9 @@ For a single G0W0 calculation, enable the shared cRPA workflow with:
 
 ```text
 task = g0w0
-option_dielect_func = 6
+option_dielect_func = 3
+option_velocity = native
+replace_w_head = true
 crpa_enabled = true
 crpa_model_file = crpa-model.in
 ```
@@ -525,7 +527,9 @@ Add the following to a working QSGW input using the native full head/wing preset
 
 ```text
 task = qsgw
-option_dielect_func = 6
+option_dielect_func = 3
+qsgw_headwing_velocity = current_hr
+replace_w_head = true
 crpa_enabled = true
 crpa_model_file = crpa-model.in
 ```
@@ -566,10 +570,9 @@ supported for compatible live states and targets. The QSGW task can expand
 paired IBZ inputs internally; the direct coupled API requires full-grid KS
 frames. G0W0 with `crpa_enabled = true` also requires complete replicated KS
 inputs; its IBZ-only head/wing reconstruction does not expand the cRPA KS frame.
-It rejects `read_sigc_mat_rf`, which bypasses P0. Use full head/wing option 3 (or driver
-preset 6) for a corrected three-dimensional calculation. Head-only option 4
+It rejects `read_sigc_mat_rf`, which bypasses P0. Use full head/wing option 3
+for a corrected three-dimensional calculation. Head-only option 4
 does not provide the constrained optical wings required by this implementation.
-Driver preset 6 is normalized to option 3 before the library call.
 
 The cRPA kernel uses the dataset's full Coulomb interaction for its own bare
 term and constrained screening. GW retains its separately selected full/cut

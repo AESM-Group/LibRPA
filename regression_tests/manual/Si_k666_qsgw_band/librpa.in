@@ -23,7 +23,6 @@ sqrt_coulomb_threshold = 0
 use_scalapack_gw_wc = true
 use_shrink_abfs = true
 use_shrink_chi = true
-use_pyatb = false
 use_fullcoul_exx = false
 use_fullcoul_eps = true
 use_fullcoul_wc = false
@@ -38,6 +37,9 @@ qsgw_max_iter = 2
 qsgw_unoccupied_keep = 10
 qsgw_cut_mode = 1
 qsgw_cut_shift_ha = 0.0
+# No Hartree update in this case, as stated above; the driver default is true and
+# would otherwise require the dedicated Hartree Coulomb/RI inputs.
+qsgw_update_hartree = false
 qsgw_write_iteration_matrices = false
 # This legacy head-only dataset does not require native H/S/r.
 qsgw_export_hamiltonian_for_pyatb = false

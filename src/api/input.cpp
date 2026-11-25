@@ -1353,7 +1353,9 @@ void librpa_set_velocity_matrix(LibrpaHandler* h, int n_spins, int n_kpts,
             }
         }
     }
-    pds->p_headwing.reset();
+    // A new velocity source invalidates the optical object and the native
+    // full-BZ frame that was differentiated from the previous inputs.
+    pds->invalidate_native_headwing_frame();
 
     profiler.stop(tname);
 }
@@ -1394,7 +1396,9 @@ void librpa_set_velocity_matrix_packed(LibrpaHandler* h, int n_spins, int n_kpts
             }
         }
     }
-    pds->p_headwing.reset();
+    // A new velocity source invalidates the optical object and the native
+    // full-BZ frame that was differentiated from the previous inputs.
+    pds->invalidate_native_headwing_frame();
 
     profiler.stop(tname);
 }
