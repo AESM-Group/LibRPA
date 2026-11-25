@@ -4970,6 +4970,50 @@ void test_velocity_setters_invalidate_native_headwing_frame()
     check_cleared("librpa_set_velocity_matrix");
 }
 
+// An input setter changes the geometry, the k grid, or the symmetry operations the
+// native frame was differentiated from, so the frame must go with them. `p_headwing`
+// cannot stand in for that check: a native cRPA run arms the frame with
+// `prepare_optical = false` and leaves `p_headwing` empty, so `initialize_ds_headwing`
+// does not early-return and `make_analytic_headwing` reads the stale flag.
+void test_input_setters_invalidate_native_headwing_frame()
+{
+    librpa::Handler handler(MPI_COMM_WORLD);
+    const auto ds = librpa_int::api::get_dataset_instance(handler);
+    const auto seed = [&]()
+    {
+        ds->headwing_full_bz_mf = MeanField(1, 1, 2, 2);
+        ds->headwing_full_bz_pbc = PeriodicBoundaryData{};
+        initialize_velocity_matrix(ds->headwing_full_bz_velocity, 1, 1, 2);
+        ds->headwing_full_bz_ready = true;
+    };
+    const auto check_cleared = [&](const char *label)
+    {
+        if (ds->headwing_full_bz_ready || ds->headwing_full_bz_mf.initialized() ||
+            !ds->headwing_full_bz_velocity.empty())
+            throw std::runtime_error(std::string(label) +
+                                     " left the native head/wing frame behind");
+    };
+
+    auto *c_handler = const_cast<LibrpaHandler *>(handler.get_c_handler());
+    const double lattice[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    const double reciprocal[]{librpa_int::TWO_PI, 0, 0, 0, librpa_int::TWO_PI, 0, 0, 0,
+                              librpa_int::TWO_PI};
+    const double origin[] = {0, 0, 0};
+    const int species = 0;
+
+    seed();
+    librpa_set_latvec_and_G(c_handler, lattice, reciprocal);
+    check_cleared("librpa_set_latvec_and_G");
+
+    seed();
+    librpa_set_atoms(c_handler, 1, &species, origin);
+    check_cleared("librpa_set_atoms");
+
+    seed();
+    librpa_set_kgrids_kvec(c_handler, 1, 1, 1, 1, origin, nullptr);
+    check_cleared("librpa_set_kgrids_kvec");
+}
+
 // make_analytic_headwing selects the expanded frame on `headwing_full_bz_ready` alone,
 // and QSGW reaches it through initialize_ds_headwing. Nothing else scopes that flag to a
 // task, so a handler reused for native G0W0/cRPA and then QSGW would build the QSGW
@@ -5201,6 +5245,7 @@ int main(int argc, char *argv[])
         blacs_h.init();
         blacs_h.set_square_grid();
 
+        test_input_setters_invalidate_native_headwing_frame();
         test_qsgw_task_creation_drops_native_headwing_frame();
 #ifdef LIBRPA_USE_LIBRI
         test_velocity_setters_invalidate_native_headwing_frame();
