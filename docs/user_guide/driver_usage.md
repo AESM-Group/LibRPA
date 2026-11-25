@@ -147,7 +147,6 @@ input_preset = abacus
 replace_w_head = true
 option_dielect_func = 3
 option_velocity = native
-use_scalapack_gw_wc = true
 g0w0_fn_hr = OUT.ABACUS/data-HR-sparse_SPIN0.csr
 g0w0_fn_sr = OUT.ABACUS/data-SR-sparse_SPIN0.csr
 g0w0_fn_rr = OUT.ABACUS/data-rR-sparse.csr
@@ -159,10 +158,10 @@ use_symmetry_gw = false
 use_symmetry_exx = false
 ```
 
-Native velocity requires `replace_w_head = true`; with option 3 or 53 it also
-requires `use_scalapack_gw_wc = true` to consume the analytic wings. Direct
-library/API callers use option 3, 4, or 53 and either supply velocity through the
-public setter or construct it with `librpa_prepare_native_velocity`.
+Native velocity requires `replace_w_head = true`. For options 3 and 53 the
+shared Wc implementation consumes the analytic wings. Direct library/API callers
+use option 3, 4, or 53 and either supply velocity through the public setter or
+construct it with `librpa_prepare_native_velocity`.
 
 The source selector is `option_velocity`, with `pyatb` (default) and `native`:
 

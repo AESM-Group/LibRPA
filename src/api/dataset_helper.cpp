@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -153,13 +154,17 @@ void initialize_ds_tfgrids(Dataset &ds, const LibrpaOptions &opts)
 
 void initialize_ds_global_ddla(Dataset &ds, const LibrpaOptions &opts)
 {
+#ifdef LIBRPA_USE_DDLA
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if (opts.use_gpu_replace_scalapack == LIBRPA_SWITCH_ON && ds.blacs_h.ddla_handle == nullptr)
+    if (opts.use_gpu_replace_scalapack == LIBRPA_SWITCH_ON)
     {
-        global::profiler.start("initialize_ds_global_ddla");
-        ds.blacs_h.init_ddla_handle();
-        global::profiler.stop("initialize_ds_global_ddla");
+        ds.blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
     }
+#endif
+    if (opts.use_gpu_replace_scalapack != LIBRPA_SWITCH_ON &&
+        (std::strncmp(opts.linear_algorithm, "ddla", sizeof("ddla")) == 0 ||
+         std::strncmp(opts.eigensolver_method, "ddla", sizeof("ddla")) == 0))
+        ds.blacs_h.init_ddla_handle(ddla::DdlaBackend::CPU);
 #else
     (void)ds;
     (void)opts;

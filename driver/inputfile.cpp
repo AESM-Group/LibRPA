@@ -16,6 +16,7 @@
 #include <tuple>
 
 #include "../src/io/fs.h"
+#include "../src/api/options.h"
 #include "../src/utils/constants.h"
 #include "../src/utils/dev_options.h"
 #include "driver.h"
@@ -304,12 +305,6 @@ static void validate_input_parameters()
                 throw std::runtime_error(
                     "option_velocity = native requires replace_w_head and "
                     "option_dielect_func = 3, 4, or 53");
-            if ((driver::opts.option_dielect_func == 3 ||
-                 driver::opts.option_dielect_func == 53) &&
-                driver::opts.use_scalapack_gw_wc != LIBRPA_SWITCH_ON)
-                throw std::runtime_error(
-                    "option_velocity = native with option_dielect_func = 3 or 53 requires "
-                    "use_scalapack_gw_wc = true to consume analytic wings");
             if (params.g0w0_fn_hr.empty() || params.g0w0_fn_sr.empty() || params.g0w0_fn_rr.empty())
                 throw std::runtime_error(
                     "G0W0 native velocity requires g0w0_fn_hr, g0w0_fn_sr, and g0w0_fn_rr");
@@ -642,6 +637,7 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_bool(dev_opts, use_chi0_q_uhap_split);
     _parse_bool(dev_opts, use_delayed_ft_shrink);
     _parse_bool(dev_opts, use_real_dense_gw_wc);
+    _parse_bool(dev_opts, use_mixed_type_ddla);
 
     // general runtime parameters
     parser.parse_string("output_dir", stmp, flag);
@@ -725,7 +721,6 @@ void parse_inputfile_to_params(const std::string &fn)
         throw std::runtime_error("libri_chi0_collect_max_bytes must be non-negative");
     _parse_double(opts, libri_chi0_threshold_C);
     _parse_double(opts, libri_chi0_threshold_G);
-    _parse_switch(opts, use_scalapack_ecrpa);
 
     // EXX specific
     _parse_double(opts, libri_exx_threshold_C);
@@ -753,16 +748,51 @@ void parse_inputfile_to_params(const std::string &fn)
     if (opts.anacon_nfreq == 0)
         throw std::runtime_error("anacon_nfreq must not be zero");
     _parse_double(opts, sqrt_coulomb_threshold);
-    _parse_switch(opts, use_scalapack_gw_wc);
     _parse_switch(opts, read_sigc_mat_rf);
     if (flag != 0)  // backward-compatible
     {
         parser.parse_bool("read_sigc", btmp, flag);
         if (flag == 0) opts.read_sigc_mat_rf = get_switch(btmp);
     }
-    _parse_switch(opts, use_cholesky_gw_wc);
     _parse_switch(opts, use_gpu_replace_scalapack);
-    _parse_switch(opts, use_elpa_sqrt_coulomb);
+    if (get_last_assigned_value(parser, "linear_algorithm", stmp))
+    {
+        if (stmp != "scalapack" && stmp != "ddla")
+            throw std::runtime_error("Invalid linear_algorithm: '" + stmp +
+                                     "'; expected scalapack or ddla");
+        if (stmp.size() >= sizeof(opts.linear_algorithm))
+            throw std::runtime_error("linear_algorithm is too long");
+        std::strcpy(opts.linear_algorithm, stmp.c_str());
+    }
+    if (get_last_assigned_value(parser, "eigensolver_method", stmp))
+    {
+        if (stmp != "scalapack" && stmp != "ddla" && stmp != "elpa")
+            throw std::runtime_error("Invalid eigensolver_method: '" + stmp +
+                                     "'; expected scalapack, ddla or elpa");
+        if (stmp.size() >= sizeof(opts.eigensolver_method))
+            throw std::runtime_error("eigensolver_method is too long");
+        std::strcpy(opts.eigensolver_method, stmp.c_str());
+    }
+    static_cast<LibrpaOptions&>(opts) = librpa_int::resolve_linear_algebra_options(opts);
+    if (dev_opts.use_mixed_type_ddla)
+    {
+#ifndef LIBRPA_USE_DDLA
+        throw std::runtime_error("use_mixed_type_ddla requires a LIBRPA_USE_DDLA build");
+#else
+        if (std::string(opts.linear_algorithm) != "ddla")
+            throw std::runtime_error("use_mixed_type_ddla requires linear_algorithm = ddla");
+#endif
+    }
+    for (const char* keyword : {"use_scalapack_ecrpa", "use_scalapack_gw_wc"})
+    {
+        parser.parse_string(keyword, stmp, flag);
+        if (flag == 0)
+            throw std::runtime_error(std::string(keyword) +
+                " was removed; remove this keyword. Matrix routing is selected automatically.");
+    }
+    parser.parse_bool("use_elpa_sqrt_coulomb", btmp, flag);
+    if (flag == 0)
+        throw std::runtime_error("use_elpa_sqrt_coulomb was removed; use eigensolver_method = scalapack, ddla, or elpa");
     _parse_switch(opts, use_hedin_shift);
     _parse_int(opts, istate_ref_hedin_shift);
     _parse_double(opts, libri_g0w0_threshold_C);
@@ -859,8 +889,6 @@ void parse_inputfile_to_params(const std::string &fn)
     _parse_double(opts, sf_gf_omega_shift);
     _parse_double(opts, sf_sigc_omega_shift);
 
-    // Option 6 selects native G0W0/cRPA velocity or per-update QSGW current-HR
-    // velocity. Each uses the existing numerical option-3 head/wing method.
     validate_input_parameters();
 }
 

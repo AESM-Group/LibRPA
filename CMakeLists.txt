@@ -33,6 +33,10 @@ option(LIBRPA_ENABLE_FORTRAN_BIND  "Flag to build LibRPA Fotran binding" OFF)
 option(LIBRPA_VERBOSE_OUTPUT       "Flag to print verbose information in stdout and process output of LibRPA" ON)
 option(LIBRPA_USE_CUDA             "Enable the CUDA backend" OFF)
 option(LIBRPA_USE_HIP              "Enable the HIP backend" OFF)
+option(LIBRPA_USE_DDLA "Use LibDDLA for distributed linear algebra" OFF)
+if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+  set(LIBRPA_USE_DDLA ON CACHE BOOL "Use LibDDLA for distributed linear algebra" FORCE)
+endif()
 
 # Comonent test switches, only used when LIBRPA_ENABLE_TEST is ON
 option(LIBRPA_ENABLE_CPP_TEST      "Flag to build tests for C++ components" ON)
@@ -423,7 +427,8 @@ if(LIBRPA_USE_CUDA)
     set(CMAKE_CUDA_ARCHITECTURES "70;75;80" CACHE STRING "CUDA architectures" FORCE)
   endif()
   set(CMAKE_CUDA_STANDARD 17)
-  set(CUDA_LIBRARIES "-lcudart -lcublas -lcusolver -lnccl -lcurand")
+  # LibRPA directly uses only the runtime; LibDDLA owns its math/CCL links.
+  set(CUDA_LIBRARIES CUDA::cudart)
   list(APPEND math_libs
     ${CUDA_LIBRARIES}
     # CUDA::cudart
@@ -434,21 +439,22 @@ if(LIBRPA_USE_CUDA)
     # ${MAGMA_ROOT}/lib/libmagma.so
     )
   add_compile_definitions("LIBRPA_USE_CUDA")
-  add_compile_definitions("DDLA_USE_CUDA")
 endif()
 
-# Check LibDDLA. LIBRPA_USE_CUDA/HIP select the public DDLA headers used by
-# LibRPA, while a managed LibDDLA enables its GPU language in a child build.
+# DDLA is available independently of GPU support. A managed build enables
+# optional CUDA/HIP languages only in its child CMake project.
 set(LIBRPA_DDLA_TARGET "")
 set(LIBRPA_BUNDLED_DDLA_PROJECT_TARGET "")
-if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+if(LIBRPA_USE_DDLA)
   librpa_thirdparty_path(LIBDDLA_PATH _libddla_prefix)
   librpa_thirdparty_path(LIBDDLA_SOURCE_DIR _libddla_user_source)
   if(_libddla_prefix AND _libddla_user_source)
     message(FATAL_ERROR "LibDDLA: LIBDDLA_PATH and LIBDDLA_SOURCE_DIR are mutually exclusive")
   endif()
-  set(DDLA_USE_CCL ON)
-  if(TARGET LibDDLA::ddla)
+  if(TARGET ddla::ddla)
+    set(LIBRPA_DDLA_TARGET ddla::ddla)
+    set(_libddla_status target)
+  elseif(TARGET LibDDLA::ddla)
     set(LIBRPA_DDLA_TARGET LibDDLA::ddla)
     set(_libddla_status target)
   elseif(_libddla_prefix)
@@ -456,28 +462,14 @@ if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
     set(_libddla_status installed)
     librpa_thirdparty_warn_installed(LibDDLA "${_libddla_prefix}"
       "leave LIBDDLA_PATH empty" LIBDDLA_SOURCE_DIR)
-    set(DDLA_USE_GPU_CPU_TUNNEL "EXTERNAL DEFINED OFF(CUDA default), ON(HIP default)")
     message(STATUS "Use external LibDDLA from: ${LIBDDLA_PATH}")
-    if(NOT EXISTS "${LIBDDLA_PATH}/include/ddla/ddla.h")
-      message(FATAL_ERROR "LibDDLA headers not found in ${LIBDDLA_PATH}/include")
-    endif()
-    unset(LIBDDLA_LIB CACHE)
-    find_library(LIBDDLA_LIB ddla PATHS ${LIBDDLA_PATH}/lib ${LIBDDLA_PATH}/lib64 NO_DEFAULT_PATH)
-    if(NOT LIBDDLA_LIB)
-      message(FATAL_ERROR "libddla not found in ${LIBDDLA_PATH}/lib or ${LIBDDLA_PATH}/lib64")
-    endif()
-    add_library(LibDDLA::ddla SHARED IMPORTED GLOBAL)
-    set_target_properties(LibDDLA::ddla PROPERTIES
-      IMPORTED_LOCATION "${LIBDDLA_LIB}"
-      INTERFACE_INCLUDE_DIRECTORIES "${LIBDDLA_PATH}/include"
-    )
-    set(LIBRPA_DDLA_TARGET LibDDLA::ddla)
+    unset(LibDDLA_DIR CACHE)
+    find_package(LibDDLA 0.0.6 REQUIRED CONFIG PATHS
+      "${LIBDDLA_PATH}/lib/cmake/LibDDLA"
+      "${LIBDDLA_PATH}/lib64/cmake/LibDDLA"
+      NO_DEFAULT_PATH)
+    set(LIBRPA_DDLA_TARGET ddla::ddla)
   else()
-    if(LIBRPA_USE_HIP)
-      set(DDLA_USE_GPU_CPU_TUNNEL ON)
-    else()
-      set(DDLA_USE_GPU_CPU_TUNNEL OFF)
-    endif()
     if(_libddla_user_source)
       set(_libddla_source_dir "${_libddla_user_source}")
       if(NOT EXISTS "${_libddla_source_dir}/include/ddla/ddla.h" OR
@@ -490,23 +482,31 @@ if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
     endif()
     include(BuildLibDDLA)
     set(LIBDDLA_PATH "${LIBRPA_BUNDLED_DDLA_INSTALL_DIR}")
-    install(DIRECTORY "${LIBRPA_BUNDLED_DDLA_INSTALL_DIR}/lib/"
+    install(DIRECTORY "${LIBRPA_BUNDLED_DDLA_INSTALL_DIR}/${CMAKE_INSTALL_LIBDIR}/"
       DESTINATION ${CMAKE_INSTALL_LIBDIR} OPTIONAL)
+    # The exported DDLA package is installed with its library. Keep its public
+    # headers alongside it so installed consumers can use ddla::ddla.
+    install(DIRECTORY "${LIBRPA_BUNDLED_DDLA_INSTALL_DIR}/${CMAKE_INSTALL_INCLUDEDIR}/ddla"
+      DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
   endif()
+  include(CheckLibDDLACapabilities)
+  librpa_check_ddla_capabilities("${LIBRPA_DDLA_TARGET}")
   string(APPEND LIBRPA_THIRDPARTY_SUMMARY "LibDDLA=${_libddla_status}")
   if(_libddla_status STREQUAL "installed")
     string(APPEND LIBRPA_THIRDPARTY_SUMMARY "(${_libddla_prefix})")
   endif()
   string(APPEND LIBRPA_THIRDPARTY_SUMMARY " ")
   message(STATUS "LibDDLA source: ${_libddla_status} ${_libddla_source_dir} ${LIBDDLA_PATH}")
-  add_compile_definitions("DDLA_USE_CCL")
 endif()
+message(STATUS "Use LibDDLA                    : ${LIBRPA_USE_DDLA}")
 
 if(LIBRPA_USE_HIP)
   add_compile_definitions("LIBRPA_USE_HIP")
-  add_compile_definitions("DDLA_USE_HIP")
   add_compile_definitions("__HIP_PLATFORM_AMD__")
-  set(HIP_LIBRARIES "-lamdhip64 -lgalaxyhip -lhipblas -lhipsolver -lrccl -lhiprand")
+  # LibRPA directly uses the host HIP runtime; LibDDLA owns GPU math/CCL
+  # dependencies (and optional Hygon-specific runtime dependencies).
+  find_package(hip REQUIRED CONFIG HINTS "${ROCM_PATH}" "$ENV{ROCM_PATH}")
+  set(HIP_LIBRARIES hip::host)
   list(APPEND math_libs
       ${HIP_LIBRARIES}
   )
@@ -519,6 +519,17 @@ endif()
 
 if(LIBRPA_VERBOSE_OUTPUT)
   add_compile_definitions("LIBRPA_VERBOSE")
+endif()
+
+# Initialize the install RPATH before GreenX and the Fortran binding create
+# their targets. RUNPATH is not inherited by transitive shared dependencies.
+if(LIBRPA_ENABLE_DRIVER OR LIBRPA_DDLA_TARGET)
+  if(APPLE)
+    list(APPEND CMAKE_INSTALL_RPATH "@loader_path" "@loader_path/../${CMAKE_INSTALL_LIBDIR}")
+  elseif(UNIX)
+    list(APPEND CMAKE_INSTALL_RPATH "$ORIGIN" "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}")
+  endif()
+  list(REMOVE_DUPLICATES CMAKE_INSTALL_RPATH)
 endif()
 
 include(ResolveGreenX)
@@ -561,9 +572,7 @@ endif()
 
 if(LIBRPA_ENABLE_DRIVER)
   message(STATUS "LibRPA driver enabled")
-  list(APPEND CMAKE_INSTALL_RPATH ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR})
 endif()
-
 add_subdirectory(src)
 add_subdirectory(driver/reader)
 

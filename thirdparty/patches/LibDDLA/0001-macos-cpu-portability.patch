@@ -1,0 +1,83 @@
+Upstream: https://github.com/userchba/LibDDLA
+Version: 0.0.7 (0a65e570d3d3bc70e4d53a7e992b2de60abc884c)
+Purpose: Keep optional BLAS controls optional on Mach-O and label the
+         process-level resource-profile fallback when RUSAGE_THREAD is absent.
+License: LGPL-3.0, unchanged from upstream.
+Upstream status: Not submitted. Temporary focused portability fix; remove
+                 once a compatible upstream release includes these changes.
+Why local: Preserve the selected release API while the platform changes are
+           validated independently of later upstream algorithm development.
+
+--- a/src/host_threads.h
++++ b/src/host_threads.h
+@@ -16,13 +16,31 @@
+ #include <sched.h>
+ #endif
+ 
+-// Optional BLAS thread controls (weak: null unless the linked BLAS exports them), used by ScopedBlasThreads below.
++#if defined(__APPLE__)
++#include <dlfcn.h>
++namespace ddla {
++namespace detail {
++// GCC's Darwin linker can retain undefined weak imports. Resolve optional
++// controls from the loaded BLAS instead, without requiring a second provider.
++inline auto openblas_set_num_threads = reinterpret_cast<void (*)(int)>(
++    dlsym(RTLD_DEFAULT, "openblas_set_num_threads"));
++inline auto openblas_get_num_threads = reinterpret_cast<int (*)(void)>(
++    dlsym(RTLD_DEFAULT, "openblas_get_num_threads"));
++inline auto mkl_set_num_threads = reinterpret_cast<void (*)(int)>(
++    dlsym(RTLD_DEFAULT, "mkl_set_num_threads"));
++inline auto mkl_get_max_threads = reinterpret_cast<int (*)(void)>(
++    dlsym(RTLD_DEFAULT, "mkl_get_max_threads"));
++}
++}
++#else
++// ELF weak symbols are null unless the linked BLAS exports them.
+ extern "C" {
+ void openblas_set_num_threads(int) __attribute__((weak));
+ int  openblas_get_num_threads(void) __attribute__((weak));
+ void mkl_set_num_threads(int) __attribute__((weak));
+ int  mkl_get_max_threads(void) __attribute__((weak));
+ }
++#endif
+ 
+ namespace ddla {
+ namespace detail {
+--- a/src/Eigensolver/two_stage/phb2st.cpp
++++ b/src/Eigensolver/two_stage/phb2st.cpp
+@@ -1686,7 +1686,15 @@
+                        c_tail_wait = 0, c_tail = 0, c_barrier = 0;
+     long long prof_steps = 0;
+     struct rusage ru0 {}, ru1 {};
+-    if (prof) getrusage(RUSAGE_THREAD, &ru0);
++#ifdef RUSAGE_THREAD
++    constexpr int profile_rusage_who = RUSAGE_THREAD;
++    constexpr const char* profile_rusage_scope = "thread";
++#else
++    // macOS has no RUSAGE_THREAD; label process counters explicitly.
++    constexpr int profile_rusage_who = RUSAGE_SELF;
++    constexpr const char* profile_rusage_scope = "process";
++#endif
++    if (prof) getrusage(profile_rusage_who, &ru0);
+ 
+     for (int i = 1; i <= n - 2; ++i) {
+         for (int k = kdn + 1; k >= 2; --k) {
+@@ -2033,15 +2041,16 @@
+     }
+     (void)barrier();
+     if (prof) {
+-        getrusage(RUSAGE_THREAD, &ru1);
++        getrusage(profile_rusage_who, &ru1);
+         const double us = v.tsc_ghz > 0 ? 1.0 / (v.tsc_ghz * 1000.0) : 0.0; // cycles -> us
+         std::printf("TEAMPROF myid=%d member=%d steps=%lld tsc_ghz=%.3f "
+                     "pass1=%.1fus create_wait=%.1fus pass2=%.1fus "
+                     "tail_wait=%.1fus tail=%.1fus barrier=%.1fus "
+-                    "th_minflt=%ld th_majflt=%ld th_nivcsw=%ld\n",
++                    "rusage_scope=%s minflt=%ld majflt=%ld nivcsw=%ld\n",
+                     v.myid, m, prof_steps, v.tsc_ghz,
+                     c_pass1 * us, c_wait * us, c_pass2 * us,
+                     c_tail_wait * us, c_tail * us, c_barrier * us,
++                    profile_rusage_scope,
+                     ru1.ru_minflt - ru0.ru_minflt,
+                     ru1.ru_majflt - ru0.ru_majflt,
+                     ru1.ru_nivcsw - ru0.ru_nivcsw);

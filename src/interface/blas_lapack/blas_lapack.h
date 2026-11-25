@@ -185,6 +185,15 @@ extern "C" {
     void dgetrf_(const int *m, const int *n, double *A, const int *lda, int *ipiv, int *info);
     void cgetrf_(const int *m, const int *n, std::complex<float> *A, const int *lda, int *ipiv, int *info);
     void zgetrf_(const int *m, const int *n, std::complex<double> *A, const int *lda, int *ipiv, int *info);
+
+    void sgetrs_(const char *trans, const int *n, const int *nrhs, const float *A,
+                 const int *lda, const int *ipiv, float *B, const int *ldb, int *info);
+    void dgetrs_(const char *trans, const int *n, const int *nrhs, const double *A,
+                 const int *lda, const int *ipiv, double *B, const int *ldb, int *info);
+    void cgetrs_(const char *trans, const int *n, const int *nrhs, const std::complex<float> *A,
+                 const int *lda, const int *ipiv, std::complex<float> *B, const int *ldb, int *info);
+    void zgetrs_(const char *trans, const int *n, const int *nrhs, const std::complex<double> *A,
+                 const int *lda, const int *ipiv, std::complex<double> *B, const int *ldb, int *info);
                            
 // inversion from results of factorization
     void sgetri_(const int *n, float *A, const int *lda, int *ipiv, float *work, const int *lwork, int *info);
@@ -225,10 +234,29 @@ extern "C" {
                  int *iwork, int *ifail, int *info);
 
 // computes Cholesky factorization of a symmetric/Hermitian positive definite matrix A
+    void sposv_(const char *uplo, const int *n, const int *nrhs, float *A,
+                const int *lda, float *B, const int *ldb, int *info);
+    void dposv_(const char *uplo, const int *n, const int *nrhs, double *A,
+                const int *lda, double *B, const int *ldb, int *info);
+    void cposv_(const char *uplo, const int *n, const int *nrhs, std::complex<float> *A,
+                const int *lda, std::complex<float> *B, const int *ldb, int *info);
+    void zposv_(const char *uplo, const int *n, const int *nrhs, std::complex<double> *A,
+                const int *lda, std::complex<double> *B, const int *ldb, int *info);
+
     void spotrf_(const char *uplo, const int *n, float *A, const int *lda, int *info);
     void dpotrf_(const char *uplo, const int *n, double *A, const int *lda, int *info);
     void cpotrf_(const char *uplo, const int *n, std::complex<float> *A, const int *lda, int *info);
     void zpotrf_(const char *uplo, const int *n, std::complex<double> *A, const int *lda, int *info);
+
+// solves a symmetric/Hermitian positive definite system using its Cholesky factor
+    void spotrs_(const char *uplo, const int *n, const int *nrhs, const float *A,
+                 const int *lda, float *B, const int *ldb, int *info);
+    void dpotrs_(const char *uplo, const int *n, const int *nrhs, const double *A,
+                 const int *lda, double *B, const int *ldb, int *info);
+    void cpotrs_(const char *uplo, const int *n, const int *nrhs, const std::complex<float> *A,
+                 const int *lda, std::complex<float> *B, const int *ldb, int *info);
+    void zpotrs_(const char *uplo, const int *n, const int *nrhs, const std::complex<double> *A,
+                 const int *lda, std::complex<double> *B, const int *ldb, int *info);
 
 // computes the inverse of a symmetric/Hermitian positive definite matrix A
 // using the Cholesky factorization from ?potrf

@@ -5,6 +5,21 @@
 ### Breaking changes
 
 - Replaced the `g0w0_headwing_velocity` selector with `option_velocity`, whose values are `pyatb` (default) and `native`, and removed the `option_dielect_func = 6` driver preset. Every analytic head/wing option (`3`, `4`, `53`) accepts either velocity source through the new selector, so the preset no longer served a distinct purpose. Inputs that still set `option_dielect_func = 6` must switch to `option_dielect_func = 3` with `option_velocity = native`; inputs that set `g0w0_headwing_velocity = file` must use `option_velocity = pyatb`. The `use_pyatb` switch is gone; it only guarded rejections. The external optical bundle directory is `pyatb_librpa_df/`.
+
+- Removed `use_scalapack_ecrpa` and `use_scalapack_gw_wc` from inputs and the
+  C/Fortran options structure. Recompile library clients and remove both
+  keywords from input files. ScaLAPACK is selected automatically for supported
+  RPA routes; Wc always uses the shared descriptor-based implementation.
+  R-tau and builds without LibRI retain automatic conventional RPA assembly.
+  Removed five unused epsilon helpers and the unused MP2 placeholder.
+
+- Replaced `use_elpa_sqrt_coulomb` with `eigensolver_method = scalapack|ddla|elpa`
+  for distributed Coulomb matrix powers. Recompile applications using the C or
+  Fortran options structure. Old input keywords now produce a migration error.
+  The default remains ELPA when compiled in, otherwise ScaLAPACK. A DDLA or ELPA
+  selection falls back to ScaLAPACK when that solver is not compiled in.
+  `use_gpu_replace_scalapack` selects DDLA's GPU or CPU backend in CUDA/HIP builds.
+
 - Raised LibRPA's CMake minimum to 3.18 to match its own use of `FindCUDAToolkit` and `CMP0104`. The standalone download and source-preparation scripts remain compatible with 3.13.
 - Stopped shipping third-party sources. Default configuration uses network access, cached archives or prepared sources. For offline builds, download archives with `cmake/LibRPADownloadThirdparty.cmake` on a connected machine and transfer them to the build machine.
 - Resolve explicit include directories without searching system paths. Invalid paths stop configuration without a download fallback.
@@ -13,6 +28,13 @@
 
 ### Added
 
+- Added `linear_algorithm = scalapack|ddla` alongside `eigensolver_method` for
+  independent dense-operation and Coulomb-eigensolver selection. The existing
+  `use_gpu_replace_scalapack` flag promotes native operations to DDLA and native
+  diagonalization to ELPA, or GPU DDLA when ELPA is unavailable.
+- Added `LIBRPA_USE_DDLA` independently of CUDA/HIP, allowing CPU-only DDLA
+  eigensolvers and managed builds without GPU toolkits. GPU builds enable DDLA
+  by default; CPU-only builds keep it optional and disabled by default.
 - Added `LIBRPA_THIRDPARTY_ARCHIVE_DIR` for archive storage, `LIBRPA_THIRDPARTY_DOWNLOAD`, and separate download and source-preparation scripts with archive SHA-256 verification. Prepared sources stay in each checkout's `thirdparty/src/`. Local source edits are preserved with an `unpinned` warning.
 - Added `LIBDDLA_SOURCE_DIR`, `GREENX_SOURCE_DIR` and `ELPA_SOURCE_DIR` for local source builds, pristine LibComm/greenX/ELPA overlays, parent dependency targets, and dependency source summaries. Added `GREENX_PATH` for installations, with compatibility warnings for prebuilt greenX, ELPA and LibDDLA. Rejected ambiguous source/installation paths.
 - Added opt-in AAA and ridge analytic continuation for GW/QSGW/cRPA, retaining
@@ -39,12 +61,28 @@
 
 ### Changed
 
+- Aligned backend adapters with the released LibDDLA public interfaces and
+  upstream LibRI's staged GPU callbacks. Use native mixed GEMM without custom
+  caller-workspace extensions. See [third-party maintenance](docs/develop/thirdparty.md)
+  for exact dependency revisions and portability patches.
+- Kept C++ linear-algebra connectors together under `src/math`, with raw
+  external declarations under `src/interface`. Centralized one-rank host
+  BLAS/LAPACK dispatch in `LaConnector`, retaining explicit DDLA/ELPA choices,
+  and removed the separate replicated LAPACK Wc path.
+- Unified distributed matrix powers in `power_hemat_la` and `power_hemat_la_real`.
+  ScaLAPACK, DDLA and ELPA share diagonalization, filtering, scaling and
+  reconstruction on the caller's distribution. Outer calculations supply
+  handles and GPU A/Z/scaled buffers and select the device.
+- Unified distributed eigensolver calls under `LaConnector::pheev`, with caller-owned
+  host/device matrices and DDLA backend selection from the existing handle. Corrected
+  the real ScaLAPACK SYEV Fortran argument list so workspace queries and `INFO`
+  reporting use the native interface.
 - GreenX selection now uses the supplied target, source path or installation prefix, with managed sources as the default. The legacy selection switch is deprecated and ignored.
 - Renamed ELPA source-build settings to `LIBRPA_ELPA_KERNEL`, `LIBRPA_ELPA_OPENMP`, `LIBRPA_ELPA_CONFIGURE_ARGS` and `LIBRPA_ELPA_LIBS`. Source versions now come from the selected source tree; the manifest controls the downloaded release.
 - Standardized installation prefix options as `LIBDDLA_PATH`, `ELPA_PATH` and `GREENX_PATH`.
 - Unified ELPA selection under `LIBRPA_USE_ELPA`, which defaults to `OFF`. Setting it to `ON` builds managed sources when no dependency is supplied. A parent ELPA target, source path or installation prefix enables ELPA automatically.
-- Updated cereal to `d81e2f7df7b334fee057e53017388d02e555a836`.
-- Updated LibRI to `ab81ac9`, which includes the portable allocator cleanup. LibRPA no longer patches LibRI. Headers of `a0661cb` with the former patch now have status `unpinned`.
+- Updated cereal for LibRI tuple serialization and LibRI for its portable
+  allocator and public DDLA adapter. LibRPA no longer patches LibRI.
 
 ### Deprecated
 
@@ -60,7 +98,14 @@
 - Fixed mixed matrix layouts in the dense LAPACK screened-interaction path (`use_scalapack_gw_wc = false`), present in v0.5.0 through v0.9.0. The mismatch caused an assertion failure and could give incorrect complex screened interactions when assertions were disabled. The numerical error depends on the input ([#66](https://github.com/AESM-Group/LibRPA/issues/66)).
 - Ignored Git metadata (`.git` file or directory) at the root of a user-supplied source path when computing third-party tree hashes. A submodule or clone at the pinned commit now has status `pinned` and not `unpinned`. Overlay copies leave out the root `.git`, so patching works for a submodule.
 - Detected parent greenX targets automatically, avoiding duplicate targets.
-- Corrected the LibDDLA revision in the license list to `0d576d4`.
+- Synchronized dependency versions in the license list with the manifest.
+- Made the managed LibDDLA CPU build portable to macOS: optional BLAS thread
+  controls remain optional at link time, and unsupported per-thread resource
+  counters use explicitly labeled process counters. Added a macOS CPU build check.
+- Rejected failed Gamma RPA block LU factorizations before reading incomplete
+  factors in Release builds, with collective status checks and GPU cleanup.
+- Trimmed and validated backend input names so inline comments and trailing
+  whitespace do not silently change the selected backend.
 - Passed the OpenMP runtime to the ELPA source build with MKL, so that ELPA's `configure` can link `mkl_intel_thread`.
 - Handled ranks with no local Wc elements in the complex cosine transform of Wc, which divided by zero when computing batch sizes ([#65](https://github.com/AESM-Group/LibRPA/pull/65)).
 

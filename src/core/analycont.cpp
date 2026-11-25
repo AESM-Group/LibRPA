@@ -12,7 +12,7 @@
 #include <limits>
 #include <stdexcept>
 
-#include "../interface/blas_lapack.h"
+#include "../interface/blas_lapack/blas_lapack.h"
 #include "../io/global_io.h"
 #include "../utils/constants.h"
 // #include <iostream>

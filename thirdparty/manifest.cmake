@@ -1,12 +1,12 @@
 # Pinned archives and reference tree hashes (see docs/develop/thirdparty.md).
 
 librpa_thirdparty_declare(LibRI
-  VERSION ab81ac939d820b1350c1e00f0e09e8e1edfc3d96
-  URL "https://github.com/abacusmodeling/LibRI/archive/ab81ac939d820b1350c1e00f0e09e8e1edfc3d96.tar.gz"
-  ARCHIVE "LibRI-ab81ac9.tar.gz"
-  ARCHIVE_SHA256 27afed7714c286137e00cf69f3fadf45a57040275323df8aabbbd11f9bdd4019
+  VERSION 589f6f8c6df3916575a1ba41e840de919d40d345
+  URL "https://github.com/abacusmodeling/LibRI/archive/589f6f8c6df3916575a1ba41e840de919d40d345.tar.gz"
+  ARCHIVE "LibRI-589f6f8.tar.gz"
+  ARCHIVE_SHA256 da1c47ee9bd7404d9819fbf00c44f64b6da5594f8779cf8b3a1f4ccfc2b51097
   HASH_SUBDIR include
-  TREE_SHA256 9308e9a200d08331b8ec869f800eac881ebef482744e85c6de36e8d7314406d6
+  TREE_SHA256 a92734eb01f92f819345570e9184d71c879c8f11344d41c0262677ad3e0fb562
   LICENSE LGPL-3.0)
 
 librpa_thirdparty_declare(LibComm
@@ -30,11 +30,13 @@ librpa_thirdparty_declare(cereal
   LICENSE BSD-3-Clause)
 
 librpa_thirdparty_declare(LibDDLA
-  VERSION 0d576d4d297b8f7dcdf456ba1ca2e6f72e2a4530
-  URL "https://github.com/userchba/LibDDLA/archive/0d576d4d297b8f7dcdf456ba1ca2e6f72e2a4530.tar.gz"
-  ARCHIVE "LibDDLA-0d576d4.tar.gz"
-  ARCHIVE_SHA256 ad227bae1399d4858754c09fe74e6e4e1d8c24b3bd1f2e5ec4d51e21611bccff
-  TREE_SHA256 8f2830a52ec64f3d02ae8a14d46f57d335d99517d8a7228d31d6231234d7d5f9
+  VERSION 0.0.7
+  URL "https://github.com/userchba/LibDDLA/archive/0a65e570d3d3bc70e4d53a7e992b2de60abc884c.tar.gz"
+  ARCHIVE "LibDDLA-0.0.7.tar.gz"
+  ARCHIVE_SHA256 ef872aa94a4ca7733d51e85b8f2ba4becd0536eafb92629b99246ba945b2b63d
+  PATCHES LibDDLA/0001-macos-cpu-portability.patch
+  PRISTINE_SHA256 5876cfbd423bfba6ebc4d64d65bbcae068cb55bfd20d54d34387a7f4bf80b7c5
+  TREE_SHA256 6341a8b110533b2b8438e9e2c3a661dddcc62f8739972b7f9824c109ea4353d0
   LICENSE LGPL-3.0)
 
 librpa_thirdparty_declare(greenX

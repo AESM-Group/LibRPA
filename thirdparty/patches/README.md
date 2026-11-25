@@ -11,5 +11,8 @@ Each patch retains the upstream license. Upstream submission status for the exis
 | LibComm/0001-wait-for-receive-task.patch | Wait explicitly for the receive task, which avoids the unused-result warning of `std::async`. |
 | ELPA/0001-macos-thread-affinity.patch | Avoid Linux CPU-affinity APIs on macOS. |
 | greenX/0001-librpa-build-integration.patch | Select LibRPA components, use relative install paths, and preserve compiler-specific flags. |
+| [LibDDLA/0001-macos-cpu-portability.patch](LibDDLA/0001-macos-cpu-portability.patch) | On macOS, resolve optional BLAS thread controls at runtime and label the fallback resource counters as process-wide. |
 
-LibRI and cereal use unmodified upstream headers. LibDDLA uses unmodified upstream sources.
+LibRI and cereal use unmodified upstream headers. LibDDLA uses its release
+archive with the portability patch above. Compatibility requirements are in
+[third-party maintenance](../../docs/develop/thirdparty.md#backend-dependency-compatibility).

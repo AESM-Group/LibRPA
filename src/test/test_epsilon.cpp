@@ -7,6 +7,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 #include "../core/epsilon.h"
@@ -17,6 +18,7 @@
 #include "../mpi/base_blacs.h"
 #include "../mpi/base_mpi.h"
 #include "../utils/constants.h"
+#include "../utils/dev_options.h"
 #include "mpi_test_config.h"
 
 using namespace librpa_int;
@@ -610,7 +612,9 @@ void test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(const BlacsCtxtHandl
     assert_dense_wq_rspace_maps_close(actual, expected);
 }
 
-void test_dense_wc_real_ct_matches_legacy_real_part()
+void test_dense_wc_real_ct_matches_legacy_real_part(const BlacsCtxtHandler &cpu_owner,
+                                                   const MAJOR major = MAJOR::COL,
+                                                   const bool empty_last_rank = false)
 {
     const auto pbc = make_wq_full_pbc();
     TFGrids tfg(2);
@@ -622,7 +626,9 @@ void test_dense_wc_real_ct_matches_legacy_real_part()
     {
         for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
         {
-            Matz mat(2, 2, MAJOR::COL);
+            const bool empty = empty_last_rank &&
+                librpa_int::global::myid_global == librpa_int::global::size_global - 1;
+            Matz mat(empty ? 0 : 2, empty ? 0 : 3, major);
             for (std::size_t i = 0; i != mat.size(); ++i)
             {
                 const double real = 1.0 + ifreq + 0.1 * i;
@@ -640,8 +646,49 @@ void test_dense_wc_real_ct_matches_legacy_real_part()
 
     auto legacy_input = input;
     auto real_input = input;
+    const bool saved_mixed = librpa_int::global::dev_opts.use_mixed_type_ddla;
+    librpa_int::global::dev_opts.use_mixed_type_ddla = false;
     const auto legacy = librpa_int::CT_FT_Wc_freq_q(
-        librpa_int::global::mpi_comm_global_h, legacy_input, pbc, tfg, true);
+        librpa_int::global::mpi_comm_global_h, legacy_input, pbc, tfg, true,
+        false, 0, -1, false, ".", nullptr, nullptr, nullptr, nullptr, &cpu_owner);
+#ifdef LIBRPA_USE_DDLA
+    auto mixed_input = input;
+    librpa_int::global::dev_opts.use_mixed_type_ddla = true;
+    const auto mixed = librpa_int::CT_FT_Wc_freq_q(
+        librpa_int::global::mpi_comm_global_h, mixed_input, pbc, tfg, true);
+    assert(mixed_input.empty());
+    assert_dense_wq_rspace_maps_close(mixed, legacy);
+    const auto original_handle = cpu_owner.ddla_cpu_handle;
+    assert(original_handle != nullptr);
+    for (int repeat = 0; repeat != 2; ++repeat)
+    {
+        auto borrowed_input = input;
+        const auto borrowed = librpa_int::CT_FT_Wc_freq_q(
+            librpa_int::global::mpi_comm_global_h, borrowed_input, pbc, tfg, false,
+            false, 0, -1, false, ".", nullptr, nullptr, nullptr, nullptr, &cpu_owner);
+        assert_dense_wq_rspace_maps_close(borrowed, mixed);
+        assert(cpu_owner.ddla_cpu_handle == original_handle);
+        assert(borrowed_input.size() == input.size());
+        for (const auto &[freq, blocks] : input)
+            for (const auto &[q, expected] : blocks)
+            {
+                const auto &retained = borrowed_input.at(freq).at(q);
+                assert(retained.major() == expected.major());
+                assert(retained.size() == expected.size());
+                for (std::size_t i = 0; i != expected.size(); ++i)
+                    assert(retained.ptr()[i] == expected.ptr()[i]);
+            }
+    }
+    // An optional owner without a CPU handle retains the existing self fallback.
+    const BlacsCtxtHandler missing_cpu_owner;
+    auto fallback_input = input;
+    const auto fallback = librpa_int::CT_FT_Wc_freq_q(
+        librpa_int::global::mpi_comm_global_h, fallback_input, pbc, tfg, true,
+        false, 0, -1, false, ".", nullptr, nullptr, nullptr, nullptr, &missing_cpu_owner);
+    assert(fallback_input.empty());
+    assert_dense_wq_rspace_maps_close(fallback, mixed);
+#endif
+    librpa_int::global::dev_opts.use_mixed_type_ddla = saved_mixed;
     const auto actual = librpa_int::CT_FT_Wc_freq_q_real(
         librpa_int::global::mpi_comm_global_h, real_input, pbc, tfg);
     assert(legacy_input.empty());
@@ -723,7 +770,7 @@ Matz serial_inverse(const Matz &input)
     return inverse;
 }
 
-void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
+void test_wc_layout(const BlacsCtxtHandler &blacs_h, const std::string &linear_algorithm)
 {
     PeriodicBoundaryData pbc;
     pbc.set_latvec({1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
@@ -748,7 +795,7 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
         std::map<double, std::map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>>;
     // Inject a fixed response to test the production Wc paths independently of chi0 construction.
     auto &response_blocks = const_cast<ResponseMap &>(chi0.get_chi0_q());
-    atpair_k_cplx_mat_t bare_blocks, cut_blocks, parallel_cut_blocks;
+    atpair_k_cplx_mat_t bare_blocks, cut_blocks;
     std::map<double, std::map<Vector3_Order<double>, Matz>> expected;
     for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
     {
@@ -772,10 +819,8 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
             {
                 bare_blocks[i][j][q] = std::make_shared<ComplexMatrix>(1, 1);
                 cut_blocks[i][j][q] = std::make_shared<ComplexMatrix>(1, 1);
-                parallel_cut_blocks[i][j][q] = std::make_shared<ComplexMatrix>(1, 1);
                 (*bare_blocks[i][j][q])(0, 0) = bare(i, j);
                 (*cut_blocks[i][j][q])(0, 0) = cut(i, j);
-                (*parallel_cut_blocks[i][j][q])(0, 0) = cut(i, j);
             }
         for (std::size_t iw = 0; iw != grids.get_freq_nodes().size(); ++iw)
         {
@@ -814,17 +859,16 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
                         for (int l = 0; l != 2; ++l) wc(i, j) += t(i, k) * inverse(k, l) * t(l, j);
         }
     }
-    const auto dense = compute_Wc_freq_q(chi0, bare_blocks, cut_blocks, 0.0, {}, false, ".", 0);
-    // Dense input is replicated; ScaLAPACK collects atom blocks additively from their owners.
+    // The shared solver collects atom blocks additively from their owners.
     if (blacs_h.myid != 0)
     {
         bare_blocks.clear();
-        parallel_cut_blocks.clear();
+        cut_blocks.clear();
         response_blocks.clear();
     }
     const auto parallel =
-        compute_Wc_freq_q_blacs(chi0, bare_blocks, parallel_cut_blocks, 0.0, false, 0, {}, nullptr,
-                                blacs_h, desc_aux, false, ".", false, false, false);
+        compute_Wc_freq_q(chi0, bare_blocks, cut_blocks, 0.0, false, 0, {}, nullptr,
+                          blacs_h, desc_aux, false, ".", false, "scalapack", linear_algorithm);
     double local_error = 0.0;
     const auto compare =
         [&](const std::complex<double> actual, const std::complex<double> reference)
@@ -838,11 +882,8 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
     for (const auto &[freq, q_wc] : expected)
         for (const auto &[q, reference] : q_wc)
         {
-            const auto &actual = dense.at(freq).at(q);
-            assert(actual.major() == MAJOR::COL);
-            for (int i = 0; i != 2; ++i)
-                for (int j = 0; j != 2; ++j) compare(actual(i, j), reference(i, j));
             const auto &distributed = parallel.at(freq).at(q);
+            assert(distributed.major() == MAJOR::COL);
             for (int i = 0; i != desc_aux.m_loc(); ++i)
                 for (int j = 0; j != desc_aux.n_loc(); ++j)
                     compare(distributed(i, j),
@@ -851,7 +892,8 @@ void test_dense_wc_layout(const BlacsCtxtHandler &blacs_h)
     double max_error = 0.0;
     MPI_Allreduce(&local_error, &max_error, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
     if (blacs_h.myid == 0)
-        std::cout << "Dense/ScaLAPACK Wc analytic control: max_error=" << max_error << std::endl;
+        std::cout << "Wc analytic layout control (" << linear_algorithm
+                  << "): max_error=" << max_error << std::endl;
     assert(max_error < 1e-12);
 }
 
@@ -875,19 +917,31 @@ double rectangular_gamma_volume_ratio()
 
 void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bool rank_deficient,
                                        const bool zero_response, const int dielectric_option,
-                                       const bool use_cholesky, const int block_size = 1)
+                                       const int block_size = 1,
+                                       const bool mixed_test = false, const bool gpu = false,
+                                       const bool mixed_shell_head = false, const int n = 4)
 {
-    constexpr int n = 4;
+    if (mixed_shell_head &&
+        (dielectric_option != 53 || !rank_deficient || !zero_response || mixed_test))
+        throw std::invalid_argument("mixed-shell head oracle requires filtered option53 and zero response");
     const int retained = rank_deficient ? n - 1 : n;
-    const std::array<double, n> eigenvalues{4.0, 2.0, 1.0, rank_deficient ? -0.2 : 0.5};
-    const Matz eigenvectors({{{0.5, 0.0}, {0.5, 0.0}, {0.5, 0.0}, {0.5, 0.0}},
+    std::vector<double> eigenvalues{4.0, 2.0, 1.0, 0.5};
+    eigenvalues.resize(n);
+    if (rank_deficient) eigenvalues.back() = -0.2;
+    Matz eigenvectors({{{0.5, 0.0}, {0.5, 0.0}, {0.5, 0.0}, {0.5, 0.0}},
                              {{0.5, 0.0}, {-0.5, 0.0}, {0.5, 0.0}, {-0.5, 0.0}},
                              {{0.5, 0.0}, {0.5, 0.0}, {-0.5, 0.0}, {-0.5, 0.0}},
                              {{0.5, 0.0}, {-0.5, 0.0}, {-0.5, 0.0}, {0.5, 0.0}}},
                             MAJOR::COL);
+    if (n < 4)
+    {
+        eigenvectors.resize(n, n);
+        eigenvectors.zero_out();
+        for (int i = 0; i != n; ++i) eigenvectors(i, i) = 1.0;
+    }
     Matz diagonal(n, n, MAJOR::COL), sqrt_diagonal(n, n, MAJOR::COL);
     Matz cut_root_channels(n, n, MAJOR::COL), response_channels(n, n, MAJOR::COL);
-    const double cut_diagonal[n]{1.2, 1.1, 1.4, 0.9};
+    const double cut_diagonal[]{1.2, 1.1, 1.4, 0.9};
     for (int i = 0; i != n; ++i)
     {
         diagonal(i, i) = eigenvalues[i];
@@ -896,23 +950,52 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     }
     // The positive cut root couples retained and discarded bare-Coulomb
     // channels. Projecting the cut interaction too would fail this control.
-    cut_root_channels(1, 3) = cut_root_channels(3, 1) = 0.21;
-    cut_root_channels(2, 3) = cut_root_channels(3, 2) = -0.13;
+    if (n == 4)
+    {
+        cut_root_channels(1, 3) = cut_root_channels(3, 1) = 0.21;
+        cut_root_channels(2, 3) = cut_root_channels(3, 2) = -0.13;
+    }
     if (!zero_response)
     {
-        response_channels(1, 1) = -0.07;
-        response_channels(2, 2) = -0.09;
-        response_channels(3, 3) = -0.11;
-        response_channels(1, 2) = {0.012, 0.009};
-        response_channels(2, 1) = {0.012, -0.009};
-        response_channels(2, 3) = {0.006, -0.005};
-        response_channels(3, 2) = {0.006, 0.005};
+        if (n > 1) response_channels(1, 1) = -0.07;
+        if (n == 4)
+        {
+            response_channels(2, 2) = -0.09;
+            response_channels(3, 3) = -0.11;
+            response_channels(1, 2) = {0.012, 0.009};
+            response_channels(2, 1) = {0.012, -0.009};
+            response_channels(2, 3) = {0.006, -0.005};
+            response_channels(3, 2) = {0.006, 0.005};
+        }
     }
     const auto adjoint = transpose(eigenvectors, true);
     const auto bare = eigenvectors * diagonal * adjoint;
     const auto cut_root = eigenvectors * cut_root_channels * adjoint;
     const auto cut = cut_root * cut_root;
     const auto response = eigenvectors * response_channels * adjoint;
+    if (mixed_shell_head)
+    {
+        // One s orbital followed by a p shell selects the embedded head e0.
+        // The known discarded eigenvector has |U_f^H e0|^2=1/4, so this
+        // fixture detects either missing product in the GPU head deflation.
+        const double filtered_overlap2 = std::norm(adjoint(retained, 0));
+        double sp_coupling2 = 0.0, cut_filtered_norm2 = 0.0;
+        for (int i = 0; i != n; ++i)
+        {
+            if (i != 0) sp_coupling2 += std::norm(bare(i, 0));
+            std::complex<double> value = 0.0;
+            for (int j = 0; j != n; ++j)
+                value += cut_root(i, j) * eigenvectors(j, retained);
+            cut_filtered_norm2 += std::norm(value);
+        }
+        if (std::abs(filtered_overlap2 - 0.25) > 1e-14 ||
+            sp_coupling2 <= 0.1 || cut_filtered_norm2 <= 0.1)
+            throw std::runtime_error("mixed-shell fixture lost its noncommuting filtered-head control");
+        if (blacs_h.myid == 0)
+            std::cout << "Option53 mixed-shell control: filtered_overlap2=" << filtered_overlap2
+                      << " sp_coupling2=" << sp_coupling2
+                      << " cut_filtered_norm2=" << cut_filtered_norm2 << std::endl;
+    }
     auto dielectric_channels = sqrt_diagonal * response_channels * sqrt_diagonal;
     dielectric_channels *= -1.0;
     for (int i = 0; i != n; ++i) dielectric_channels(i, i) += 1.0;
@@ -921,14 +1004,21 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     PeriodicBoundaryData pbc;
     pbc.set_latvec({1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
     pbc.set_kgrids_kvec(2, 1, 1, {0.0, 0.0, 0.0, PI, 0.0, 0.0});
-    AtomicBasis wfc_basis({2}), aux_basis({n});
+    AtomicBasis wfc_basis({2}), aux_basis({static_cast<std::size_t>(n)});
+    // With every auxiliary s-like, option53's s-block is the full Coulomb
+    // matrix. Its unique leading head is the same first eigenchannel as the
+    // option3 oracle below. The separate mixed-shell zero-response control
+    // instead selects e0 and requires a nonzero filtered-head projection.
+    if (dielectric_option == 53)
+        aux_basis.set_l_shells(mixed_shell_head ? std::vector<std::vector<int>>{{0, 1}}
+                                             : std::vector<std::vector<int>>{{0, 0, 0, 0}});
     MeanField mf(1, 2, 2, 2);
     for (int ik = 0; ik != 2; ++ik)
     {
         mf.get_eigenvals()[0](ik, 0) = -1.0;
         mf.get_eigenvals()[0](ik, 1) = 1.0;
     }
-    TFGrids grids(1);
+    TFGrids grids(mixed_test ? 3 : 1);
     grids.generate_evenspaced_tf(0.1, 0.1, 0.25, 0.1);
     KPointBlacsParallelContext kctx(KPointBlacsProcessShape(1, blacs_h.nprocs), MPI_COMM_WORLD, 2);
     ArrayDesc desc_wfc(blacs_h), desc_aux(blacs_h);
@@ -951,15 +1041,20 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
             auto &vc = cut_blocks[0][0][q];
             v = std::make_shared<ComplexMatrix>(n, n);
             vc = std::make_shared<ComplexMatrix>(n, n);
-            auto &chi = response_blocks[grids.get_freq_nodes().front()][q][0][0];
-            chi.create(n, n);
             for (int i = 0; i != n; ++i)
                 for (int j = 0; j != n; ++j)
                 {
                     (*v)(i, j) = bare(i, j);
                     (*vc)(i, j) = cut(i, j);
-                    chi(i, j) = response(i, j);
                 }
+            for (const auto freq : grids.get_freq_nodes())
+            {
+                auto &chi = response_blocks[freq][q][0][0];
+                chi.create(n, n);
+                const double scale = 1.0 + 0.25 * grids.get_freq_index(freq);
+                for (int i = 0; i != n; ++i)
+                    for (int j = 0; j != n; ++j) chi(i, j) = scale * response(i, j);
+            }
         }
     }
     velocity_matrix_t velocity;
@@ -971,14 +1066,41 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
     headwing.init_wing(0.0, bare_blocks);
     headwing.set_0_wing();
     const auto actual =
-        compute_Wc_freq_q_blacs(chi0, bare_blocks, cut_blocks, 0.0, true, dielectric_option,
-                                std::vector<std::complex<double>>{1.0}, &headwing, blacs_h,
-                                desc_aux, false, ".", use_cholesky, false, false);
+        compute_Wc_freq_q(chi0, bare_blocks, cut_blocks, 0.0, !mixed_test, dielectric_option,
+                                mixed_test ? std::vector<std::complex<double>>{} :
+                                             std::vector<std::complex<double>>{1.0},
+                                mixed_test ? nullptr : &headwing, blacs_h,
+                                desc_aux, false, ".", gpu, "scalapack",
+                                mixed_test ? "ddla" : "scalapack");
 
     for (std::size_t iq = 0; iq != pbc.klist.size(); ++iq)
+    for (const auto freq : grids.get_freq_nodes())
     {
         auto expected_channels = inverse.copy();
-        if (iq == 0 && dielectric_option == 3)
+        if (grids.get_freq_index(freq) != 0)
+        {
+            auto frequency_dielectric = sqrt_diagonal * response_channels * sqrt_diagonal;
+            frequency_dielectric *= -(1.0 + 0.25 * grids.get_freq_index(freq));
+            for (int i = 0; i != n; ++i) frequency_dielectric(i, i) += 1.0;
+            expected_channels = serial_inverse(frequency_dielectric);
+        }
+        if (mixed_shell_head && iq == 0)
+        {
+            // chi=0 gives E=I; zero velocity/wing gives H=I and Z=A=0.
+            // For h=P_ret e0/||P_ret e0|| and F=U_f U_f^H, the rewrite
+            // returns I-hh^H-F+a0*hh^H. Caller cleanup adds F-I, leaving
+            // (a0-1)hh^H before the two Sc products. Compute h from the
+            // fixture's known eigenbasis, never from production eigenvectors.
+            expected_channels.zero_out();
+            double retained_norm2 = 0.0;
+            for (int i = 0; i != retained; ++i)
+                retained_norm2 += std::norm(adjoint(i, 0));
+            const double coefficient = (rectangular_gamma_volume_ratio() - 1.0) / retained_norm2;
+            for (int i = 0; i != retained; ++i)
+                for (int j = 0; j != retained; ++j)
+                    expected_channels(i, j) = coefficient * adjoint(i, 0) * std::conj(adjoint(j, 0));
+        }
+        else if (!mixed_test && iq == 0 && (dielectric_option == 3 || dielectric_option == 53))
         {
             expected_channels(0, 0) = rectangular_gamma_volume_ratio();
             for (int i = 0; i != n; ++i)
@@ -989,7 +1111,7 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
         else
             for (int i = 0; i != n; ++i) expected_channels(i, i) -= 1.0;
         const auto expected = cut_root * eigenvectors * expected_channels * adjoint * cut_root;
-        const auto &result = actual.at(grids.get_freq_nodes().front()).at(pbc.klist[iq]);
+        const auto &result = actual.at(freq).at(pbc.klist[iq]);
         double local_error = 0.0;
         for (int i = 0; i != desc_aux.m_loc(); ++i)
             for (int j = 0; j != desc_aux.n_loc(); ++j)
@@ -1011,21 +1133,81 @@ void verify_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bo
         if (blacs_h.myid == 0)
             std::cout << "Gamma Wc dense control: rank=" << retained
                       << " zero_response=" << zero_response << " option=" << dielectric_option
-                      << " cholesky=" << use_cholesky << " block_size=" << block_size
-                      << " iq=" << iq << " max_error=" << max_error << std::endl;
+                      << " block_size=" << block_size
+                      << " gpu=" << gpu << " mixed=" << mixed_test
+                      << " mixed_shell_head=" << mixed_shell_head
+                      << " iq=" << iq << " ifreq=" << grids.get_freq_index(freq)
+                      << " max_error=" << max_error << std::endl;
         assert(max_error < 1e-10);
     }
 }
 
-void test_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h)
+void verify_scalar_mixed_wc(const BlacsCtxtHandler &blacs_h, bool gpu, bool filtered)
+{
+    PeriodicBoundaryData pbc;
+    pbc.set_latvec({1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
+    pbc.set_kgrids_kvec(1, 1, 1, {0.0, 0.0, 0.0});
+    AtomicBasis wfc_basis({2}), aux_basis({1});
+    MeanField mf(1, 1, 2, 2);
+    mf.get_eigenvals()[0](0, 0) = -1.0;
+    mf.get_eigenvals()[0](0, 1) = 1.0;
+    TFGrids grids(3);
+    grids.generate_evenspaced_tf(0.1, 0.1, 0.25, 0.1);
+    KPointBlacsParallelContext kctx(KPointBlacsProcessShape(1, blacs_h.nprocs), MPI_COMM_WORLD, 1);
+    ArrayDesc wfc_desc(blacs_h), aux_desc(blacs_h);
+    wfc_desc.init(2, 2, 1, 1, 0, 0);
+    aux_desc.init(1, 1, 1, 1, 0, 0);
+    const SymmetryContext symmetry;
+    Chi0 chi0(mf, wfc_basis, aux_basis, pbc, symmetry, grids, kctx, wfc_desc, false, false);
+    using ResponseMap = std::map<double, std::map<Vector3_Order<double>, atom_mapping<ComplexMatrix>::pair_t_old>>;
+    auto &responses = const_cast<ResponseMap &>(chi0.get_chi0_q());
+    atpair_k_cplx_mat_t bare,cut;
+    const auto q=pbc.klist.front();
+    const double v=filtered ? -0.2 : 4.0;
+    const auto response=[&](double freq) {
+        return std::complex<double>(-0.1, 0.0)*(1.0+grids.get_freq_index(freq));
+    };
+    if (blacs_h.myid == 0)
+    {
+        bare[0][0][q]=std::make_shared<ComplexMatrix>(1,1);
+        cut[0][0][q]=std::make_shared<ComplexMatrix>(1,1);
+        (*bare[0][0][q])(0,0)=v;
+        (*cut[0][0][q])(0,0)=9.0;
+        for (const auto freq:grids.get_freq_nodes())
+        {
+            auto &chi=responses[freq][q][0][0];
+            chi.create(1,1); chi(0,0)=response(freq);
+        }
+    }
+    const auto result=compute_Wc_freq_q(chi0,bare,cut,0.0,false,3,{},nullptr,
+        blacs_h,aux_desc,false,".",gpu,"scalapack","ddla");
+    double error=0;
+    for (const auto freq:grids.get_freq_nodes())
+    {
+        const auto expected=9.0*(1.0/(1.0-std::max(0.0,v)*response(freq))-1.0);
+        const auto &local=result.at(freq).at(q);
+        for (size_t i=0;i<local.size();++i)
+        {
+            const double e=std::abs(local.ptr()[i]-expected);
+            error=std::isfinite(e) ? std::max(error,e) : std::numeric_limits<double>::infinity();
+        }
+    }
+    double maximum=0;
+    MPI_Allreduce(&error,&maximum,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD);
+    assert(maximum<1e-12);
+}
+
+void test_gamma_wc_retained_identity(const BlacsCtxtHandler &blacs_h, const bool gpu = false)
 {
     for (const bool rank_deficient : {true, false})
         for (const bool zero_response : {true, false})
-            verify_gamma_wc_retained_identity(blacs_h, rank_deficient, zero_response, 3, false);
-    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, true);
-    verify_gamma_wc_retained_identity(blacs_h, true, false, 1, false);
+            verify_gamma_wc_retained_identity(blacs_h, rank_deficient, zero_response, 3, 1, false, gpu);
+    verify_gamma_wc_retained_identity(blacs_h, true, false, 1, 1, false, gpu);
     // The filtered eigenvector starts inside a block, rather than at its edge.
-    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, false, 2);
+    verify_gamma_wc_retained_identity(blacs_h, true, false, 3, 2, false, gpu);
+    // Exercise wing scratch larger than the full matrix, including empty MPI owners.
+    for (int n : {1, 2})
+        verify_gamma_wc_retained_identity(blacs_h, false, false, 3, 1, false, gpu, false, n);
 }
 
 #endif
@@ -1051,11 +1233,57 @@ int main(int argc, char *argv[])
         test_wq_to_wr_antiunitary_member_conjugates();
         test_wq_to_wr_symmetry_collective_handles_empty_local_rank();
         test_dense_wq_to_wr_symmetry_reduced_q_matches_full_bz(blacs_h);
-        test_dense_wc_real_ct_matches_legacy_real_part();
+#ifdef LIBRPA_USE_DDLA
+        blacs_h.init_ddla_handle(ddla::DdlaBackend::CPU);
+#endif
+        test_dense_wc_real_ct_matches_legacy_real_part(blacs_h);
+        test_dense_wc_real_ct_matches_legacy_real_part(blacs_h, MAJOR::ROW);
+        test_dense_wc_real_ct_matches_legacy_real_part(blacs_h, MAJOR::COL, true);
         test_dense_wc_real_ct_projects_large_imaginary_residual();
 #ifdef LIBRPA_USE_LIBRI
-        test_dense_wc_layout(blacs_h);
+        test_wc_layout(blacs_h, "scalapack");
+#ifdef LIBRPA_USE_DDLA
+        test_wc_layout(blacs_h, "ddla");
+#endif
         test_gamma_wc_retained_identity(blacs_h);
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (argc > 1 && std::string(argv[1]) == "--headwing-gpu")
+        {
+            blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
+            test_gamma_wc_retained_identity(blacs_h, true);
+        }
+#endif
+#ifdef LIBRPA_USE_DDLA
+        bool mixed_gpu = false;
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        mixed_gpu = argc > 1 && std::string(argv[1]) == "--mixed-gpu";
+        if (mixed_gpu) blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
+#endif
+        blacs_h.init_ddla_handle(ddla::DdlaBackend::CPU);
+        // Exercise the complete GPU head/wing caller, including E formation,
+        // filtered suffix packing, borrowed-buffer rewrite and final Sc
+        // products. Keep this independent of the mixed ordinary-Gamma flag.
+        if (mixed_gpu)
+            for (int option : {3, 53})
+                for (bool filtered : {false, true})
+                    for (int block_size : {1, 2})
+                        verify_gamma_wc_retained_identity(blacs_h, filtered, false,
+                            option, block_size, false, true);
+        if (mixed_gpu)
+            for (int block_size : {1, 2})
+                verify_gamma_wc_retained_identity(blacs_h, true, true, 53,
+                    block_size, false, true, true);
+        // Compare the full production ordinary-Gamma path with an independent
+        // dense inverse, including filtering and a complex Hermitian response.
+        librpa_int::global::dev_opts.use_mixed_type_ddla = true;
+        for (bool filtered : {false, true})
+        {
+            verify_gamma_wc_retained_identity(blacs_h, filtered, false, 3,
+                                               1, true, mixed_gpu);
+            verify_scalar_mixed_wc(blacs_h, mixed_gpu, filtered);
+        }
+        librpa_int::global::dev_opts.use_mixed_type_ddla = false;
+#endif
 #endif
     }
 

@@ -10,16 +10,40 @@
 #include <chrono>
 #include <sstream>
 #include <iomanip>
+#include <stdexcept>
 
 #include "../io/global_io.h"
 #ifdef LIBRPA_VERBOSE
 #include "utils_mem.h"
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include <ddla/ddla_connector.h>
+#ifdef LIBRPA_USE_CUDA
+#include <cuda_runtime_api.h>
+#else
+#include <hip/hip_runtime_api.h>
+#endif
 #endif
 #endif
 
 namespace librpa_int {
+
+#if defined(LIBRPA_VERBOSE) && (defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP))
+namespace {
+size_t get_free_device_memory()
+{
+    size_t free_bytes = 0, total_bytes = 0;
+#ifdef LIBRPA_USE_CUDA
+    const auto status = cudaMemGetInfo(&free_bytes, &total_bytes);
+    if (status != cudaSuccess)
+        throw std::runtime_error(cudaGetErrorString(status));
+#else
+    const auto status = hipMemGetInfo(&free_bytes, &total_bytes);
+    if (status != hipSuccess)
+        throw std::runtime_error(hipGetErrorString(status));
+#endif
+    return free_bytes;
+}
+} // namespace
+#endif
 
 double cpu_time_from_clocks_diff(const std::clock_t& ct_start,
                                  const std::clock_t& ct_end)
@@ -123,8 +147,7 @@ void Profiler::start(const std::string &tname, const std::string &tnote,
         global::ofs_myid << get_timestamp() <<" Timer start: " << tname << ". "
                          << "Free memory on node [GB]: " << free_mem_gb;
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-        size_t free_mem_gpu_bt, total_mem_gpu_bt;
-        ddla::DEVICE_CHECK(deviceMemGetInfo(&free_mem_gpu_bt, &total_mem_gpu_bt));
+        const auto free_mem_gpu_bt = get_free_device_memory();
         global::ofs_myid << "  on GPU [GB]: " << free_mem_gpu_bt/1024./1024./1024.;
 #endif
         global::ofs_myid << std::endl;
@@ -149,8 +172,7 @@ void Profiler::stop(const std::string &tname) noexcept
                 global::ofs_myid << get_timestamp() << " Timer stop:  " << tname << ". "
                                  << "Free memory on node [GB]: " << free_mem_gb;
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-                size_t free_mem_gpu_bt, total_mem_gpu_bt;
-                ddla::DEVICE_CHECK(deviceMemGetInfo(&free_mem_gpu_bt, &total_mem_gpu_bt));
+                const auto free_mem_gpu_bt = get_free_device_memory();
                 global::ofs_myid << "  on GPU [GB]: " << free_mem_gpu_bt/1024./1024./1024.;
 #endif
                 global::ofs_myid << std::endl;

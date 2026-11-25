@@ -177,8 +177,10 @@ blocks:
       - api.libri_chi0_collect_max_bytes
 
   - heading: RPA correlation
-    fields:
-      - api.use_scalapack_ecrpa
+    text: |
+      RPA selects the shared BLACS/ScaLAPACK path automatically for atom-pair
+      and LibRI routing when LibRI is available. R-tau routing and builds
+      without LibRI use the existing conventional assembly automatically.
 
   - heading: Constrained RPA
     text: |
@@ -260,10 +262,9 @@ blocks:
       - api.istate_ref_hedin_shift
       - api.sf_gf_omega_shift
       - api.sf_sigc_omega_shift
-      - api.use_scalapack_gw_wc
-      - api.use_cholesky_gw_wc
       - api.use_gpu_replace_scalapack
-      - api.use_elpa_sqrt_coulomb
+      - api.linear_algorithm
+      - api.eigensolver_method
       - api.replace_w_head
       - api.option_dielect_func
       - api.use_2d_dielectric
@@ -274,6 +275,40 @@ blocks:
       - api.n_bands_sigc
       - api.n_bands_exclude_sigc
 
+  - heading: Screened-Coulomb matrix backends
+    text: |
+      Wc uses the same descriptor-based algorithm on one or many MPI ranks.
+      With `linear_algorithm = scalapack` and a one-rank host BLACS grid,
+      GEMM, LU and Cholesky solves use local BLAS/LAPACK. The `scalapack`
+      eigensolver also uses local LAPACK on that grid. Explicit DDLA and ELPA
+      selections retain their respective backends. No distributed matrix is
+      gathered to select this fallback.
+
+      Wc requires a Hermitian imaginary-frequency dielectric matrix and always
+      tries Cholesky factorization, checking its status before the solve.
+      Gamma head corrections restore the original matrix and retry standard LU
+      only when Cholesky reports loss of positive definiteness. Ordinary-point
+      failures and invalid arguments stop the calculation. Cholesky does not
+      check Hermiticity; general non-Hermitian inputs are unsupported by Wc.
+      The strict-2D Gamma body uses the same
+      Cholesky-first/retry policy, without changing its radial average.
+
+      RPA selects BLACS/ScaLAPACK automatically for atom-pair/LibRI routing
+      when LibRI is available. R-tau routing and builds without LibRI retain
+      their conventional assembly automatically. Wc always uses the shared
+      descriptor-based implementation.
+
+      For `linear_algorithm = ddla`, RPA trace-log factorization uses the
+      block-pivoted LU (`bpiv`), which pivots within each diagonal block.
+      It does not substitute standard partial-pivot LU if factorization fails.
+      A nonsingular matrix can fail this restricted method; the calculation
+      then reports LU INFO and stops. The conventional `scalapack` path retains
+      standard pivoting.
+
+      `use_scalapack_ecrpa` and `use_scalapack_gw_wc` were removed. Delete
+      these keywords from inputs. The C/Fortran options layout changed;
+      recompile library clients.
+
   - heading: G0W0 native velocity
     text: |
       The standalone `g0w0` driver and its `g0w0_band` alias can construct analytic
@@ -281,12 +316,11 @@ blocks:
       `option_velocity` selects the source for every analytic head/wing option
       (`option_dielect_func = 3, 4, 53`): `pyatb` (default) reads an external
       velocity matrix, `native` differentiates the real-space operators supplied
-      through `g0w0_fn_hr`, `g0w0_fn_sr`, and `g0w0_fn_rr`. Native velocity with
-      option 3 or 53 requires `replace_w_head = true` and
-      `use_scalapack_gw_wc = true`. QSGW keeps its own
+      through `g0w0_fn_hr`, `g0w0_fn_sr`, and `g0w0_fn_rr`. Native optical preparation requires
+      `replace_w_head = true`. QSGW keeps its own
       `qsgw_headwing_velocity` selector with the `reference`,
       `rotate_reference`, and `current_hr` conventions, described below.
-      Direct library/API callers use option 3 with the public velocity setter or
+      Direct library/API callers use option 3, 4, or 53 with the public velocity setter or
       `librpa_prepare_native_velocity`.
       The native path retains the loaded SCF energies,
       wavefunctions, and occupations and does not solve a second eigenproblem.
@@ -341,8 +375,7 @@ blocks:
       `hrs1_nao.csr` in Ry (and `hrs2_nao.csr` for two physical collinear
       channels). The native DFT baseline and complete current correction use the
       same reconstruction as formal HR export; no velocity file is needed.
-      The convention requires `replace_w_head = true`; with option 3 it also
-      requires `use_scalapack_gw_wc = true`. Option 3 with `current_hr` and
+      The convention requires `replace_w_head = true`. Option 3 with `current_hr` and
       option 4 (head only) are both supported; option 3/4 with `reference` or
       `rotate_reference` keeps its existing behavior.
       This is an experimental full, unshifted mesh path with complete square

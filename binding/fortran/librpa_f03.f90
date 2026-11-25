@@ -202,7 +202,6 @@ module librpa_f03
       real(c_double) :: gf_threshold
       integer(c_int) :: libri_chi0_collect_s0_chunk
       integer(c_long_long) :: libri_chi0_collect_max_bytes
-      integer(c_int) :: use_scalapack_ecrpa
 
       integer(c_int) :: use_shrink_abfs
       integer(c_int) :: use_shrink_chi
@@ -227,10 +226,9 @@ module librpa_f03
       integer(c_int) :: istate_ref_hedin_shift
       real(c_double) :: sf_gf_omega_shift
       real(c_double) :: sf_sigc_omega_shift
-      integer(c_int) :: use_scalapack_gw_wc
-      integer(c_int) :: use_cholesky_gw_wc
       integer(c_int) :: use_gpu_replace_scalapack
-      integer(c_int) :: use_elpa_sqrt_coulomb
+      character(kind=c_char, len=1) :: linear_algorithm(LIBRPA_MAX_STRLEN)
+      character(kind=c_char, len=1) :: eigensolver_method(LIBRPA_MAX_STRLEN)
       integer(c_int) :: replace_w_head
       integer(c_int) :: option_dielect_func
       integer(c_int) :: use_2d_dielectric
@@ -336,8 +334,6 @@ module librpa_f03
       integer :: libri_chi0_collect_s0_chunk
       !> Maximum estimated local chi0 tensor bytes per LibRI collection chunk.
       integer(c_long_long) :: libri_chi0_collect_max_bytes
-      !> Use ScaLAPACK to calculate \f$E_\text{c}^{\text{RPA}}\f$.
-      logical :: use_scalapack_ecrpa
       !> Experimental: use a compressed auxiliary basis.
       logical :: use_shrink_abfs
       !> Experimental: build response matrices in the compressed auxiliary basis.
@@ -382,14 +378,12 @@ module librpa_f03
       real(dp) :: sf_gf_omega_shift
       !> Broadening/shift used for correlation self-energy in spectral-function output, in Hartree.
       real(dp) :: sf_sigc_omega_shift
-      !> Use ScaLAPACK for computing \f$W^c\f$ from \f$\chi^0\f$.
-      logical :: use_scalapack_gw_wc
-      !> Experimental: use Cholesky factorization for computing \f$W^c\f$ from \f$\chi^0\f$.
-      logical :: use_cholesky_gw_wc
-      !> Experimental: use GPU to replace scalapack for calculation
+      !> Experimental: GPU screened-Coulomb, EXX, self-energy and mean-field operations.
       logical :: use_gpu_replace_scalapack
-      !> Experimental: use elpa for sqrt coulomb matrix
-      logical :: use_elpa_sqrt_coulomb
+      !> Distributed screened-Coulomb matrix operations: scalapack or ddla.
+      character(len=LIBRPA_MAX_STRLEN) :: linear_algorithm
+      !> Distributed Coulomb eigensolver: scalapack, ddla or elpa.
+      character(len=LIBRPA_MAX_STRLEN) :: eigensolver_method
       !> Experimental: replace dielectric matrix head by the macroscopic dielectric function.
       logical :: replace_w_head
       !> Experimental: dielectric-function handling on the imaginary axis.
@@ -1222,7 +1216,6 @@ contains
       call sync_opt(opts%gf_threshold,            opts%opts_c%gf_threshold,            direction)
       call sync_opt(opts%libri_chi0_collect_s0_chunk, opts%opts_c%libri_chi0_collect_s0_chunk, direction)
       call sync_opt(opts%libri_chi0_collect_max_bytes, opts%opts_c%libri_chi0_collect_max_bytes, direction)
-      call sync_opt(opts%use_scalapack_ecrpa,     opts%opts_c%use_scalapack_ecrpa,     direction)
       call sync_opt(opts%use_shrink_abfs,         opts%opts_c%use_shrink_abfs,         direction)
       call sync_opt(opts%use_shrink_chi,          opts%opts_c%use_shrink_chi,          direction)
       call sync_opt(opts%anacon_method, opts%opts_c%anacon_method, direction)
@@ -1249,10 +1242,9 @@ contains
       call sync_opt(opts%rpa_headwing_body_start, opts%opts_c%rpa_headwing_body_start, direction)
       call sync_opt(opts%read_sigc_mat_rf,        opts%opts_c%read_sigc_mat_rf,        direction)
       call sync_opt(opts%rpa_headwing_mode,       opts%opts_c%rpa_headwing_mode,       direction)
-      call sync_opt(opts%use_scalapack_gw_wc,     opts%opts_c%use_scalapack_gw_wc,     direction)
-      call sync_opt(opts%use_cholesky_gw_wc,      opts%opts_c%use_cholesky_gw_wc,      direction)
       call sync_opt(opts%use_gpu_replace_scalapack, opts%opts_c%use_gpu_replace_scalapack, direction)
-      call sync_opt(opts%use_elpa_sqrt_coulomb,   opts%opts_c%use_elpa_sqrt_coulomb,   direction)
+      call sync_opt(opts%linear_algorithm, opts%opts_c%linear_algorithm, direction)
+      call sync_opt(opts%eigensolver_method, opts%opts_c%eigensolver_method, direction)
       call sync_opt(opts%sqrt_coulomb_threshold,  opts%opts_c%sqrt_coulomb_threshold,  direction)
       call sync_opt(opts%replace_w_head,          opts%opts_c%replace_w_head,          direction)
       call sync_opt(opts%libri_chi0_threshold_C,  opts%opts_c%libri_chi0_threshold_C,  direction)

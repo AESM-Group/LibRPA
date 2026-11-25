@@ -1,6 +1,6 @@
 #include "minimax.h"
 
-#include "../interface/gx_minimax_wrp.h"
+#include "../interface/greenx/gx_minimax_wrp.h"
 
 // NOTE(MYZ): rescale frequency weights for number of grids below
 //            some point due to inconsistency in greenx

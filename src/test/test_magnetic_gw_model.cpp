@@ -286,7 +286,6 @@ ResponseOperators capture_response_operators(Dataset &ds, const LibrpaOptions &o
     assert(ds.basis_aux.n_atoms == 3 && ds.basis_aux.nb_total == 3);
     for (int atom = 0; atom != 3; ++atom) assert(ds.basis_aux.get_atom_nb(atom) == 1);
     assert(options.use_shrink_abfs == LIBRPA_SWITCH_OFF);
-    assert(options.use_scalapack_gw_wc == LIBRPA_SWITCH_ON);
     assert(options.replace_w_head == LIBRPA_SWITCH_OFF);
     assert(ds.mf.get_n_kpoints() == ds.pbc.get_n_cells_bvk());
     initialize_ds_chi0(ds, options);
@@ -335,10 +334,10 @@ ResponseOperators capture_response_operators(Dataset &ds, const LibrpaOptions &o
     // later API run. BLACS consumes chi(freq,q); chi snapshot above is independent.
     auto eps_coul = independent_coulomb_copy(options.use_fullcoul_eps ? ds.vq : ds.vq_cut);
     auto wc_coul = independent_coulomb_copy(options.use_fullcoul_wc ? ds.vq : ds.vq_cut);
-    auto wc_tiles = compute_Wc_freq_q_blacs(
+    auto wc_tiles = compute_Wc_freq_q(
         chi, eps_coul, wc_coul, options.sqrt_coulomb_threshold, false, options.option_dielect_func,
-        {}, nullptr, ds.blacs_h, ds.desc_abf, false, options.output_dir, options.use_cholesky_gw_wc,
-        options.use_gpu_replace_scalapack, options.use_elpa_sqrt_coulomb);
+        {}, nullptr, ds.blacs_h, ds.desc_abf, false, options.output_dir,
+        options.use_gpu_replace_scalapack, options.eigensolver_method, options.linear_algorithm);
     if (view.restore_mode == SymmetryQPointRestoreMode::FULL_CRYSTAL)
     {
         for (auto &[f, qs] : chi_tiles)

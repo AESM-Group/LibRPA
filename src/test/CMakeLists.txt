@@ -37,6 +37,53 @@ macro(config_test TARGET NUMPROC)
 endmacro()
 
 # add serial tests
+config_test(test_la_connector_single_rank 1)
+config_test(test_wc_cholesky 4)
+add_test(NAME test_wc_cholesky_serial COMMAND $<TARGET_FILE:test_wc_cholesky>)
+if(IntelMKL_FOUND)
+  # MKL PZGETRF reports INFO=0 for the exactly singular test system;
+  # see "Run tests" in docs/user_guide/install.md.
+  set_tests_properties(test_wc_cholesky PROPERTIES DISABLED TRUE)
+endif()
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_compile_definitions(test_la_connector_single_rank PRIVATE LIBRPA_TEST_LOCAL_LAPACK_DISPATCH)
+  foreach(symbol psgemm_ pdgemm_ pcgemm_ pzgemm_ pssyev_ pdsyev_ pcheev_ pzheev_
+                 pdgetrf_ pzgetrf_ pdgesv_ pzgesv_ pdposv_ pzposv_
+                 pspotrf_ pdpotrf_ pcpotrf_ pzpotrf_ pspotrs_ pdpotrs_ pcpotrs_ pzpotrs_
+                 psgetrs_ pdgetrs_ pcgetrs_ pzgetrs_)
+    target_link_options(test_la_connector_single_rank PRIVATE "LINKER:--wrap=${symbol}")
+  endforeach()
+endif()
+add_test(NAME test_la_connector_single_rank_subcommunicators
+  COMMAND mpirun -np 4 $<TARGET_FILE:test_la_connector_single_rank>)
+config_test(test_linear_algebra_options 1)
+if(LIBRPA_USE_DDLA AND LIBRPA_USE_LIBRI)
+  config_test(test_rpa_gamma_lu 4)
+  set_tests_properties(test_rpa_gamma_lu PROPERTIES TIMEOUT 60)
+endif()
+if(LIBRPA_USE_DDLA)
+  config_test(test_ddla_cpu_connector 4)
+  config_test(test_ddla_empty_connector 4)
+  add_test(NAME test_ddla_empty_connector_serial COMMAND $<TARGET_FILE:test_ddla_empty_connector>)
+  add_test(NAME test_ddla_empty_connector_rectangular
+    COMMAND mpirun -np 2 $<TARGET_FILE:test_ddla_empty_connector>)
+  add_test(NAME test_ddla_cpu_connector_serial COMMAND $<TARGET_FILE:test_ddla_cpu_connector>)
+  add_test(NAME test_ddla_cpu_connector_rectangular
+    COMMAND mpirun -np 2 $<TARGET_FILE:test_ddla_cpu_connector>)
+endif()
+if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+  config_test(test_ddla_connector 4)
+  config_test(test_headwing_rewrite 4)
+  add_test(NAME test_headwing_rewrite_serial COMMAND $<TARGET_FILE:test_headwing_rewrite>)
+  add_test(NAME test_headwing_rewrite_rectangular
+    COMMAND mpirun -np 2 $<TARGET_FILE:test_headwing_rewrite>)
+  set_tests_properties(test_headwing_rewrite test_headwing_rewrite_serial
+    test_headwing_rewrite_rectangular PROPERTIES TIMEOUT 300)
+  add_test(NAME test_ddla_connector_serial COMMAND $<TARGET_FILE:test_ddla_connector>)
+  add_test(NAME test_ddla_connector_rectangular
+    COMMAND mpirun -np 2 $<TARGET_FILE:test_ddla_connector>)
+endif()
+
 foreach(target
     test_analycont
     test_atom
@@ -77,6 +124,14 @@ foreach(target
     )
   config_test(${target} 1)
 endforeach()
+
+if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+  foreach(np 1 2 4)
+    add_test(NAME test_rpa_headwing_device_np${np}
+      COMMAND mpirun -np ${np} $<TARGET_FILE:test_rpa_headwing> --headwing-device)
+    set_tests_properties(test_rpa_headwing_device_np${np} PROPERTIES TIMEOUT 300)
+  endforeach()
+endif()
 
 add_test(NAME test_qpe_solver_mpi
   COMMAND mpirun -np 4 $<TARGET_FILE:test_qpe_solver>)
@@ -211,6 +266,48 @@ target_compile_definitions(test_si_density_symmetry PRIVATE
 
 config_test(test_matrix_power_scalar 1)
 add_test(NAME test_matrix_power_scalar_mpi COMMAND mpirun -np 4 $<TARGET_FILE:test_matrix_power_scalar>)
+if(NOT LIBRPA_USE_DDLA)
+  add_test(NAME test_matrix_power_ddla_fallback
+    COMMAND mpirun -np 4 $<TARGET_FILE:test_matrix_power_scalar> ddla)
+endif()
+if(NOT LIBRPA_USE_ELPA)
+  add_test(NAME test_matrix_power_elpa_fallback
+    COMMAND mpirun -np 4 $<TARGET_FILE:test_matrix_power_scalar> elpa)
+endif()
+if(LIBRPA_USE_ELPA)
+  foreach(np 1 4)
+    add_test(NAME test_matrix_power_elpa_np${np}
+      COMMAND mpirun -np ${np} $<TARGET_FILE:test_matrix_power_scalar> elpa)
+  endforeach()
+endif()
+if(LIBRPA_USE_DDLA)
+  set(_matrix_power_ddla_backends cpu)
+  foreach(np 1 4)
+    foreach(solver scalapack ddla elpa)
+      add_test(NAME test_matrix_power_linear_ddla_${solver}_np${np}
+        COMMAND mpirun -np ${np} $<TARGET_FILE:test_matrix_power_scalar> ${solver} cpu ddla)
+    endforeach()
+  endforeach()
+  if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+    list(APPEND _matrix_power_ddla_backends gpu)
+  endif()
+  foreach(np 1 2 4)
+    foreach(backend IN LISTS _matrix_power_ddla_backends)
+      add_test(NAME test_matrix_power_ddla_${backend}_np${np}
+        COMMAND mpirun -np ${np} $<TARGET_FILE:test_matrix_power_scalar> ddla ${backend})
+    endforeach()
+  endforeach()
+endif()
+if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+  foreach(np 1 4)
+    add_test(NAME test_matrix_power_scalapack_gpu_np${np}
+      COMMAND mpirun -np ${np} $<TARGET_FILE:test_matrix_power_scalar> scalapack gpu)
+    if(LIBRPA_USE_ELPA)
+      add_test(NAME test_matrix_power_elpa_gpu_np${np}
+        COMMAND mpirun -np ${np} $<TARGET_FILE:test_matrix_power_scalar> elpa gpu)
+    endif()
+  endforeach()
+endif()
 
 # QSGW controls exercise fixed-reference state updates and their MPI ownership.
 foreach(target
@@ -255,4 +352,30 @@ set_tests_properties(test_conventional_chi0 test_conventional_chi0_mpi2 test_con
 if(LIBRPA_USE_LIBRI)
   config_test(test_libri_output_filter 1)
   set_tests_properties(test_libri_output_filter PROPERTIES LABELS "symmetry;exx;gw" TIMEOUT 30)
+endif()
+
+# Benchmark-only optional phase hooks use runtime dlsym lookup, including in
+# non-PIE executables whose weak undefined calls can be linked to address zero.
+foreach(_probe_target test_meanfield_mpi test_pair_density_vertex test_crpa_soc test_headwing_rewrite)
+  if(TARGET ${_probe_target})
+    target_link_libraries(${_probe_target} PRIVATE ${CMAKE_DL_LIBS})
+  endif()
+endforeach()
+
+# Exercise normalization at the public boundary, including raw method defaults.
+if(TARGET test_crpa_soc AND LIBRPA_USE_DDLA)
+  foreach(np 1 4)
+    add_test(NAME test_crpa_public_options_cpu_np${np}
+      COMMAND mpirun -np ${np} $<TARGET_FILE:test_crpa_soc> --public-api-cpu)
+    set_tests_properties(test_crpa_public_options_cpu_np${np} PROPERTIES
+      TIMEOUT 180 ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+  endforeach()
+  if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
+    foreach(np 1 4)
+      add_test(NAME test_crpa_public_options_gpu_np${np}
+        COMMAND mpirun -np ${np} $<TARGET_FILE:test_crpa_soc> --public-api-gpu)
+      set_tests_properties(test_crpa_public_options_gpu_np${np} PROPERTIES
+        TIMEOUT 300 ENVIRONMENT "OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
+    endforeach()
+  endif()
 endif()

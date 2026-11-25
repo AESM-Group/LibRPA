@@ -1,3 +1,4 @@
+#include "headwing_rewrite_test_utils.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -14,6 +15,9 @@
 #include <set>
 #include <string>
 #include <valarray>
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#include <ddla/ddla_vector.h>
+#endif
 
 #include "librpa.h"
 #include "../api/instance_manager.h"
@@ -25,7 +29,7 @@
 #include "../core/meanfield_mpi.h"
 #include "../core/qpoint_view.h"
 #include "../core/qsgw/headwing_velocity.h"
-#include "../gpu/la_connector.h"
+#include "../math/la_connector.h"
 #include "../io/global_io.h"
 #include "../math/utils_matrix_m_mpi.h"
 #include "../mpi/base_blacs.h"
@@ -353,7 +357,7 @@ void fill_distributed_matrix(
 
 void verify_distributed_inverse(
     const std::vector<std::vector<std::complex<double>>> &values,
-    const BlacsCtxtHandler &blacs_h, const int block_size, const bool use_cholesky,
+    const BlacsCtxtHandler &blacs_h, const int block_size,
     const bool expect_empty_local_rank)
 {
     const int n = static_cast<int>(values.size());
@@ -370,7 +374,7 @@ void verify_distributed_inverse(
     if (expect_empty_local_rank) assert(any_empty == 1);
 
     librpa_int::invert_headwing_body_with_identity_solve(
-        inverse, desc, blacs_h, use_cholesky, false);
+        inverse, desc, blacs_h, false);
 
     auto product = init_local_mat<std::complex<double>>(desc, MAJOR::COL);
     librpa_int::ScalapackConnector::pgemm_f(
@@ -402,7 +406,7 @@ void test_headwing_body_inverse_uses_identity_solve(const BlacsCtxtHandler &squa
         {{1.0, 0.0}, {4.0, 0.0}, {1.0, 0.2}, {0.0, 0.0}},
         {{0.0, 0.0}, {1.0, -0.2}, {5.0, 0.0}, {1.0, 0.0}},
         {{0.0, 0.0}, {0.0, 0.0}, {1.0, 0.0}, {6.0, 0.0}}};
-    verify_distributed_inverse(pivoting_matrix, square_blacs_h, 1, false, false);
+    verify_distributed_inverse(pivoting_matrix, square_blacs_h, 1, false);
 
     BlacsCtxtHandler horizontal_blacs_h(MPI_COMM_WORLD);
     horizontal_blacs_h.init();
@@ -410,7 +414,7 @@ void test_headwing_body_inverse_uses_identity_solve(const BlacsCtxtHandler &squa
     const std::vector<std::vector<std::complex<double>>> positive_definite_matrix{
         {{4.0, 0.0}, {1.0, 1.0}},
         {{1.0, -1.0}, {3.0, 0.0}}};
-    verify_distributed_inverse(positive_definite_matrix, horizontal_blacs_h, 2, true,
+    verify_distributed_inverse(positive_definite_matrix, horizontal_blacs_h, 2,
                                horizontal_blacs_h.nprocs > 1);
 }
 
@@ -1182,13 +1186,13 @@ void test_strict_2d_gw_fails_closed_for_incomplete_runtime_configuration()
     require_condition(!librpa_int::strict_2d_complete_wc_requested(true, 3, false),
                       "3D dielectric mode was classified as strict 2D");
 
-    librpa_int::validate_strict_2d_complete_wc_runtime(false, false, false, false);
-    librpa_int::validate_strict_2d_complete_wc_runtime(true, true, true, true);
+    librpa_int::validate_strict_2d_complete_wc_runtime(false, false, false);
+    librpa_int::validate_strict_2d_complete_wc_runtime(true, true, true);
 
     bool rejected_missing_metadata = false;
     try
     {
-        librpa_int::validate_strict_2d_complete_wc_runtime(true, true, true, false);
+        librpa_int::validate_strict_2d_complete_wc_runtime(true, true, false);
     }
     catch (const std::logic_error &)
     {
@@ -1200,7 +1204,7 @@ void test_strict_2d_gw_fails_closed_for_incomplete_runtime_configuration()
     bool rejected_missing_data = false;
     try
     {
-        librpa_int::validate_strict_2d_complete_wc_runtime(true, false, true, true);
+        librpa_int::validate_strict_2d_complete_wc_runtime(true, false, true);
     }
     catch (const std::logic_error &)
     {
@@ -1209,17 +1213,7 @@ void test_strict_2d_gw_fails_closed_for_incomplete_runtime_configuration()
     require_condition(rejected_missing_data,
                       "strict 2D GW silently accepted missing analytic head/wing data");
 
-    bool rejected_dense_wc = false;
-    try
-    {
-        librpa_int::validate_strict_2d_complete_wc_runtime(true, true, false, true);
-    }
-    catch (const std::logic_error &)
-    {
-        rejected_dense_wc = true;
-    }
-    require_condition(rejected_dense_wc,
-                      "strict 2D GW silently accepted a path without complete-Wc support");
+
 }
 
 void test_strict_2d_pw_wc_transforms_to_auxiliary_coulomb_basis()
@@ -3420,14 +3414,29 @@ Matz coulomb_basis_eps_inv_reference(
 
 // Run the production ABF-space helper on distributed matrices and compare to
 // the dense old Coulomb-basis reference. Returns the observed max abs error.
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+static bool abf_device_test = false;
+#endif
+
 double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
                     const Matz &U, const Matz &sqrtV,
                     const Matz &chi0, const Matz &wing_mu,
                     const Matz &head,
                     const std::vector<std::array<double, 3>> &q_pts,
-                    const std::vector<double> &q_rho, bool use_cholesky, double tol,
+                    const std::vector<double> &q_rho, double tol,
                     int n_nonsingular = -1)
 {
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    if (abf_device_test)
+    {
+        int missing = blacs_h.ddla_handle == nullptr ||
+            ddla::ddlaGetBackend(blacs_h.ddla_handle) != ddla::DdlaBackend::GPU;
+        MPI_Allreduce(MPI_IN_PLACE, &missing, 1, MPI_INT, MPI_MAX, blacs_h.comm());
+        if (missing)
+            throw std::invalid_argument("GPU ABF oracle requires an initialized GPU handle on its owning BLACS grid");
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(blacs_h.ddla_handle));
+    }
+#endif
     if (n_nonsingular < 0) n_nonsingular = n;
     const auto ref = coulomb_basis_eps_inv_reference(U, sqrtV, chi0, wing_mu, head,
                                                      q_pts, q_rho, n_nonsingular);
@@ -3460,11 +3469,15 @@ double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
         qz[i] = q_pts[i][2];
     }
 
-    librpa_int::rewrite_eps_abf_space(E_dist, sqrtV_dist, U_dist,
-                                      head_direction, desc_head_direction, head, wing_mu, qx, qy,
-                                      qz, q_rho, desc, blacs_h,
-                                      static_cast<std::size_t>(n_nonsingular), 0.0,
-                                      use_cholesky, false);
+    bool use_device = false;
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    use_device = abf_device_test;
+#endif
+    headwing_test::rewrite(E_dist, sqrtV_dist, U_dist,
+                           head_direction, desc_head_direction, head, wing_mu, qx, qy,
+                           qz, q_rho, desc, blacs_h,
+                           static_cast<std::size_t>(n_nonsingular), 0.0,
+                           use_device);
 
     double local_max_err = 0.0;
     for (int ilo = 0; ilo != desc.m_loc(); ++ilo)
@@ -3473,8 +3486,9 @@ double run_abf_case(const BlacsCtxtHandler &blacs_h, int n, int block_size,
         for (int jlo = 0; jlo != desc.n_loc(); ++jlo)
         {
             const int jg = desc.indx_l2g_c(jlo);
-            local_max_err =
-                std::max(local_max_err, std::abs(E_dist(ilo, jlo) - ref(ig, jg)));
+            const double delta = std::abs(E_dist(ilo, jlo) - ref(ig, jg));
+            local_max_err = std::isfinite(delta) ? std::max(local_max_err, delta)
+                                                : std::numeric_limits<double>::infinity();
         }
     }
     double max_err = 0.0;
@@ -3538,13 +3552,13 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
          {{0.3, 0.1}, {0.4, -0.2}, {2.4, 0.0}}},
         MAJOR::COL);
 
-    // LU and Cholesky, 3D and 2D, nonzero and zero wing (square grid).
-    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d, false, 1e-10);
-    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu, head, q3d, rho3d, true, 1e-10);
-    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q2d, rho2d, false, 1e-10);
-    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu, head, q2d, rho2d, true, 1e-10);
-    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, zero_wing_mu, head, q3d, rho3d, false, 1e-10);
-    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, zero_wing_mu, head, q3d, rho3d, true, 1e-10);
+    // Two block sizes, 3D and 2D, nonzero and zero wing (square grid).
+    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d, 1e-10);
+    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu, head, q3d, rho3d, 1e-10);
+    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q2d, rho2d, 1e-10);
+    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu, head, q2d, rho2d, 1e-10);
+    run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, zero_wing_mu, head, q3d, rho3d, 1e-10);
+    run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, zero_wing_mu, head, q3d, rho3d, 1e-10);
 
     // Wing with a deliberately large component parallel to x1 in each
     // Cartesian column. The Direct-Z path (A = D*Z, no explicit projection)
@@ -3555,21 +3569,38 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
             for (int mu = 0; mu != n; ++mu)
                 wing_mu_large_x1(mu, alpha) += 100.0 * U(mu, 0);
         run_abf_case(blacs_h, n, 1, U, sqrtV, chi0, wing_mu_large_x1, head, q3d, rho3d,
-                     false, 1e-10);
+                     1e-10);
         run_abf_case(blacs_h, n, 2, U, sqrtV, chi0, wing_mu_large_x1, head, q3d, rho3d,
-                     true, 1e-10);
+                     1e-10);
     }
 
-    // Rectangular (horizontal) CPU BLACS grid; exercises empty thin local
+    // Rectangular (horizontal) BLACS grid; exercises empty thin local
     // blocks on ranks that own no rows/columns of the thin descriptors.
     {
         BlacsCtxtHandler horizontal_blacs_h(MPI_COMM_WORLD);
         horizontal_blacs_h.init();
         horizontal_blacs_h.set_horizontal_grid();
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+        if (abf_device_test)
+        {
+            // A distinct BLACS owner does not inherit the outer square grid's
+            // DDLA handle. Prove the setup error is caught before allocation.
+            bool rejected = false;
+            try { run_abf_case(horizontal_blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head,
+                               q3d, rho3d, 1e-10); }
+            catch (const std::invalid_argument& error)
+            {
+                rejected = std::string(error.what()).find("initialized GPU handle on its owning BLACS grid") != std::string::npos;
+            }
+            require_condition(rejected, "missing horizontal GPU owner must fail before allocation");
+            horizontal_blacs_h.init_ddla_handle(ddla::DdlaBackend::GPU);
+            if (horizontal_blacs_h.myid == 0)
+                std::cout << "HEADWING_HORIZONTAL_GPU_OWNER_READY grid=" << horizontal_blacs_h.nprows
+                          << 'x' << horizontal_blacs_h.npcols << std::endl;
+        }
+#endif
         run_abf_case(horizontal_blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d,
-                     false, 1e-10);
-        run_abf_case(horizontal_blacs_h, n, 1, U, sqrtV, chi0, wing_mu, head, q3d, rho3d,
-                     true, 1e-10);
+                     1e-10);
     }
 
     // n_abf == 1 exercises the n-by-1 thin descriptors at the minimal size.
@@ -3584,7 +3615,7 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
         wing_mu1(0, 0) = {0.10, 0.01};
         wing_mu1(0, 1) = {0.11, 0.02};
         wing_mu1(0, 2) = {0.12, 0.03};
-        run_abf_case(blacs_h, 1, 1, U1, sqrtV1, chi01, wing_mu1, head, q3d, rho3d, false,
+        run_abf_case(blacs_h, 1, 1, U1, sqrtV1, chi01, wing_mu1, head, q3d, rho3d,
                      1e-10);
     }
 
@@ -3652,14 +3683,12 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
         {
             const auto sqrtV16 = build_sqrtV16(n_nons);
             run_abf_case(blacs_h, nh, blk, U16, sqrtV16, chi0_16, wing_mu_16, head,
-                         q3d, rho3d, false, 1e-10, n_nons);
-            run_abf_case(blacs_h, nh, blk, U16, sqrtV16, chi0_16, wing_mu_16, head,
-                         q3d, rho3d, true, 1e-10, n_nons);
+                         q3d, rho3d, 1e-10, n_nons);
         }
     }
 
     // Filtered Coulomb basis: the last eigenchannel has zero eigenvalue and is
-    // excluded. Both inversion paths must agree with the old reduced Coulomb-
+    // excluded. The inverse must agree with the old reduced Coulomb-
     // basis algorithm and produce no component in the filtered subspace.
     {
         constexpr int nr = n - 1;
@@ -3672,11 +3701,11 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
         const auto sqrtV_filtered = sqrtveig_filtered * U.get_transpose(true);
 
         run_abf_case(blacs_h, n, 1, U, sqrtV_filtered, chi0, wing_mu, head,
-                     q3d, rho3d, false, 1e-10, nr);
+                     q3d, rho3d, 1e-10, nr);
         run_abf_case(blacs_h, n, 2, U, sqrtV_filtered, chi0, wing_mu, head,
-                     q3d, rho3d, true, 1e-10, nr);
+                     q3d, rho3d, 1e-10, nr);
         run_abf_case(blacs_h, n, 1, U, sqrtV_filtered, chi0, zero_wing_mu, head,
-                     q2d, rho2d, false, 1e-10, nr);
+                     q2d, rho2d, 1e-10, nr);
 
         // Sensitivity to a non-Hermitian E. The rewrite contracts E only as
         // E*Y, so it is exact for Hermitian E and accurate to O(|E - E^H|)
@@ -3692,7 +3721,7 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
                 for (int j = 0; j < n; ++j)
                     chi0_nonherm(i, j) += std::complex<double>{1e-12 * (i - j), 0.0};
             const double err = run_abf_case(blacs_h, n, 1, U, sqrtV_filtered, chi0_nonherm,
-                                            wing_mu, head, q3d, rho3d, false, 1e-10, nr);
+                                            wing_mu, head, q3d, rho3d, 1e-10, nr);
             if (blacs_h.myid == 0)
                 std::cout << "non-Hermitian E sensitivity (d=1e-12): max abs err = "
                           << err << std::endl;
@@ -3707,9 +3736,9 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
                 sqrtveig_head_only(i, 0) = U(i, 0) * std::sqrt(lambda[0]);
             const auto sqrtV_head_only = sqrtveig_head_only * U.get_transpose(true);
             run_abf_case(blacs_h, n, 1, U, sqrtV_head_only, chi0, wing_mu, head,
-                         q3d, rho3d, false, 1e-10, 1);
+                         q3d, rho3d, 1e-10, 1);
             run_abf_case(blacs_h, n, 2, U, sqrtV_head_only, chi0, wing_mu, head,
-                         q3d, rho3d, true, 1e-10, 1);
+                         q3d, rho3d, 1e-10, 1);
         }
     }
 
@@ -3753,14 +3782,14 @@ void test_abf_space_wing_rewrite_matches_coulomb_basis(const BlacsCtxtHandler &b
             qz[i] = q3d[i][2];
         }
 
-        librpa_int::rewrite_eps_abf_space(E1, sqrtV_dist, U_orig_dist,
+        headwing_test::rewrite(E1, sqrtV_dist, U_orig_dist,
                                           head_direction, desc_head_direction, head, wing_mu, qx, qy,
                                           qz, rho3d, desc, blacs_h,
-                                          static_cast<std::size_t>(n), 0.0, false, false);
-        librpa_int::rewrite_eps_abf_space(E2, sqrtV_dist, U_mod_dist,
+                                          static_cast<std::size_t>(n), 0.0, false);
+        headwing_test::rewrite(E2, sqrtV_dist, U_mod_dist,
                                           head_direction, desc_head_direction, head, wing_mu, qx, qy,
                                           qz, rho3d, desc, blacs_h,
-                                          static_cast<std::size_t>(n), 0.0, false, false);
+                                          static_cast<std::size_t>(n), 0.0, false);
 
         double local_max_err = 0.0;
         for (int ilo = 0; ilo != desc.m_loc(); ++ilo)
@@ -5043,7 +5072,6 @@ void test_native_optical_uses_handler_communicator()
         librpa::Options opts;
         opts.option_dielect_func = 3;
         opts.replace_w_head = LIBRPA_SWITCH_ON;
-        opts.use_scalapack_gw_wc = LIBRPA_SWITCH_ON;
         opts.tfgrids_type = LIBRPA_TFGRID_EVEN_SPACED_TF;
         opts.nfreq = 2;
         opts.tfgrids_freq_min = 0.5;
@@ -5150,6 +5178,23 @@ int main(int argc, char *argv[])
     MPI_Init_thread(&argc, &argv, LIBRPA_MPI_THREAD_LEVEL, &provided);
     librpa_int::global::init_global_mpi(MPI_COMM_WORLD);
     librpa_int::global::init_global_io(false, "stdout", false);
+
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    if (argc > 1 && std::string(argv[1]) == "--headwing-device")
+    {
+        {
+            BlacsCtxtHandler grid(MPI_COMM_WORLD);
+            grid.init(); grid.set_square_grid(); grid.init_ddla_handle();
+            abf_device_test = true;
+            test_abf_space_wing_rewrite_matches_coulomb_basis(grid);
+            if (grid.myid == 0) std::cout << "HEADWING_DENSE_GPU_ORACLE_PASS" << std::endl;
+        }
+        librpa_int::global::finalize_global_io();
+        librpa_int::global::finalize_global_mpi();
+        MPI_Finalize();
+        return 0;
+    }
+#endif
 
     {
         BlacsCtxtHandler blacs_h(MPI_COMM_WORLD);

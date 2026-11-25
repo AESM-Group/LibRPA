@@ -11,6 +11,7 @@
 #include "hartree_input.h"
 #include "gw_response_helper.h"
 #include "librpa_compute.h"
+#include "options.h"
 #include "qsgw_helper.h"
 
 struct LibrpaQsgwTask
@@ -206,6 +207,7 @@ LibrpaQsgwTask* librpa_create_qsgw_task(LibrpaHandler* handler, const LibrpaOpti
                 throw LIBRPA_INVALID_ARGUMENT(
                     "Invalid QSGW iteration, mixing or velocity controls");
         });
+    const auto normalized = resolve_linear_algebra_options(*options);
     auto result = std::make_unique<LibrpaQsgwTask>();
     result->dataset = ds;
     auto context = std::make_shared<TaskContext>(TaskContext{
@@ -240,7 +242,7 @@ LibrpaQsgwTask* librpa_create_qsgw_task(LibrpaHandler* handler, const LibrpaOpti
         },
         [ds](const LibrpaOptions& opts, const ResponseObserver& response)
         { api::build_gw_sigma_for_task(*ds, opts, response); }});
-    result->task = std::make_unique<Task>(std::move(context), *options, std::move(input));
+    result->task = std::make_unique<Task>(std::move(context), normalized, std::move(input));
     return result.release();
 }
 void librpa_prepare_qsgw_task(LibrpaQsgwTask* task)

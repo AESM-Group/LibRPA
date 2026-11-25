@@ -15,6 +15,7 @@
 #include "compute_helper.h"
 #include "gw_response_helper.h"
 #include "dataset_helper.h"
+#include "options.h"
 #include "instance_manager.h"
 
 // Internal headers
@@ -675,18 +676,18 @@ void librpa_build_g0w0_sigma(LibrpaHandler* h, const LibrpaOptions *p_opts)
 }
 
 void librpa_int::api::build_gw_sigma_for_task(
-    Dataset& dataset, const LibrpaOptions& opts, const qsgw::ResponseObserver& on_response)
+    Dataset& dataset, const LibrpaOptions& input_opts, const qsgw::ResponseObserver& on_response)
 {
     using namespace librpa_int;
     using librpa_int::global::lib_printf;
 
+    const auto opts = resolve_linear_algebra_options(input_opts);
     auto* pds = &dataset;
     const bool debug = global::should_output(LIBRPA_VERBOSE_DEBUG);
     if (opts.replace_w_head == LIBRPA_SWITCH_ON && opts.option_dielect_func == 53 &&
-        (opts.use_2d_dielectric == LIBRPA_SWITCH_ON ||
-         opts.use_scalapack_gw_wc != LIBRPA_SWITCH_ON))
+        opts.use_2d_dielectric == LIBRPA_SWITCH_ON)
         throw LIBRPA_RUNTIME_ERROR(
-            "option_dielect_func=53 requires use_2d_dielectric=false and use_scalapack_gw_wc=true");
+            "option_dielect_func=53 requires use_2d_dielectric=false");
     const bool need_wing = opts.option_dielect_func == 3 || opts.option_dielect_func == 53;
     // Fail fast, before any expensive chi0/W work: exchange from a
     // symmetry-reduced SCF k-grid with the EXX symmetry restore off is
@@ -874,7 +875,6 @@ void librpa_int::api::build_gw_sigma_for_task(
         opts.replace_w_head == LIBRPA_SWITCH_ON, opts.option_dielect_func,
         opts.use_2d_dielectric == LIBRPA_SWITCH_ON);
     validate_strict_2d_complete_wc_runtime(strict_2d_complete_wc, !epsmac_LF_imagfreq.empty(),
-                                           opts.use_scalapack_gw_wc == LIBRPA_SWITCH_ON,
                                            pds->p_headwing != nullptr &&
                                                pds->p_headwing->strict_2d_coulomb_head_configured());
     validate_strict_2d_gw_coulomb_choices(strict_2d_complete_wc,
@@ -886,20 +886,14 @@ void librpa_int::api::build_gw_sigma_for_task(
     const auto &wc_desc_abf = use_shrink_abfs ? pds->desc_abf_shrink : pds->desc_abf;
     const auto &coul_eps = opts.use_fullcoul_eps ? pds->vq : pds->vq_cut;
     auto &coul_wc = opts.use_fullcoul_wc ? pds->vq : pds->vq_cut;
-    if (opts.use_scalapack_gw_wc == LIBRPA_SWITCH_ON)
-    {
-        bool replace_w_head = opts.replace_w_head == LIBRPA_SWITCH_ON;
-        Wc_freq_q = compute_Wc_freq_q_blacs(
-            chi0, coul_eps, coul_wc, opts.sqrt_coulomb_threshold, replace_w_head,
-            opts.option_dielect_func, epsmac_LF_imagfreq, pds->p_headwing.get(), pds->blacs_h,
-            wc_desc_abf, debug, opts.output_dir, opts.use_cholesky_gw_wc,
-            opts.use_gpu_replace_scalapack, opts.use_elpa_sqrt_coulomb);
-    }
-    else
-    {
-        Wc_freq_q = compute_Wc_freq_q(chi0, coul_eps, coul_wc, opts.sqrt_coulomb_threshold,
-                                      epsmac_LF_imagfreq, debug, opts.output_dir, opts.option_dielect_func);
-    }
+    // One Wc algorithm for every grid size; LaConnector selects local LAPACK
+    // on one host rank and preserves explicitly selected DDLA/ELPA backends.
+    Wc_freq_q = compute_Wc_freq_q(
+        chi0, coul_eps, coul_wc, opts.sqrt_coulomb_threshold,
+        opts.replace_w_head == LIBRPA_SWITCH_ON,
+        opts.option_dielect_func, epsmac_LF_imagfreq, pds->p_headwing.get(), pds->blacs_h,
+        wc_desc_abf, debug, opts.output_dir,
+        opts.use_gpu_replace_scalapack, opts.eigensolver_method, opts.linear_algorithm);
 
     std::map<double, atom_mapping<std::map<Vector3_Order<double>, Matz>>::pair_t_old>
         Wc_freq_q_atom_pair;
@@ -961,7 +955,7 @@ void librpa_int::api::build_gw_sigma_for_task(
         use_shrink_abfs ? &pds->sinvS : nullptr,
         use_shrink_abfs ? &pds->basis_aux_shrink : nullptr,
         use_shrink_abfs ? &pds->basis_aux : nullptr,
-        use_shrink_abfs ? &pds->blacs_h : nullptr,
+        &pds->blacs_h,
         use_shrink_abfs
             ? &(pds->eigvecs_kpara_2d_ready() ? pds->desc_wfc_kb
                                               : pds->desc_wfc_kb_full)

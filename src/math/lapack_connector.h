@@ -10,7 +10,7 @@
 #include "../utils/base_utility.h"
 #include "matrix.h"
 #include "complexmatrix.h"
-#include "../interface/blas_lapack.h"
+#include "../interface/blas_lapack/blas_lapack.h"
 
 namespace librpa_int {
 
@@ -20,6 +20,53 @@ namespace librpa_int {
 class LapackConnector
 {
 public:
+    static inline void potrf_f(char uplo, int n, float* a, int lda, int& info)
+    { spotrf_(&uplo, &n, a, &lda, &info); }
+    static inline void potrs_f(char uplo, int n, int nrhs, const float* a, int lda,
+                                float* b, int ldb, int& info)
+    { spotrs_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void potrf_f(char uplo, int n, double* a, int lda, int& info)
+    { dpotrf_(&uplo, &n, a, &lda, &info); }
+    static inline void potrs_f(char uplo, int n, int nrhs, const double* a, int lda,
+                                double* b, int ldb, int& info)
+    { dpotrs_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void potrf_f(char uplo, int n, std::complex<float>* a, int lda, int& info)
+    { cpotrf_(&uplo, &n, a, &lda, &info); }
+    static inline void potrs_f(char uplo, int n, int nrhs, const std::complex<float>* a, int lda,
+                                std::complex<float>* b, int ldb, int& info)
+    { cpotrs_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void potrf_f(char uplo, int n, std::complex<double>* a, int lda, int& info)
+    { zpotrf_(&uplo, &n, a, &lda, &info); }
+    static inline void potrs_f(char uplo, int n, int nrhs, const std::complex<double>* a, int lda,
+                                std::complex<double>* b, int ldb, int& info)
+    { zpotrs_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    // Raw column-major solves, without the legacy matrix-container conversion.
+    static inline void gesv_f(int n, int nrhs, float* a, int lda, int* ipiv,
+                              float* b, int ldb, int& info)
+    { sgesv_(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void gesv_f(int n, int nrhs, double* a, int lda, int* ipiv,
+                              double* b, int ldb, int& info)
+    { dgesv_(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void gesv_f(int n, int nrhs, std::complex<float>* a, int lda, int* ipiv,
+                              std::complex<float>* b, int ldb, int& info)
+    { cgesv_(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void gesv_f(int n, int nrhs, std::complex<double>* a, int lda, int* ipiv,
+                              std::complex<double>* b, int ldb, int& info)
+    { zgesv_(&n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+
+    static inline void posv_f(char uplo, int n, int nrhs, float* a, int lda,
+                              float* b, int ldb, int& info)
+    { sposv_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void posv_f(char uplo, int n, int nrhs, double* a, int lda,
+                              double* b, int ldb, int& info)
+    { dposv_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void posv_f(char uplo, int n, int nrhs, std::complex<float>* a, int lda,
+                              std::complex<float>* b, int ldb, int& info)
+    { cposv_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+    static inline void posv_f(char uplo, int n, int nrhs, std::complex<double>* a, int lda,
+                              std::complex<double>* b, int ldb, int& info)
+    { zposv_(&uplo, &n, &nrhs, a, &lda, b, &ldb, &info); }
+
     // Transpose an row-major array to the fortran-form colum-major array.
     template <typename T>
     static inline T* transpose(const T* a, const int &n, const int &lda, bool conjugate = false)
@@ -484,6 +531,20 @@ public:
     {
         zgetrf_(&m, &n, A, &lda, ipiv, &info);
     }
+
+    // Raw column-major solve reusing GETRF factors and one-based pivots.
+    static inline void getrs_f(char trans, int n, int nrhs, const float *a, int lda,
+                               const int *ipiv, float *b, int ldb, int &info)
+    { sgetrs_(&trans, &n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void getrs_f(char trans, int n, int nrhs, const double *a, int lda,
+                               const int *ipiv, double *b, int ldb, int &info)
+    { dgetrs_(&trans, &n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void getrs_f(char trans, int n, int nrhs, const std::complex<float> *a, int lda,
+                               const int *ipiv, std::complex<float> *b, int ldb, int &info)
+    { cgetrs_(&trans, &n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
+    static inline void getrs_f(char trans, int n, int nrhs, const std::complex<double> *a, int lda,
+                               const int *ipiv, std::complex<double> *b, int ldb, int &info)
+    { zgetrs_(&trans, &n, &nrhs, a, &lda, ipiv, b, &ldb, &info); }
 
     static inline void getri(const int &n, float *A, const int &lda, int *ipiv, float *work, const int &lwork, int &info)
     {

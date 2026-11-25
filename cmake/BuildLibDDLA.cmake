@@ -1,8 +1,8 @@
 include_guard(GLOBAL)
 include(ExternalProject)
 
-if(NOT (LIBRPA_USE_CUDA OR LIBRPA_USE_HIP))
-  message(FATAL_ERROR "Managed LibDDLA requires a CUDA or HIP backend")
+if(NOT LIBRPA_USE_DDLA)
+  message(FATAL_ERROR "Managed LibDDLA requires LIBRPA_USE_DDLA=ON")
 endif()
 if(LIBRPA_USE_CUDA AND LIBRPA_USE_HIP)
   message(FATAL_ERROR "Managed LibDDLA cannot enable CUDA and HIP together")
@@ -13,8 +13,11 @@ endif()
 
 set(_libddla_binary_dir "${CMAKE_BINARY_DIR}/_deps/libddla-build")
 set(_libddla_install_dir "${CMAKE_BINARY_DIR}/_deps/libddla-install")
-set(_libddla_include_dir "${_libddla_install_dir}/include")
-set(_libddla_lib_dir "${_libddla_install_dir}/lib")
+if(IS_ABSOLUTE "${CMAKE_INSTALL_LIBDIR}" OR IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}")
+  message(FATAL_ERROR "Managed LibDDLA requires relative CMAKE_INSTALL_LIBDIR and CMAKE_INSTALL_INCLUDEDIR; use LIBDDLA_PATH for an external installation")
+endif()
+set(_libddla_include_dir "${_libddla_install_dir}/${CMAKE_INSTALL_INCLUDEDIR}")
+set(_libddla_lib_dir "${_libddla_install_dir}/${CMAKE_INSTALL_LIBDIR}")
 set(_libddla_library
   "${_libddla_lib_dir}/${CMAKE_SHARED_LIBRARY_PREFIX}ddla${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
@@ -23,12 +26,11 @@ file(MAKE_DIRECTORY "${_libddla_include_dir}" "${_libddla_lib_dir}")
 
 set(_libddla_cmake_args
   "-DCMAKE_INSTALL_PREFIX:PATH=${_libddla_install_dir}"
-  "-DCMAKE_INSTALL_LIBDIR:STRING=lib"
-  "-DCMAKE_INSTALL_INCLUDEDIR:STRING=include"
+  "-DCMAKE_INSTALL_LIBDIR:STRING=${CMAKE_INSTALL_LIBDIR}"
+  "-DCMAKE_INSTALL_INCLUDEDIR:STRING=${CMAKE_INSTALL_INCLUDEDIR}"
   "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
   "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS}"
   "-DBUILD_TESTS:BOOL=OFF"
-  "-DDDLA_USE_CCL:BOOL=ON"
 )
 
 if(CMAKE_BUILD_TYPE)
@@ -50,7 +52,7 @@ if(LIBRPA_USE_CUDA)
   list(APPEND _libddla_cmake_args
     "-DDDLA_USE_CUDA:BOOL=ON"
     "-DDDLA_USE_HIP:BOOL=OFF"
-    "-DDDLA_USE_GPU_CPU_TUNNEL:BOOL=OFF"
+    "-DDDLA_USE_CCL:BOOL=ON"
   )
   set(_libddla_backend CUDA)
   set(_libddla_forward_variables
@@ -60,11 +62,11 @@ if(LIBRPA_USE_CUDA)
     CMAKE_CUDA_SEPARABLE_COMPILATION
     CUDAToolkit_ROOT
   )
-else()
+elseif(LIBRPA_USE_HIP)
   list(APPEND _libddla_cmake_args
     "-DDDLA_USE_CUDA:BOOL=OFF"
     "-DDDLA_USE_HIP:BOOL=ON"
-    "-DDDLA_USE_GPU_CPU_TUNNEL:BOOL=ON"
+    "-DDDLA_USE_CCL:BOOL=ON"
   )
   set(_libddla_backend HIP)
   set(_libddla_forward_variables
@@ -75,8 +77,23 @@ else()
     CMAKE_HIP_COMPILER_ROCM_ROOT
     ROCM_PATH
   )
+else()
+  list(APPEND _libddla_cmake_args
+    "-DDDLA_USE_CUDA:BOOL=OFF"
+    "-DDDLA_USE_HIP:BOOL=OFF"
+    "-DDDLA_USE_CCL:BOOL=OFF"
+  )
+  set(_libddla_backend CPU)
+  set(_libddla_forward_variables "")
 endif()
 
+list(APPEND _libddla_forward_variables
+  DDLA_CPU_BLAS_LIBRARY DDLA_LAPACK_LIBRARY
+  BLA_VENDOR BLAS_LIBRARIES LAPACK_LIBRARIES
+  CMAKE_OSX_DEPLOYMENT_TARGET CMAKE_OSX_ARCHITECTURES CMAKE_OSX_SYSROOT
+  DDLA_CUDA_MATH_LIBRARY_DIR
+  CUBLAS_LIBRARY CUBLASLT_LIBRARY CURAND_LIBRARY CUSOLVER_LIBRARY CUDART_LIBRARY
+)
 foreach(_libddla_variable IN LISTS _libddla_forward_variables)
   if(DEFINED ${_libddla_variable}
       AND NOT "${${_libddla_variable}}" STREQUAL "")
@@ -111,6 +128,19 @@ set_target_properties(LibDDLA::ddla PROPERTIES
   IMPORTED_LOCATION "${_libddla_library}"
   INTERFACE_INCLUDE_DIRECTORIES "${_libddla_include_dir}"
 )
+if(APPLE)
+  # The library is not built yet, so CMake cannot read its @rpath install name.
+  # Supply the same major-version name as upstream's SOVERSION property;
+  # otherwise the build executables have no runtime path to managed DDLA.
+  file(READ "${_libddla_source_dir}/src/version.h" _libddla_version_header)
+  string(REGEX MATCH "LIBDDLA_MAJOR_VERSION[ \t]+([0-9]+)"
+    _libddla_version_match "${_libddla_version_header}")
+  if(NOT _libddla_version_match)
+    message(FATAL_ERROR "Cannot determine managed LibDDLA's macOS install name")
+  endif()
+  set_property(TARGET LibDDLA::ddla PROPERTY IMPORTED_SONAME
+    "@rpath/libddla.${CMAKE_MATCH_1}.dylib")
+endif()
 
 set(LIBRPA_DDLA_TARGET LibDDLA::ddla)
 set(LIBRPA_BUNDLED_DDLA_PROJECT_TARGET librpa_bundled_libddla)

@@ -10,6 +10,21 @@
 
 namespace librpa_int
 {
+CrpaContext make_crpa_context(CrpaTaskContext& ds, const LibrpaOptions& opts)
+{
+    const bool shrink = opts.use_shrink_abfs == LIBRPA_SWITCH_ON;
+    // cRPA always screens and projects with full v. Independent GW Coulomb
+    // flags do not enter here; its explicitly selected numerical backends do.
+    return {*ds.p_chi0,   ds.cs_data,
+            ds.basis_aux, ds.atpairs_local,
+            ds.sinvS,     ds.vq,
+            ds.blacs_h,   shrink ? ds.desc_abf_shrink : ds.desc_abf,
+            shrink,       opts.sqrt_coulomb_threshold,
+            nullptr,      nullptr,
+            opts.use_gpu_replace_scalapack == LIBRPA_SWITCH_ON,
+            opts.eigensolver_method, opts.linear_algorithm};
+}
+
 namespace
 {
 void collective_error(const MpiCommHandler& comm, const std::string& error)
@@ -20,18 +35,6 @@ void collective_error(const MpiCommHandler& comm, const std::string& error)
     if (any_failed)
         throw LIBRPA_RUNTIME_ERROR("cRPA input: " +
                                    (error.empty() ? "another MPI rank failed validation" : error));
-}
-
-CrpaContext crpa_context(CrpaTaskContext& ds, const LibrpaOptions& opts)
-{
-    const bool shrink = opts.use_shrink_abfs == LIBRPA_SWITCH_ON;
-    // cRPA always screens and projects with full v. The independent GW
-    // eps/Wc/EXX Coulomb flags do not enter this numerical context.
-    return {*ds.p_chi0,   ds.cs_data,
-            ds.basis_aux, ds.atpairs_local,
-            ds.sinvS,     ds.vq,
-            ds.blacs_h,   shrink ? ds.desc_abf_shrink : ds.desc_abf,
-            shrink,       opts.sqrt_coulomb_threshold};
 }
 
 void initialize_crpa_response(CrpaTaskContext& ds, const LibrpaOptions& opts)
@@ -149,7 +152,7 @@ CrpaTaskResult evaluate_crpa_task_from_response(CrpaTaskContext& ds, const Librp
                                                 CrpaPreparedModel& model,
                                                 const Chi0QMap& full_response)
 {
-    auto context = crpa_context(ds, opts);
+    auto context = make_crpa_context(ds, opts);
     std::unique_ptr<diele_func> constrained_headwing;
     if (opts.replace_w_head == LIBRPA_SWITCH_ON)
     {
@@ -173,7 +176,7 @@ CrpaTaskResult compute_crpa_task(CrpaTaskContext& dataset, const LibrpaOptions& 
     const auto& opts = options;
     auto model = prepare_crpa_task_model(dataset, opts, input);
     initialize_crpa_response(*ds, opts);
-    auto context = crpa_context(*ds, opts);
+    auto context = make_crpa_context(*ds, opts);
     std::unique_ptr<diele_func> full_headwing, constrained_headwing;
     if (opts.replace_w_head == LIBRPA_SWITCH_ON)
     {
@@ -199,7 +202,7 @@ CrpaTaskResult compute_crpa_u_task(CrpaTaskContext& dataset, const LibrpaOptions
 {
     auto model = prepare_crpa_task_model(dataset, options, input, CrpaTaskMode::ResponseOnly);
     initialize_crpa_response(dataset, options);
-    auto context = crpa_context(dataset, options);
+    auto context = make_crpa_context(dataset, options);
     auto full_response = build_crpa_total_response(context);
     return evaluate_crpa_task_from_response(dataset, options, model, full_response);
 }

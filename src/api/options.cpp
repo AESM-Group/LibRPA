@@ -1,15 +1,21 @@
 // Public headers (prefixed by librpa)
 #include "librpa_enums.h"
 #include "librpa_options.h"
+#include "options.h"
 
 #include "../io/fs.h"
 #include "../utils/error.h"
 
 #include <string>
+#include <stdexcept>
 #include <cstring>
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-#include <ddla/ddla_connector.h>
+#ifdef LIBRPA_USE_CUDA
+#include <cuda_runtime_api.h>
+#else
+#include <hip/hip_runtime_api.h>
+#endif
 #endif
 
 namespace
@@ -82,7 +88,6 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->gf_threshold = 0.0e0;
     opts->libri_chi0_collect_s0_chunk = 0;
     opts->libri_chi0_collect_max_bytes = 0;
-    opts->use_scalapack_ecrpa = LIBRPA_SWITCH_ON;
 
     opts->use_shrink_abfs = LIBRPA_SWITCH_OFF;
     opts->use_shrink_chi = LIBRPA_SWITCH_ON;
@@ -106,22 +111,25 @@ void librpa_init_options(LibrpaOptions *opts)
     opts->istate_ref_hedin_shift = -1;
     opts->sf_gf_omega_shift = 0.01;
     opts->sf_sigc_omega_shift = 0.01;
-    opts->use_scalapack_gw_wc = LIBRPA_SWITCH_ON;
-    opts->use_cholesky_gw_wc = LIBRPA_SWITCH_OFF;
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     int deviceCount = 0;
-    auto info = ddla::deviceGetDeviceCount(&deviceCount);
-    if(info == ddla::deviceSuccess && deviceCount > 0)
+#ifdef LIBRPA_USE_CUDA
+    const bool device_available = cudaGetDeviceCount(&deviceCount) == cudaSuccess;
+#else
+    const bool device_available = hipGetDeviceCount(&deviceCount) == hipSuccess;
+#endif
+    if(device_available && deviceCount > 0)
         opts->use_gpu_replace_scalapack = LIBRPA_SWITCH_ON;
     else
         opts->use_gpu_replace_scalapack = LIBRPA_SWITCH_OFF;
 #else
     opts->use_gpu_replace_scalapack = LIBRPA_SWITCH_OFF;
 #endif
+    std::strncpy(opts->linear_algorithm, "scalapack", LIBRPA_MAX_STRLEN);
 #ifdef LIBRPA_USE_ELPA
-    opts->use_elpa_sqrt_coulomb = LIBRPA_SWITCH_ON;
+    std::strncpy(opts->eigensolver_method, "elpa", LIBRPA_MAX_STRLEN);
 #else
-    opts->use_elpa_sqrt_coulomb = LIBRPA_SWITCH_OFF;
+    std::strncpy(opts->eigensolver_method, "scalapack", LIBRPA_MAX_STRLEN);
 #endif
     opts->replace_w_head = LIBRPA_SWITCH_OFF;
     opts->option_dielect_func = 0;
@@ -166,4 +174,38 @@ void librpa_set_output_dir(LibrpaOptions *opts, const char *output_dir)
 void librpa_set_restart_from_dir(LibrpaOptions *opts, const char *restart_from_dir)
 {
     set_directory_option(opts->restart_from_dir, restart_from_dir, "restart_from_dir", true);
+}
+
+LibrpaOptions librpa_int::resolve_linear_algebra_options(const LibrpaOptions& input)
+{
+    auto opts = input;
+    const bool gpu = opts.use_gpu_replace_scalapack == LIBRPA_SWITCH_ON;
+    std::string linear(opts.linear_algorithm, strnlen(opts.linear_algorithm, LIBRPA_MAX_STRLEN));
+    std::string eigen(opts.eigensolver_method, strnlen(opts.eigensolver_method, LIBRPA_MAX_STRLEN));
+    if (linear != "ddla") linear = "scalapack";
+    if (eigen != "ddla" && eigen != "elpa") eigen = "scalapack";
+#ifndef LIBRPA_USE_DDLA
+    if (linear == "ddla") linear = "scalapack";
+    if (eigen == "ddla") eigen = "scalapack";
+#endif
+#ifndef LIBRPA_USE_ELPA
+    if (eigen == "elpa") eigen = "scalapack";
+#endif
+    if (gpu)
+    {
+#if (defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)) && defined(LIBRPA_USE_DDLA)
+        linear = "ddla";
+        if (eigen == "scalapack")
+#ifdef LIBRPA_USE_ELPA
+            eigen = "elpa";
+#else
+            eigen = "ddla";
+#endif
+#else
+        throw LIBRPA_RUNTIME_ERROR("use_gpu_replace_scalapack requires a CUDA/HIP build with DDLA");
+#endif
+    }
+    std::strcpy(opts.linear_algorithm, linear.c_str());
+    std::strcpy(opts.eigensolver_method, eigen.c_str());
+    return opts;
 }

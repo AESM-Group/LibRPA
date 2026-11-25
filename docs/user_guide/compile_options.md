@@ -39,6 +39,7 @@ It also includes selected standard CMake options for reference, but does not cov
 | [`LIBRPA_USE_LIBRI`](#librpa-use-libri)                     | bool              | `ON`       |
 | [`LIBRPA_USE_LIBRI_GPU`](#librpa-use-libri-gpu)             | bool              | `OFF`      |
 | [`LIBRPA_USE_CUDA`](#librpa-use-cuda)                       | bool              | `OFF`      |
+| [`LIBRPA_USE_DDLA`](#librpa-use-ddla)                       | bool              | build-dependent |
 | [`LIBRPA_USE_HIP`](#librpa-use-hip)                         | bool              | `OFF`      |
 | [`LIBRPA_USE_EXTERNAL_GREENX`](#librpa-use-external-greenx) | bool (deprecated, ignored) | unset |
 | [`LIBRPA_ENABLE_FORTRAN_BIND`](#librpa-enable-fortran-bind) | bool              | `OFF`      |
@@ -111,6 +112,73 @@ cmake -B build \
       -DLIBRPA_USE_CUDA=ON \
       -DLIBRPA_USE_LIBRI_GPU=ON
 ```
+
+(librpa-use-ddla)=
+### `LIBRPA_USE_DDLA`
+
+Enable LibDDLA independently of GPU support. The default is `OFF` for CPU-only
+builds. CUDA or HIP automatically sets `LIBRPA_USE_DDLA=ON`, overriding an
+explicit or cached `OFF` value.
+
+For CPU-only DDLA, leave both GPU options off:
+
+```sh
+cmake -B build -DLIBRPA_USE_DDLA=ON \
+  -DLIBRPA_USE_CUDA=OFF -DLIBRPA_USE_HIP=OFF
+```
+
+Choose an existing installation with `LIBDDLA_PATH`, a source tree with
+`LIBDDLA_SOURCE_DIR`, or leave both empty for the managed dependency. CPU-only
+managed builds disable CUDA, HIP and GPU collectives.
+They require host BLAS/LAPACK and MPI, but no GPU toolkit. Use
+`eigensolver_method = ddla` to select the DDLA CPU eigensolver at runtime.
+
+`linear_algorithm = scalapack|ddla` separately selects distributed screened-Coulomb
+GEMM and LU/Cholesky operations dispatched through `LaConnector`, including
+the shared matrix-power reconstruction. With `use_gpu_replace_scalapack = false`, DDLA
+uses its CPU interface. Unit-offset Cholesky factorization and solves use DDLA
+on both square and rectangular process grids. CPU submatrix operations with
+non-unit offsets retain the native route where the DDLA wrapper cannot
+represent the operation.
+
+RPA trace-log calculations also follow `linear_algorithm`. The DDLA route uses
+block-pivoted LU (`pgetrf_bpiv`) and `pdiag_logdet`, with `pgetrs_bpiv` for an
+associated thin right-hand side. Pivots are restricted to diagonal blocks:
+a nonsingular matrix can therefore fail when a diagonal block is singular,
+even if native row-pivoted LU would succeed. Both the general and Gamma-only
+helpers report a failed factorization before reading incomplete factors;
+there is no automatic retry with another LU method. The native general route
+uses row-pivoted LU and its permutation-aware diagonal log-determinant.
+
+Head/wing routing depends on the calculation. The retained Coulomb-basis
+projection in `compute_RPA_correlation_blacs_2d` uses native ScaLAPACK GEMM.
+The filtered head/wing projection and screened-interaction transformations
+dispatched through `LaConnector` follow the selected backend. Matrix
+redistribution through `pgemr2d` remains native.
+
+`use_gpu_replace_scalapack = true` requires a CUDA/HIP build. It promotes
+ScaLAPACK linear operations to DDLA and a ScaLAPACK eigensolver choice to ELPA.
+When ELPA is not built, DDLA's GPU eigensolver is used instead. An explicitly
+chosen DDLA or ELPA eigensolver is retained when available. ELPA must support
+the selected GPU backend; failure to configure its GPU handle is reported.
+For a managed CUDA ELPA source build, enable its GPU kernels, for example
+`-DLIBRPA_ELPA_CONFIGURE_ARGS="--enable-nvidia-gpu-kernels --with-cuda-path=/path/to/cuda --with-NVIDIA-GPU-compute-capability=sm_80"`.
+Use the corresponding AMD GPU build options for HIP, or supply a matching
+GPU-enabled external ELPA installation.
+This existing switch also controls GPU EXX, mean-field and self-energy matrix
+operations. Its default follows device availability.
+
+For GPU matrix operations and screened Coulomb:
+
+```text
+use_gpu_replace_scalapack = true
+linear_algorithm = scalapack
+eigensolver_method = scalapack
+```
+
+The effective screened-Coulomb methods are DDLA and ELPA (DDLA without ELPA).
+Recompile C and Fortran clients after the added options change the struct ABI.
+With DDLA disabled, that runtime selection falls back to ScaLAPACK.
 
 (librpa-use-cuda)=
 ### `LIBRPA_USE_CUDA`
@@ -518,7 +586,9 @@ Otherwise, it uses a nonempty CMake value first, then the environment variable o
 
 Headers matching the pinned upstream tree are used directly (`pinned`). Cereal has no managed patch, so it does not need an overlay. Other headers are used with an `unpinned` warning. The required LibRI compile probe checks the selected combination.
 
-If no target or path is supplied, LibRPA prepares managed headers. The manifest pins cereal to `d81e2f7df7b334fee057e53017388d02e555a836`, which includes the tuple-serialization fix used by this LibRI revision.
+If no target or path is supplied, LibRPA prepares managed headers, including
+the tuple-serialization support needed by LibRI. Exact revisions and patch
+status are recorded in [third-party maintenance](../develop/thirdparty.md).
 
 ```sh
 cmake -B build -DCEREAL_INCLUDE_DIR=/path/to/cereal/include
@@ -529,12 +599,12 @@ For path formats and cached environment values, see the {ref}`dependency path se
 (libddla-path)=
 ### `LIBDDLA_PATH`
 
-You can set this option to the installation prefix of LibDDLA for a CUDA or HIP build.
+You can set this option to the installation prefix of LibDDLA when `LIBRPA_USE_DDLA=ON`, including CPU-only builds.
 A nonempty CMake value takes precedence over the environment variable of the same name.
 
 The resolution order is:
 
-1. Existing `LibDDLA::ddla` target.
+1. Existing `ddla::ddla` target (or the legacy parent target `LibDDLA::ddla`).
 2. `LIBDDLA_SOURCE_DIR` source tree or `LIBDDLA_PATH` installation. Supplying both is an error.
 3. Managed source from the manifest.
 
@@ -543,7 +613,15 @@ Managed sources are the recommended starting point: leave both options empty to 
 A parent target or a source build is another way to match LibDDLA to your toolchain.
 For a prebuilt installation, CMake displays a reminder about compiler and flag compatibility on each configuration.
 
-The installation must contain `include/ddla/ddla.h` and a `ddla` library under `lib/` or `lib64/`. Missing headers or a missing library cause an error. Installed libraries are not checked against the manifest's source-tree hash. The installation must match the selected backend, compiler and MPI environment.
+The installation must provide a compatible LibDDLA CMake package in
+`lib/cmake/LibDDLA` or `lib64/cmake/LibDDLA`. LibRPA links its exported
+`ddla::ddla` target, which supplies public headers and link dependencies.
+Missing or incompatible package metadata causes an error. Installed libraries
+are not checked against the manifest's source-tree hash. The installation
+must match the selected backend, compiler and MPI environment.
+See [dependency compatibility](../develop/thirdparty.md#backend-dependency-compatibility)
+for the required public APIs and platform fixes; a version string alone is
+insufficient.
 
 ```sh
 cmake -B build -DLIBRPA_USE_CUDA=ON -DLIBDDLA_PATH=/path/to/libddla
@@ -663,8 +741,8 @@ See {ref}`Offline installation <install-offline>` for preparation and transfer c
 (libddla-source-dir)=
 ### `LIBDDLA_SOURCE_DIR`
 
-You can set this option to a LibDDLA source directory for a CUDA or HIP build.
-A nonempty CMake value takes precedence over the environment variable of the same name, and an existing `LibDDLA::ddla` target takes precedence over the path.
+You can set this option to a LibDDLA source directory when `LIBRPA_USE_DDLA=ON`, including CPU-only builds.
+A nonempty CMake value takes precedence over the environment variable of the same name, and an existing `ddla::ddla` or `LibDDLA::ddla` target takes precedence over the path.
 Choose either a source directory through this option or an installation through `LIBDDLA_PATH`.
 
 The directory must contain `include/ddla/ddla.h` and `CMakeLists.txt`; configuration stops if the directory is invalid.
@@ -672,7 +750,7 @@ LibRPA compares the hash of the whole source tree with the manifest and reports 
 This comparison also includes extra files, such as Git metadata.
 
 LibRPA builds the supplied sources directly, without patches or a separate source copy.
-It uses CMake's ExternalProject mechanism to configure the GPU languages in a separate build, with `_deps/libddla-build` and `_deps/libddla-install` directories for each top-level build.
+It uses CMake's ExternalProject mechanism for a separate CPU, CUDA or HIP build, with `_deps/libddla-build` and `_deps/libddla-install` directories for each top-level build.
 After changing the LibDDLA sources or its toolchain, use a fresh build directory so that the separate build picks up the changes.
 
 The separate LibDDLA build receives `CMAKE_CXX_COMPILER`, `CMAKE_CXX_FLAGS`, `CMAKE_BUILD_TYPE`, `MPI_CXX_COMPILER` and `CMAKE_PREFIX_PATH`. Backend-specific variables are forwarded when set:
@@ -682,7 +760,26 @@ The separate LibDDLA build receives `CMAKE_CXX_COMPILER`, `CMAKE_CXX_FLAGS`, `CM
 | CUDA | `CMAKE_CUDA_COMPILER`, `CMAKE_CUDA_FLAGS`, `CMAKE_CUDA_ARCHITECTURES`, `CMAKE_CUDA_SEPARABLE_COMPILATION`, `CUDAToolkit_ROOT` |
 | HIP | `CMAKE_HIP_COMPILER`, `CMAKE_HIP_FLAGS`, `CMAKE_HIP_ARCHITECTURES`, `CMAKE_HIP_SEPARABLE_COMPILATION`, `CMAKE_HIP_COMPILER_ROCM_ROOT`, `ROCM_PATH` |
 
-Other parent cache entries are not automatically forwarded. `ROCM_PATH` also accepts an environment fallback. LibRPA enables LibDDLA's collective communication backend, disables its tests, and selects GPU/CPU tunneling for HIP only.
+Host math settings `DDLA_CPU_BLAS_LIBRARY`, `DDLA_LAPACK_LIBRARY`,
+`BLA_VENDOR`, `BLAS_LIBRARIES` and `LAPACK_LIBRARIES` are also forwarded.
+Every current LibDDLA build includes CPU support and requires host BLAS/LAPACK.
+Managed LibDDLA uses the same relative `CMAKE_INSTALL_LIBDIR` and
+`CMAKE_INSTALL_INCLUDEDIR` as LibRPA, including a `lib64` layout, so the copied
+CMake package still locates its library and headers after installation.
+For split CUDA installations, `DDLA_CUDA_MATH_LIBRARY_DIR` and explicit
+`CUBLAS_LIBRARY`, `CUBLASLT_LIBRARY`, `CURAND_LIBRARY`, `CUSOLVER_LIBRARY`
+and `CUDART_LIBRARY` overrides are forwarded when provided.
+
+Other parent cache entries are not automatically forwarded. `ROCM_PATH` also accepts an environment fallback. LibRPA enables GPU collectives only for CUDA/HIP and disables LibDDLA's tests.
+
+`DDLA_USE_CCL` configures the LibDDLA child build and is not a consumer
+compile definition. Host-staged MPI is always available in GPU-enabled
+LibDDLA and selected through its runtime communication policy. The managed
+LibRI adapter uses `DDLA_HAS_GPU` from LibDDLA's generated public header;
+LibRPA does not supply private DDLA vendor or transport definitions.
+LibRPA's HIP BLACS handles select host-staged MPI through
+`ddlaSetCommunication` before grid initialization, preserving the earlier
+HIP communication policy. CUDA handles retain LibDDLA's default policy.
 
 Without a target, installation or source path, LibRPA prepares managed LibDDLA sources.
 

@@ -15,7 +15,6 @@ g0w0_fn_rr = rr.csr
 g0w0_hr_unit = Ry
 g0w0_rr_unit = Bohr
 replace_w_head = t
-use_scalapack_gw_wc = t
 parallel_routing = libri
 vq_threshold = 0
 sqrt_coulomb_threshold = 0

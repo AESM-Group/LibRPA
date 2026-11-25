@@ -2,7 +2,7 @@
 #define SCALAPACK_CONNECTOR_H
 
 #include <complex>
-#include "../interface/blacs_scalapack.h"
+#include "../interface/scalapack/blacs_scalapack.h"
 #include "lapack_connector.h"
 
 namespace librpa_int {
@@ -10,6 +10,34 @@ namespace librpa_int {
 class ScalapackConnector
 {
 public:
+    static inline void ppotrf_f(char uplo, int n, float* a, int ia, int ja,
+                                const int* desca, int& info)
+    { pspotrf_(&uplo, &n, a, &ia, &ja, desca, &info); }
+    static inline void ppotrs_f(char uplo, int n, int nrhs, const float* a, int ia, int ja,
+                                const int* desca, float* b, int ib, int jb,
+                                const int* descb, int& info)
+    { pspotrs_(&uplo, &n, &nrhs, a, &ia, &ja, desca, b, &ib, &jb, descb, &info); }
+    static inline void ppotrf_f(char uplo, int n, double* a, int ia, int ja,
+                                const int* desca, int& info)
+    { pdpotrf_(&uplo, &n, a, &ia, &ja, desca, &info); }
+    static inline void ppotrs_f(char uplo, int n, int nrhs, const double* a, int ia, int ja,
+                                const int* desca, double* b, int ib, int jb,
+                                const int* descb, int& info)
+    { pdpotrs_(&uplo, &n, &nrhs, a, &ia, &ja, desca, b, &ib, &jb, descb, &info); }
+    static inline void ppotrf_f(char uplo, int n, std::complex<float>* a, int ia, int ja,
+                                const int* desca, int& info)
+    { pcpotrf_(&uplo, &n, a, &ia, &ja, desca, &info); }
+    static inline void ppotrs_f(char uplo, int n, int nrhs, const std::complex<float>* a, int ia, int ja,
+                                const int* desca, std::complex<float>* b, int ib, int jb,
+                                const int* descb, int& info)
+    { pcpotrs_(&uplo, &n, &nrhs, a, &ia, &ja, desca, b, &ib, &jb, descb, &info); }
+    static inline void ppotrf_f(char uplo, int n, std::complex<double>* a, int ia, int ja,
+                                const int* desca, int& info)
+    { pzpotrf_(&uplo, &n, a, &ia, &ja, desca, &info); }
+    static inline void ppotrs_f(char uplo, int n, int nrhs, const std::complex<double>* a, int ia, int ja,
+                                const int* desca, std::complex<double>* b, int ib, int jb,
+                                const int* descb, int& info)
+    { pzpotrs_(&uplo, &n, &nrhs, a, &ia, &ja, desca, b, &ib, &jb, descb, &info); }
     // indexing functions adapted from ScaLAPACK TOOLS
 
     inline static int indxg2p(const int &indxglob, const int &nb, const int &iproc,
@@ -401,18 +429,16 @@ public:
     static inline void psyev_f(const char &jobz, const char &uplo, const int &n, float *A,
                                const int &ia, const int &ja, const int *desca, float *W, float *Z,
                                const int &iz, const int &jz, const int *descz, float *work,
-                               const int &lwork, float *rwork, const int &lrwork, int &info)
+                               const int &lwork, int &info)
     {
-        pssyev_(&jobz, &uplo, &n, A, &ia, &ja, desca, W, Z, &iz, &jz, descz, work, &lwork, rwork,
-                &lrwork, &info);
+        pssyev_(&jobz, &uplo, &n, A, &ia, &ja, desca, W, Z, &iz, &jz, descz, work, &lwork, &info);
     }
     static inline void psyev_f(const char &jobz, const char &uplo, const int &n, double *A,
                                const int &ia, const int &ja, const int *desca, double *W, double *Z,
                                const int &iz, const int &jz, const int *descz, double *work,
-                               const int &lwork, double *rwork, const int &lrwork, int &info)
+                               const int &lwork, int &info)
     {
-        pdsyev_(&jobz, &uplo, &n, A, &ia, &ja, desca, W, Z, &iz, &jz, descz, work, &lwork, rwork,
-                &lrwork, &info);
+        pdsyev_(&jobz, &uplo, &n, A, &ia, &ja, desca, W, Z, &iz, &jz, descz, work, &lwork, &info);
     }
     static inline void pheev_f(const char &jobz, const char &uplo, const int &n,
                                std::complex<float> *A, const int &ia, const int &ja,
@@ -461,12 +487,49 @@ public:
         pzgetrf_(&m, &n, a, &ia, &ja, desca, ipiv, &info);
     }
 
+    static inline void pgetrs_f(const char &trans, const int &n, const int &nrhs,
+                                const float *a, const int &ia, const int &ja,
+                                const int *desca, const int *ipiv, float *b,
+                                const int &ib, const int &jb, const int *descb, int &info)
+    { psgetrs_(&trans, &n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info); }
+    static inline void pgetrs_f(const char &trans, const int &n, const int &nrhs,
+                                const double *a, const int &ia, const int &ja,
+                                const int *desca, const int *ipiv, double *b,
+                                const int &ib, const int &jb, const int *descb, int &info)
+    { pdgetrs_(&trans, &n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info); }
+    static inline void pgetrs_f(const char &trans, const int &n, const int &nrhs,
+                                const std::complex<float> *a, const int &ia, const int &ja,
+                                const int *desca, const int *ipiv, std::complex<float> *b,
+                                const int &ib, const int &jb, const int *descb, int &info)
+    { pcgetrs_(&trans, &n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info); }
+    static inline void pgetrs_f(const char &trans, const int &n, const int &nrhs,
+                                const std::complex<double> *a, const int &ia, const int &ja,
+                                const int *desca, const int *ipiv, std::complex<double> *b,
+                                const int &ib, const int &jb, const int *descb, int &info)
+    { pzgetrs_(&trans, &n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info); }
+
+    static inline void pgesv_f(const int &n, const int &nrhs, double *a,
+                               const int &ia, const int &ja, const int *desca, int *ipiv,
+                               double *b, const int &ib, const int &jb,
+                               const int *descb, int &info)
+    {
+        pdgesv_(&n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info);
+    }
+
     static inline void pgesv_f(const int &n, const int &nrhs, std::complex<double> *a,
                                const int &ia, const int &ja, const int *desca, int *ipiv,
                                std::complex<double> *b, const int &ib, const int &jb,
                                const int *descb, int &info)
     {
         pzgesv_(&n, &nrhs, a, &ia, &ja, desca, ipiv, b, &ib, &jb, descb, &info);
+    }
+
+    static inline void pposv_f(const char &uplo, const int &n, const int &nrhs,
+                               double *a, const int &ia, const int &ja,
+                               const int *descA, double *b, const int &ib,
+                               const int &jb, const int *descB, int &info)
+    {
+        pdposv_(&uplo, &n, &nrhs, a, &ia, &ja, descA, b, &ib, &jb, descB, &info);
     }
 
     static inline void pposv_f(const char &uplo, const int &n, const int &nrhs,

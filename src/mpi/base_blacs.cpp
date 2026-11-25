@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <string>
 
-#include "../interface/blacs_scalapack.h"
+#include "../interface/scalapack/blacs_scalapack.h"
 #include "../io/global_io.h"
 #include "../utils/base_utility.h"
 #include "../utils/error.h"
@@ -50,8 +50,8 @@ BlacsCtxtHandler::BlacsCtxtHandler()
       npcols(0),
       myprow(0),
       mypcol(0)
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-      , ddla_handle(nullptr)
+#ifdef LIBRPA_USE_DDLA
+      , ddla_handle(nullptr), ddla_cpu_handle(nullptr)
 #endif
 {
 }
@@ -70,8 +70,8 @@ BlacsCtxtHandler::BlacsCtxtHandler(MPI_Comm comm_in)
       npcols(0),
       myprow(0),
       mypcol(0)
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    , ddla_handle(nullptr)
+#ifdef LIBRPA_USE_DDLA
+    , ddla_handle(nullptr), ddla_cpu_handle(nullptr)
 #endif
 {
 }
@@ -86,12 +86,41 @@ void BlacsCtxtHandler::init()
     this->initialized_ = true;
 }
 
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-void BlacsCtxtHandler::init_ddla_handle(){
+#ifdef LIBRPA_USE_DDLA
+void BlacsCtxtHandler::init_ddla_handle(ddla::DdlaBackend backend)
+{
     assert(this->initialized_);
     assert(this->pgrid_set_);
-    ddla::ddla_init(this->ddla_handle);
-    ddla::ddla_set(this->ddla_handle, this->mpi_comm_h.comm, this->nprows, this->npcols, this->layout_ch);
+    auto &handle = backend == ddla::DdlaBackend::CPU ? ddla_cpu_handle : ddla_handle;
+    if (handle != nullptr) return;
+    ddla::DDLA_CHECK(ddla::ddlaInit(handle, backend));
+    try
+    {
+#ifdef LIBRPA_USE_HIP
+        // Preserve the previous HIP host-staging policy through the public API.
+        if (backend == ddla::DdlaBackend::GPU)
+            ddla::DDLA_CHECK(ddla::ddlaSetCommunication(
+                handle, ddla::DdlaCommunication::HostStagedMPI));
+#endif
+        ddla::DDLA_CHECK(ddla::ddlaSet(handle, mpi_comm_h.comm, nprows, npcols, layout_ch));
+    }
+    catch (...)
+    {
+        ddla::ddlaDestroy(handle);
+        handle = nullptr;
+        throw;
+    }
+}
+
+void BlacsCtxtHandler::destroy_ddla_handles()
+{
+    for (auto *handle : {&ddla_handle, &ddla_cpu_handle})
+    {
+        if (*handle == nullptr) continue;
+        ddla::DDLA_CHECK(ddla::ddlaSetDevice(*handle));
+        ddla::DDLA_CHECK(ddla::ddlaDestroy(*handle));
+        *handle = nullptr;
+    }
 }
 #endif
 
@@ -104,11 +133,8 @@ void BlacsCtxtHandler::reset_comm()
     this->comm_set_ = false;
     this->initialized_ = false;
     this->pgrid_set_ = false;
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(ddla_handle != nullptr){
-        ddla::ddla_destroy(ddla_handle);
-        ddla_handle = nullptr;
-    }
+#ifdef LIBRPA_USE_DDLA
+    destroy_ddla_handles();
 #endif
 }
 
@@ -122,11 +148,8 @@ void BlacsCtxtHandler::reset_comm(MPI_Comm comm_in, bool init_on_reset)
     this->comm_set_ = true;
     this->pgrid_set_ = false;
     if (init_on_reset) this->init();
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(ddla_handle!=nullptr){
-        ddla::ddla_destroy(ddla_handle);
-        ddla_handle = nullptr;
-    }
+#ifdef LIBRPA_USE_DDLA
+    destroy_ddla_handles();
 #endif
 }
 
@@ -185,11 +208,8 @@ void BlacsCtxtHandler::exit()
             ictxt = Csys2blacs_handle(mpi_comm_h.comm);
         pgrid_set_ = false;
     }
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    if(ddla_handle!=nullptr){
-        ddla::ddla_destroy(ddla_handle);
-        ddla_handle = nullptr;
-    }
+#ifdef LIBRPA_USE_DDLA
+    destroy_ddla_handles();
 #endif
 }
 
@@ -406,8 +426,8 @@ ArrayDesc::ArrayDesc()
       g2l_r_(), g2l_c_(), l2g_r_(), l2g_c_(),
       is_loc_consecutive_r_(false), is_loc_consecutive_c_(false),
       empty_local_mat_(false), initialized_(false)
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    , ddla_desc_()
+#ifdef LIBRPA_USE_DDLA
+    , ddla_handle_(nullptr)
 #endif
 
 #ifdef LIBRPA_USE_ELPA
@@ -425,8 +445,8 @@ ArrayDesc::ArrayDesc(const BlacsCtxtHandler &blacs_h)
       g2l_r_(), g2l_c_(), l2g_r_(), l2g_c_(),
       is_loc_consecutive_r_(false), is_loc_consecutive_c_(false),
       empty_local_mat_(false), initialized_(false)
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    , ddla_desc_()
+#ifdef LIBRPA_USE_DDLA
+    , ddla_handle_(nullptr)
 #endif
 
 #ifdef LIBRPA_USE_ELPA
@@ -445,8 +465,8 @@ ArrayDesc::ArrayDesc(const int &ictxt)
       g2l_r_(), g2l_c_(), l2g_r_(), l2g_c_(),
       is_loc_consecutive_r_(false), is_loc_consecutive_c_(false),
       empty_local_mat_(false), initialized_(false)
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    , ddla_desc_()
+#ifdef LIBRPA_USE_DDLA
+    , ddla_handle_(nullptr)
 #endif
 
 #ifdef LIBRPA_USE_ELPA
@@ -455,7 +475,11 @@ ArrayDesc::ArrayDesc(const int &ictxt)
 {
     // TODO: how to check if ictxt is a valid context?
     int nprocs, myid, nprows, npcols, myprow, mypcol;
-    MPI_Comm comm = Cblacs2sys_handle(ictxt);
+    // A grid context is not a system handle: BLACS_GET(10) returns the
+    // grid communicator handle (netlib and MKL number them differently).
+    int system_handle = -1;
+    Cblacs_get(ictxt, 10, &system_handle);
+    MPI_Comm comm = Cblacs2sys_handle(system_handle);
     Cblacs_gridinfo(ictxt, &nprows, &npcols, &myprow, &mypcol);
     myid = Cblacs_pnum(ictxt, myprow, mypcol);
     nprocs = nprows * npcols;

@@ -17,6 +17,7 @@
 #include "instance_manager.h"
 #include "librpa_compute.h"
 #include "orbital_helper.h"
+#include "options.h"
 #include "qsgw_helper.h"
 
 struct LibrpaCrpaResult
@@ -241,10 +242,11 @@ LibrpaCrpaResult* librpa_prepare_crpa_model(const LibrpaHandler* h, const Librpa
 {
     using namespace librpa_int;
     if (!options) throw LIBRPA_INVALID_ARGUMENT("missing cRPA model options");
+    const auto normalized = resolve_linear_algebra_options(*options);
     auto ds = api::get_dataset_instance(h);
     const auto numerical_input = api::unpack_crpa_input(*ds, input);
     return api::own_crpa_result(
-        prepare_crpa_task(*api::make_crpa_task_context(ds), *options, numerical_input));
+        prepare_crpa_task(*api::make_crpa_task_context(ds), normalized, numerical_input));
 }
 
 LibrpaCrpaResult* librpa_compute_crpa_u_window(const LibrpaHandler* h, const LibrpaOptions* options,
@@ -252,10 +254,11 @@ LibrpaCrpaResult* librpa_compute_crpa_u_window(const LibrpaHandler* h, const Lib
 {
     using namespace librpa_int;
     if (!options) throw LIBRPA_INVALID_ARGUMENT("missing cRPA options");
+    const auto normalized = resolve_linear_algebra_options(*options);
     auto ds = api::get_dataset_instance(h);
     const auto numerical_input = api::unpack_crpa_input(*ds, input);
     return api::own_crpa_result(
-        compute_crpa_u_task(*api::make_crpa_task_context(ds), *options, numerical_input));
+        compute_crpa_u_task(*api::make_crpa_task_context(ds), normalized, numerical_input));
 }
 
 LibrpaCrpaResult* librpa_compute_crpa_window(const LibrpaHandler* h, const LibrpaOptions* options,
@@ -263,29 +266,31 @@ LibrpaCrpaResult* librpa_compute_crpa_window(const LibrpaHandler* h, const Librp
 {
     using namespace librpa_int;
     if (!options) throw LIBRPA_INVALID_ARGUMENT("missing cRPA options");
+    const auto normalized = resolve_linear_algebra_options(*options);
     auto ds = api::get_dataset_instance(h);
     const auto numerical_input = api::unpack_crpa_input(*ds, input);
     return api::own_crpa_result(
-        compute_crpa_task(*api::make_crpa_task_context(ds), *options, numerical_input));
+        compute_crpa_task(*api::make_crpa_task_context(ds), normalized, numerical_input));
 }
 
 LibrpaCrpaResult* librpa_build_g0w0_sigma_crpa(LibrpaHandler* h, const LibrpaOptions* options,
                                                const LibrpaCrpaInput* input)
 {
     if (!options || !input) throw LIBRPA_INVALID_ARGUMENT("missing shared GW/cRPA input");
+    const auto normalized = librpa_int::resolve_linear_algebra_options(*options);
     const auto dataset = librpa_int::api::get_dataset_instance(h);
     const auto context = librpa_int::api::make_crpa_task_context(dataset);
     auto model = librpa_int::prepare_crpa_task_model(
-        *context, *options, librpa_int::api::unpack_crpa_input(*dataset, input),
+        *context, normalized, librpa_int::api::unpack_crpa_input(*dataset, input),
         librpa_int::CrpaTaskMode::SharedGw);
     std::unique_ptr<LibrpaCrpaResult, decltype(&librpa_delete_crpa_result)> result(
         nullptr, librpa_delete_crpa_result);
     librpa_int::api::build_gw_sigma_for_task(
-        *dataset, *options,
+        *dataset, normalized,
         [&](const librpa_int::Chi0QMap& response)
         {
             result.reset(librpa_int::api::own_crpa_result(
-                librpa_int::evaluate_crpa_task_from_response(*context, *options, model, response)));
+                librpa_int::evaluate_crpa_task_from_response(*context, normalized, model, response)));
         });
     return result.release();
 }

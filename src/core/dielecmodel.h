@@ -23,6 +23,20 @@
 namespace librpa_int
 {
 
+/** Solve epsilon*X=B in the caller's memory space; return true for Cholesky.
+ *
+ * Gamma head or head/wing corrections can make the dielectric matrix indefinite.
+ * Only those callers may set allow_lu_fallback, supplying a non-aliasing local
+ * backup with the same layout/backend. POTRF is destructive: after collective
+ * positive INFO, restore that original matrix before standard GETRF/GETRS.
+ * Negative INFO is an argument error and does not permit retry. The RHS is
+ * untouched until factorization succeeds; an unsuccessful solve is reported.
+ * Ordinary-q Cholesky failures are reported without LU retry or a backup.
+ */
+bool solve_dielectric_system(std::complex<double>* epsilon, std::complex<double>* rhs,
+    const ArrayDesc& desc, const ArrayDesc& rhs_desc,
+    bool allow_lu_fallback, std::complex<double>* backup = nullptr);
+
 //! double-dispersion Havriliak-Negami model
 struct DoubleHavriliakNegami
 {
@@ -44,6 +58,9 @@ struct RpaHeadwingSettings
     bool use_soc = false;
     int rpa_headwing_body_start = 0;
     std::string rpa_headwing_mode = "qavg";
+    std::string eigensolver_method = "scalapack";
+    std::string linear_algorithm = "scalapack";
+    bool use_gpu_eigensolver = false;
     double sqrt_coulomb_threshold = 0.0;
 };
 
@@ -153,45 +170,28 @@ HeadwingCsIJKMap redistribute_headwing_cs_ijk(
 
 void invert_headwing_body_with_identity_solve(
     matrix_m<std::complex<double>> &body, ArrayDesc &desc_body,
-    const BlacsCtxtHandler &blacs_h, bool use_cholesky, bool use_device);
+    const BlacsCtxtHandler &blacs_h, bool use_device);
 
-// ABF-space averaged inverse dielectric rewrite for Gamma analytic head/wing GW Wc,
-// factored out of diele_func so it can be unit tested directly.
-// eps_block holds E = I - sqrt(V)*chi0*sqrt(V) (n_abf x n_abf, distributed) on
-// entry and is overwritten with the averaged inverse dielectric matrix.
-// sqrtv_block is the matrix square root sqrt(V); coul_eigen_block supplies the
-// trailing filtered Coulomb eigenvectors. head_direction is a distributed
-// n_abf x 1 vector described by desc_head_direction on the same BLACS grid.
-// It must be normalized and lie in the retained Coulomb space.
-// head is the 3x3 dielectric head H
-// (it already includes the identity contribution) and wing_mu the replicated
-// n_abf x 3 ABF wing. qx/qy/qz are unit angular directions and rho the
-// per-point quadrature weights (already including the Gamma-cell volume and
-// q_gamma factors). When the Coulomb matrix has filtered eigenchannels, the
-// rewrite is restricted to the retained space; the filtered channels must be
-// the trailing orthonormal columns of coul_eigen_block. The retained columns
-// are not read. The projector is applied through its low-rank factor
-// Y = [head_direction | trailing filtered columns] (n_abf x m with
-// m = 1 + n_singular), so no n_abf x n_abf projector is ever formed.
-// eps_block must be Hermitian: the routine contracts it only as E*Y rather than
-// forming both E*Y and E^H*Y, so the result is accurate to O(|E - E^H|). The
-// Cholesky branch of the in-place inverse (pposv with uplo='L') already requires
-// this, and E is Hermitian on the imaginary-frequency axis that reaches here.
-// Collective reductions run on the descriptor communicator. The read-only
-// matrix inputs are const; only eps_block is modified.
+// Rewrite E=I-sqrt(V)*chi0*sqrt(V) in place using caller-owned raw buffers.
+// complement is Y=[head direction | filtered Coulomb columns], n x m;
+// weighted_wing is sqrt(V)*wing_mu, n x 3. Their descriptors and all numerical
+// pointers use the caller-selected backend. head is a replicated host 3x3
+// column-major tensor. The only host transfer inside is the 3x3 angular data.
+// factor/scratch each hold max(storage(desc), storage(desc_wing)) elements;
+// small holds max(storage(desc_small), storage(desc_cart)). Storage is at least
+// max(1,LLD*local_columns), including empty owners. Buffers do not alias.
+// Callers allocate/upload all inputs; the kernel never initializes handles.
 void rewrite_eps_abf_space(
-    matrix_m<std::complex<double>> &eps_block,
-    const matrix_m<std::complex<double>> &sqrtv_block,
-    const matrix_m<std::complex<double>> &coul_eigen_block,
-    const matrix_m<std::complex<double>> &head_direction,
-    const ArrayDesc &desc_head_direction,
-    const matrix_m<std::complex<double>> &head,
-    const matrix_m<std::complex<double>> &wing_mu,
+    std::complex<double> *epsilon, std::complex<double> *factor,
+    std::complex<double> *scratch, std::complex<double> *small,
+    const std::complex<double> *complement,
+    const std::complex<double> *weighted_wing,
+    const std::complex<double> *head,
+    const ArrayDesc &desc, const ArrayDesc &desc_y,
+    const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
+    const ArrayDesc &desc_cart,
     const std::vector<double> &qx, const std::vector<double> &qy,
-    const std::vector<double> &qz, const std::vector<double> &rho,
-    const ArrayDesc &desc_nabf_nabf_opt, const BlacsCtxtHandler &blacs_h,
-    std::size_t n_nonsingular,
-    double sqrt_coulomb_threshold, bool use_cholesky, bool use_device);
+    const std::vector<double> &qz, const std::vector<double> &rho);
 
 class diele_func
 {
@@ -451,8 +451,6 @@ public:
     SternheimerRpaHeadwingInput get_sternheimer_rpa_headwing_input(
         int ifreq, const RpaHeadwingSettings &settings) const;
 
-    void construct_rpa_trace_log_schur(const int ifreq, ArrayDesc &desc_body,
-                                       int wing_row_offset = 0);
     ArrayDesc get_body_inv(matrix_m<std::complex<double>> &chi0_block,
                            ArrayDesc &desc_nabf_nabf_opt);
     void construct_L(const int ifreq, ArrayDesc &desc_body);
@@ -463,20 +461,16 @@ public:
     void get_g_enclosing_gamma_2d();
     void calculate_q_gamma();
     void calculate_q_gamma_2d();
-    // ABF-space analytic head/wing rewrite for Gamma GW Wc, including Coulomb filtering.
-    // eps_block holds E = I - sqrt(V)*chi0*sqrt(V) on entry and the averaged
-    // inverse dielectric matrix on exit. Delegates to the free
-    // rewrite_eps_abf_space helper using this object's head, wing_mu and
-    // angular quadrature data.
-    void rewrite_eps_abf_space(matrix_m<std::complex<double>> &eps_block, const int ifreq,
-                               const matrix_m<std::complex<double>> &sqrtv_block,
-                               const matrix_m<std::complex<double>> &coul_eigen_block,
-                               const matrix_m<std::complex<double>> &head_direction,
-                               const ArrayDesc &desc_head_direction,
-                               const ArrayDesc &desc_nabf_nabf_opt,
-                               std::size_t n_nonsingular_in,
-                               double sqrt_coulomb_threshold,
-                               bool use_cholesky, bool use_device);
+    // Apply this object's head tensor and Gamma-cell quadrature to the raw
+    // pointer kernel. The caller supplies Y, weighted wing, layout and storage.
+    void rewrite_eps_abf_space(
+        std::complex<double> *epsilon, std::complex<double> *factor,
+        std::complex<double> *scratch, std::complex<double> *small,
+        const std::complex<double> *complement,
+        const std::complex<double> *weighted_wing, const int ifreq,
+        const ArrayDesc &desc, const ArrayDesc &desc_y,
+        const ArrayDesc &desc_wing, const ArrayDesc &desc_small,
+        const ArrayDesc &desc_cart);
     void cal_strict_2d_wc(const int ifreq, ArrayDesc &desc_nabf_nabf_opt, ArrayDesc &desc_body,
                           const matrix_m<std::complex<double>> &regular_coulomb_basis);
     void assign_chi0(matrix_m<std::complex<double>> &chi0_block,
@@ -544,6 +538,13 @@ matrix_m<std::complex<double>> strict_2d_transform_pw_wc_to_auxiliary_basis(
 
 ArrayDesc make_rpa_chi0v_wing_desc(const ArrayDesc &desc_body, const int wing_row_offset,
                                    const int wing_rows_loc, const int wing_cols_loc);
+
+// Factor A=I-body once, solve three wing RHS with the same LU factors, and
+// return log(det(A)) plus the replicated Schur matrix I-head-W^H A^-1 W.
+// A is overwritten by LU; wing/head remain unchanged. No inverse is formed.
+std::complex<double> compute_rpa_body_schur(
+    Matz& identity_minus_body, const ArrayDesc& body_desc,
+    const Matz& wing, const ArrayDesc& wing_desc, const Matz& head, Matz& schur);
 
 bool rpa_headwing_matrix_matches_descriptor(const matrix_m<std::complex<double>> &matrix,
                                               const ArrayDesc &descriptor,

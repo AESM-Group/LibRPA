@@ -1,7 +1,7 @@
 #pragma once
 
 #include <complex>
-#include "./mpi.h"
+#include "../mpi/mpi.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -24,6 +24,7 @@ extern "C"
 
     int Csys2blacs_handle(MPI_Comm SysCtxt);
     MPI_Comm Cblacs2sys_handle(int BlacsCtxt);
+    void Cblacs_get(int ictxt, int what, int *val);
     void Cblacs_pinfo(int *myid, int *nprocs);
     void Cblacs_gridmap(int* ictxt, int *usermap, int ldumap, int nprow, int npcol);
     void Cblacs_gridinfo(int ictxt, int *nprow, int *npcol, int *prow, int *pcol);
@@ -54,9 +55,30 @@ extern "C"
     //                  int myrow, int mycol, int * ii, int * jj,
     //                  int *prow, int *pcol);
 
-    void pdpotrf_(char *uplo, int *n, double *a, int *ia, int *ja, int *desca, int *info);
-    void pzpotrf_(char *uplo, int *n, std::complex<double> *a, int *ia, int *ja, int *desca, int *info);
+    void pspotrf_(const char *uplo, const int *n, float *a, const int *ia,
+                   const int *ja, const int *desca, int *info);
+    void pspotrs_(const char *uplo, const int *n, const int *nrhs, const float *a,
+                   const int *ia, const int *ja, const int *desca, float *b,
+                   const int *ib, const int *jb, const int *descb, int *info);
+    void pdpotrf_(const char *uplo, const int *n, double *a, const int *ia,
+                   const int *ja, const int *desca, int *info);
+    void pdpotrs_(const char *uplo, const int *n, const int *nrhs, const double *a,
+                   const int *ia, const int *ja, const int *desca, double *b,
+                   const int *ib, const int *jb, const int *descb, int *info);
+    void pcpotrf_(const char *uplo, const int *n, std::complex<float> *a, const int *ia,
+                   const int *ja, const int *desca, int *info);
+    void pcpotrs_(const char *uplo, const int *n, const int *nrhs, const std::complex<float> *a,
+                   const int *ia, const int *ja, const int *desca, std::complex<float> *b,
+                   const int *ib, const int *jb, const int *descb, int *info);
+    void pzpotrf_(const char *uplo, const int *n, std::complex<double> *a, const int *ia,
+                   const int *ja, const int *desca, int *info);
+    void pzpotrs_(const char *uplo, const int *n, const int *nrhs, const std::complex<double> *a,
+                   const int *ia, const int *ja, const int *desca, std::complex<double> *b,
+                   const int *ib, const int *jb, const int *descb, int *info);
 
+    void pdposv_(const char* uplo, const int* n, const int* nrhs, double* a,
+                 const int* ia, const int* ja, const int* desca, double* b,
+                 const int* ib, const int* jb, const int* descb, int* info);
     void pzposv_(
         const char *uplo, const int *n, const int *nrhs,   
         std::complex<double> *a, const int *ia, const int *ja, const int *descA,  
@@ -218,7 +240,23 @@ extern "C"
                   std::complex<double> *A, const int *IA, const int *JA, const int *DESCA,
                   int *ipiv, int *info);
 
-    void pzgesv_(const int* n, const int* nrhs, std::complex<double>* a, const int* ia, const int* ja,   
+    void psgetrs_(const char *trans, const int *n, const int *nrhs, const float *a,
+                  const int *ia, const int *ja, const int *desca, const int *ipiv,
+                  float *b, const int *ib, const int *jb, const int *descb, int *info);
+    void pdgetrs_(const char *trans, const int *n, const int *nrhs, const double *a,
+                  const int *ia, const int *ja, const int *desca, const int *ipiv,
+                  double *b, const int *ib, const int *jb, const int *descb, int *info);
+    void pcgetrs_(const char *trans, const int *n, const int *nrhs, const std::complex<float> *a,
+                  const int *ia, const int *ja, const int *desca, const int *ipiv,
+                  std::complex<float> *b, const int *ib, const int *jb, const int *descb, int *info);
+    void pzgetrs_(const char *trans, const int *n, const int *nrhs, const std::complex<double> *a,
+                  const int *ia, const int *ja, const int *desca, const int *ipiv,
+                  std::complex<double> *b, const int *ib, const int *jb, const int *descb, int *info);
+
+    void pdgesv_(const int* n, const int* nrhs, double* a, const int* ia, const int* ja,
+                 const int* desca, int* ipiv, double* b, const int* ib, const int* jb,
+                 const int* descb, int* info);
+    void pzgesv_(const int* n, const int* nrhs, std::complex<double>* a, const int* ia, const int* ja,
                  const int* DESCA, int* ipiv, std::complex<double>* b, const int* ib, const int* jb,   
                  const int* DESCB, int* info);  
 
@@ -259,11 +297,11 @@ extern "C"
     void pssyev_(const char *jobz, const char *uplo,
                  const int *n, float *A, const int *ia, const int *ja, const int *desca,
                  float *W, float *Z, const int *iz, const int *jz, const int *descz,
-                 float *work, const int *lwork, float *rwork, const int *lrwork, int *info);
+                 float *work, const int *lwork, int *info);
     void pdsyev_(const char *jobz, const char *uplo,
                  const int *n, double *A, const int *ia, const int *ja, const int *desca,
                  double *W, double *Z, const int *iz, const int *jz, const int *descz,
-                 double *work, const int *lwork, double *rwork, const int *lrwork, int *info);
+                 double *work, const int *lwork, int *info);
     void pcheev_(const char *jobz, const char *uplo,
                  const int *n, std::complex<float> *A, const int *ia, const int *ja, const int *desca,
                  float *W, std::complex<float> *Z, const int *iz, const int *jz, const int *descz,

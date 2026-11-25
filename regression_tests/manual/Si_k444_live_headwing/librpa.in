@@ -16,7 +16,6 @@ replace_w_head = true
 option_dielect_func = 3
 vq_threshold = 0
 sqrt_coulomb_threshold = 0
-use_scalapack_gw_wc = true
 use_shrink_abfs = false
 use_shrink_chi = false
 use_fullcoul_exx = false

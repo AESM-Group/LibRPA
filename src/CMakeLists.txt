@@ -64,6 +64,9 @@ target_include_directories(rpa_lib PRIVATE
 # switches. Propagate the same definitions to consumers to keep their view of
 # the LibRPA data model ABI-compatible with the library.
 target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_MPI)
+if(LIBRPA_USE_DDLA)
+  target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_DDLA)
+endif()
 if(LIBRPA_USE_LIBRI)
   target_compile_definitions(rpa_lib PUBLIC LIBRPA_USE_LIBRI)
 endif()
@@ -159,7 +162,7 @@ list(APPEND lib_sources
         io/npz_writer.cpp
         io/output_matrix.cpp
 
-        interface/gx_minimax_wrp.f90
+        interface/greenx/gx_minimax_wrp.f90
 
         math/complexmatrix.cpp
         math/fitting.cpp
@@ -202,17 +205,22 @@ endif()
 
 if(LIBRPA_USE_CUDA OR LIBRPA_USE_HIP)
   list(APPEND lib_sources 
-    gpu/device_connector.cpp
+    interface/ddla/device_connector.cpp
   )
 endif()
 
-if(LIBRPA_USE_ELPA)
-  list(APPEND lib_sources
-    elpa/elpa_connector.cpp)
-endif()
+list(APPEND lib_sources math/la_connector.cpp)
 
 # source must be PRIVATE to avoid recompilation when linking driver to this library
 target_sources(rpa_lib PRIVATE ${lib_sources})
+# base_blacs.h uses the runtime API in inline functions, so consumers need
+# the runtime's include directories and link requirements as well.
+if(LIBRPA_USE_CUDA)
+  target_link_libraries(rpa_lib PUBLIC ${CUDA_LIBRARIES})
+elseif(LIBRPA_USE_HIP)
+  target_link_libraries(rpa_lib PUBLIC ${HIP_LIBRARIES})
+endif()
+
 target_link_libraries(rpa_lib PRIVATE ${math_libs} ${parallel_libs})
 
 install(TARGETS rpa_lib

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "chi0.h"
 #include "correlated_subspace.h"
 #include "dielecmodel.h"
@@ -39,6 +41,10 @@ struct CrpaContext
     double sqrt_coulomb_threshold = 0.0;
     diele_func *full_headwing = nullptr;
     diele_func *constrained_headwing = nullptr;
+    //! Resolved by the owning task; manual contexts retain legacy defaults.
+    bool use_gpu_replace_scalapack = false;
+    std::string eigensolver_method = "scalapack";
+    std::string linear_algorithm = "scalapack";
 };
 
 /*! Build P0 and Pd on the same original KS poles and positive minimax nodes.

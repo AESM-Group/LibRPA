@@ -13,16 +13,23 @@
 #include <cassert>
 #include <cmath>
 #include <complex>
+#include <cstdlib>
+#include <dlfcn.h>
+#include <chrono>
 #include <iostream>
+#include <iomanip>
 #include <map>
 #include <memory>
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <utility>
 #include <valarray>
 #include <vector>
 
 #include "../core/pair_density_vertex.h"
+#include "../utils/dev_options.h"
+#include "../utils/profiler.h"
 #include "crpa_atom_block_reference.h"
 
 using namespace librpa_int;
@@ -139,7 +146,8 @@ void test_dense_complex_Tdagger_C_T()
     assert_matrix_close(D, expected);
 }
 
-void test_random_complex_vertex_against_literal_sum()
+void test_random_complex_vertex_against_literal_sum(
+    const int n_spinor = 1, const BlacsCtxtHandler *cpu_grid = nullptr)
 {
     // Unequal AO/auxiliary blocks, translated Cs outside the BvK cell,
     // multiple contributions to each output, and complex orbital phases.
@@ -155,13 +163,14 @@ void test_random_complex_vertex_against_literal_sum()
     std::vector<ComplexMatrix> T_R;
     for (std::size_t ir = 0; ir != pbc.Rlist.size(); ++ir)
     {
-        ComplexMatrix T(5, norb);
+        ComplexMatrix T(5 * n_spinor, norb);
         for (int i = 0; i != T.size; ++i) T.c[i] = {random(generator), random(generator)};
         T_R.push_back(T);
     }
     // An absent atom block also exercises the production support shortcut.
-    for (int i = 0; i != 2; ++i)
-        for (int a = 0; a != norb; ++a) T_R[1](i, a) = 0.0;
+    for (int s = 0; s != n_spinor; ++s)
+        for (int i = 0; i != 2; ++i)
+            for (int a = 0; a != norb; ++a) T_R[1](s * 5 + i, a) = 0.0;
     PairDensityCsMap Cs;
     for (int I = 0; I != 2; ++I)
         for (int J = 0; J != 2; ++J)
@@ -174,7 +183,7 @@ void test_random_complex_vertex_against_literal_sum()
                 Cs[I][{J, {r, 0, 0}}] = make_cs(nmu, ni, nj, values);
             }
     const auto actual = build_site_pair_density_vertex_from_T(
-        0, site("random-complex", 0, norb), T_R, Cs, basis_wfc, basis_abf, pbc, qpoints);
+        0, site("random-complex", 0, norb), T_R, Cs, basis_wfc, basis_abf, pbc, qpoints, cpu_grid);
     for (const auto &q : qpoints)
         for (int I = 0; I != 2; ++I)
         {
@@ -195,17 +204,67 @@ void test_random_complex_vertex_against_literal_sum()
                             for (int mu = 0; mu != expected.nc; ++mu)
                                 for (int i = 0; i != basis_wfc.get_atom_nb(I); ++i)
                                     for (int j = 0; j != basis_wfc.get_atom_nb(J); ++j)
-                                        expected(a * norb + b, mu) +=
-                                            phase * C(mu, i, j) *
-                                            (std::conj(T_R[ia](ibegin + i, a)) *
-                                                 T_R[ib](jbegin + j, b) +
-                                             std::conj(T_R[ib](jbegin + j, a)) *
-                                                 T_R[ia](ibegin + i, b));
+                                        for (int s = 0; s != n_spinor; ++s)
+                                            expected(a * norb + b, mu) +=
+                                                phase * C(mu, i, j) *
+                                                (std::conj(T_R[ia](s * 5 + ibegin + i, a)) *
+                                                     T_R[ib](s * 5 + jbegin + j, b) +
+                                                 std::conj(T_R[ib](s * 5 + jbegin + j, a)) *
+                                                     T_R[ia](s * 5 + ibegin + i, b));
                 }
             }
             assert_matrix_close(actual.q_blocks.at(q).at(I), expected, 2.0e-12);
         }
 }
+
+#ifdef LIBRPA_USE_DDLA
+void test_native_mixed_coefficient_shapes(const BlacsCtxtHandler &cpu_grid,
+                                       const bool larger, const int n_spinor)
+{
+    const int ni = larger ? 4 : 2, nj = larger ? 5 : 3;
+    const int nmu = larger ? 16 : 2, norb = larger ? 2 : 3;
+    const int nao = ni + nj, nij = ni * nj, npair = norb * norb;
+    const auto pbc = make_pbc(1);
+    const auto qpoints = uniform_qx(1);
+    const AtomicBasis ao(std::vector<std::size_t>{static_cast<std::size_t>(ni),
+                                                static_cast<std::size_t>(nj)});
+    const AtomicBasis abf(std::vector<std::size_t>{static_cast<std::size_t>(nmu), 1});
+    ComplexMatrix t(n_spinor * nao, norb);
+    for (int s = 0; s != n_spinor; ++s)
+        for (int i = 0; i != nao; ++i)
+            for (int a = 0; a != norb; ++a)
+                t(s * nao + i, a) = {0.13 + 0.07 * i - 0.03 * a, 0.09 * i + 0.11 * a + 0.17 * s};
+    std::vector<double> coefficients(nmu * nij);
+    for (int i = 0; i != nmu * nij; ++i) coefficients[i] = std::sin(0.17 * (i + 1));
+    PairDensityCsMap Cs;
+    Cs[0][{1, {0, 0, 0}}] = make_cs(nmu, ni, nj, coefficients);
+    auto saved_profiler = std::move(global::profiler);
+    global::profiler = Profiler{};
+    const auto vertex = build_site_pair_density_vertex_from_T(
+        0, site("native-mixed", 0, norb), {t}, Cs, ao, abf, pbc, qpoints, &cpu_grid);
+    const auto profile = global::profiler.get_profile_string(LIBRPA_VERBOSE_DEBUG);
+    assert(profile.find("pair_vertex_mixed_coefficients") != std::string::npos);
+    ComplexMatrix expected(npair, nmu);
+    for (int a = 0; a != norb; ++a)
+        for (int b = 0; b != norb; ++b)
+            for (int mu = 0; mu != nmu; ++mu)
+                for (int i = 0; i != ni; ++i)
+                    for (int j = 0; j != nj; ++j)
+                        for (int s = 0; s != n_spinor; ++s)
+                            expected(a * norb + b, mu) += coefficients[mu * nij + i * nj + j] *
+                                (std::conj(t(s * nao + i, a)) * t(s * nao + ni + j, b) +
+                                 std::conj(t(s * nao + ni + j, a)) * t(s * nao + i, b));
+    assert_matrix_close(vertex.q_blocks.at(qpoints[0]).at(0), expected, 2e-12);
+    // The same shape with no borrowed handle must safely use conventional GEMM.
+    global::profiler = Profiler{};
+    const auto absent = build_site_pair_density_vertex_from_T(
+        0, site("absent-handle", 0, norb), {t}, Cs, ao, abf, pbc, qpoints);
+    assert(global::profiler.get_profile_string(LIBRPA_VERBOSE_DEBUG)
+               .find("pair_vertex_mixed_coefficients") == std::string::npos);
+    assert_matrix_close(absent.q_blocks.at(qpoints[0]).at(0), expected, 2e-12);
+    global::profiler = std::move(saved_profiler);
+}
+#endif
 
 void test_nonzero_R_wrap_and_minus_fourier_phase()
 {
@@ -1081,6 +1140,107 @@ void test_auxiliary_pair_reversal_and_sparse_support()
     for (const auto &[I, block] : zero.q_blocks.at(q)) assert(close(abs2(block), 0.0));
 }
 
+// Owner creation/destruction is included for "owned"; borrowed resources exist
+// before measurement. This times the pure site builder, not the cRPA workflow.
+void benchmark_pair_vertex(int argc, char **argv, const MpiCommHandler &comm)
+{
+    const auto ddla_probe_phase = reinterpret_cast<void (*)(const char *, int)>(
+        dlsym(RTLD_DEFAULT, "ddla_probe_phase"));
+    if (std::getenv("DDLA_PROBE_DIR") != nullptr && ddla_probe_phase == nullptr)
+        throw std::runtime_error("DDLA probe phase hook not found through dlsym(RTLD_DEFAULT)");
+    if (argc != 10)
+        throw std::invalid_argument("--benchmark-pair ni nj nmu norb spinor repetitions mixed borrowed|owned|absent");
+    const int ni = std::stoi(argv[2]), nj = std::stoi(argv[3]), nmu = std::stoi(argv[4]);
+    const int norb = std::stoi(argv[5]), spinor = std::stoi(argv[6]), repeats = std::stoi(argv[7]);
+    const bool mixed = std::stoi(argv[8]) != 0;
+    const std::string owner = argv[9];
+    if (ni < 1 || nj < 1 || nmu < 1 || norb < 1 || repeats < 1 ||
+        (spinor != 1 && spinor != 2) || (owner != "borrowed" && owner != "owned" && owner != "absent"))
+        throw std::invalid_argument("Invalid pair-vertex benchmark parameters");
+    const auto pbc = make_pbc(1);
+    const auto qpoints = uniform_qx(1);
+    const int nao = ni + nj, nij = ni * nj;
+    const AtomicBasis ao(std::vector<std::size_t>{static_cast<std::size_t>(ni), static_cast<std::size_t>(nj)});
+    const AtomicBasis abf(std::vector<std::size_t>{static_cast<std::size_t>(nmu), 1});
+    std::vector<ComplexMatrix> t{ComplexMatrix(spinor * nao, norb)};
+    for (int i = 0; i != t[0].size; ++i)
+        t[0].c[i] = {std::sin(0.13 * (i + 1)), 0.3 * std::cos(0.19 * (i + 2))};
+    std::vector<double> values(nmu * nij);
+    for (int i = 0; i != nmu * nij; ++i) values[i] = std::sin(0.017 * (i + 1));
+    PairDensityCsMap cs;
+    cs[0][{1, {0, 0, 0}}] = make_cs(nmu, ni, nj, values);
+    const auto metadata = site("benchmark", 0, norb);
+    const bool saved_mixed = global::dev_opts.use_mixed_type_ddla;
+    global::dev_opts.use_mixed_type_ddla = false;
+    const auto reference = build_site_pair_density_vertex_from_T(
+        0, metadata, t, cs, ao, abf, pbc, qpoints);
+    std::unique_ptr<BlacsCtxtHandler> borrowed;
+    if (owner == "borrowed")
+    {
+#ifdef LIBRPA_USE_DDLA
+        borrowed = std::make_unique<BlacsCtxtHandler>(comm.comm);
+        borrowed->init(); borrowed->set_square_grid();
+        borrowed->init_ddla_handle(ddla::DdlaBackend::CPU);
+#else
+        if (mixed) throw std::runtime_error("Mixed benchmark requires DDLA");
+#endif
+    }
+    bool cpu_owner = false;
+    for (int repetition = -1; repetition != repeats; ++repetition)
+    {
+        global::profiler = Profiler{};
+        global::dev_opts.use_mixed_type_ddla = mixed;
+        SitePairDensityVertex result;
+        MPI_Barrier(comm.comm);
+        const double monotonic = std::chrono::duration<double>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        if (ddla_probe_phase) ddla_probe_phase(repetition < 0 ? "pair_warmup" : "pair_measured", 1);
+        const double start = MPI_Wtime();
+        {
+            std::unique_ptr<BlacsCtxtHandler> owned;
+            const BlacsCtxtHandler *grid = borrowed.get();
+#ifdef LIBRPA_USE_DDLA
+            if (mixed && owner == "owned")
+            {
+                owned = std::make_unique<BlacsCtxtHandler>(MPI_COMM_SELF);
+                owned->init(); owned->set_grid(1, 1);
+                owned->init_ddla_handle(ddla::DdlaBackend::CPU);
+                grid = owned.get();
+            }
+            cpu_owner = grid != nullptr && grid->ddla_cpu_handle != nullptr;
+#endif
+            result = build_site_pair_density_vertex_from_T(
+                0, metadata, t, cs, ao, abf, pbc, qpoints, grid);
+        }
+        const double elapsed = MPI_Wtime() - start;
+        if (ddla_probe_phase) ddla_probe_phase(repetition < 0 ? "pair_warmup" : "pair_measured", 0);
+        double seconds = 0;
+        MPI_Allreduce(&elapsed, &seconds, 1, MPI_DOUBLE, MPI_MAX, comm.comm);
+        const auto profile = global::profiler.get_profile_string(LIBRPA_VERBOSE_DEBUG);
+        const bool marker = profile.find("pair_vertex_mixed_coefficients") != std::string::npos;
+        assert(marker == (mixed && cpu_owner));
+        const auto &d = result.q_blocks.at(qpoints[0]).at(0);
+        assert_matrix_close(d, reference.q_blocks.at(qpoints[0]).at(0), 2e-12);
+        Complex checksum{};
+        double norm = 0;
+        for (int i = 0; i != d.size; ++i)
+        {
+            checksum += (1.0 + 0.001 * i) * d.c[i];
+            norm += std::norm(d.c[i]);
+        }
+        if (comm.is_root())
+            std::cout << std::setprecision(17) << "BENCH_PAIR rep=" << repetition
+                      << " ni=" << ni << " nj=" << nj << " nmu=" << nmu << " norb=" << norb
+                      << " spinor=" << spinor << " mixed=" << mixed << " owner=" << owner
+                      << " cpu_owner=" << cpu_owner << " mixed_marker=" << marker
+                      << " coefficient_bytes=" << nmu * nij * sizeof(Complex)
+                      << " workflow_measured=0 seconds=" << seconds << " start_monotonic=" << monotonic
+                      << " checksum_re=" << checksum.real() << " checksum_im=" << checksum.imag()
+                      << " checksum_norm=" << norm << std::endl;
+    }
+    global::dev_opts.use_mixed_type_ddla = saved_mixed;
+}
+
 }  // namespace
 
 int main(int argc, char **argv)
@@ -1089,26 +1249,56 @@ int main(int argc, char **argv)
     MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &provided);
     MpiCommHandler comm_h(MPI_COMM_WORLD, true);
 
-    test_dense_complex_Tdagger_C_T();
-    test_random_complex_vertex_against_literal_sum();
-    test_nonzero_R_wrap_and_minus_fourier_phase();
-    test_multiple_atoms_and_sites_remain_separate();
-    test_complex_pair_reversal_and_hermiticity();
-    test_real_D_reduces_to_D_W_Dt();
-    test_upper_triangle_mirror_added_once();
-    test_q_weighted_sum();
-    test_fourier_contraction_matches_real_space_convolution();
-    test_distributed_contraction_ownership(comm_h);
-    test_analytic_cross_end_complex_phase();
-    test_auxiliary_square_covariance(comm_h);
-    test_auxiliary_rectangular_projection(comm_h);
-    test_rectangular_intershell_ordered_pair_contraction(comm_h);
-    test_auxiliary_pair_reversal_and_sparse_support();
-#ifdef LIBRPA_USE_LIBRI
-    test_production_wrapper_mpi(comm_h);
-    test_s_aware_non_even_wrapper(comm_h);
-    test_wrapper_nyquist_and_twisted_mesh(comm_h);
+    if (argc > 1 && std::string(argv[1]) == "--benchmark-pair")
+    {
+        benchmark_pair_vertex(argc, argv, comm_h);
+        MPI_Finalize();
+        return 0;
+    }
+
+    const bool saved_mixed = global::dev_opts.use_mixed_type_ddla;
+    std::vector<bool> mixed_modes{false};
+    std::unique_ptr<BlacsCtxtHandler> cpu_grid;
+#ifdef LIBRPA_USE_DDLA
+    cpu_grid = std::make_unique<BlacsCtxtHandler>(MPI_COMM_SELF);
+    cpu_grid->init();
+    cpu_grid->set_grid(1, 1);
+    cpu_grid->init_ddla_handle(ddla::DdlaBackend::CPU);
+    mixed_modes.push_back(true);
 #endif
+    for (const bool mixed : mixed_modes)
+    {
+        global::dev_opts.use_mixed_type_ddla = mixed;
+        test_dense_complex_Tdagger_C_T();
+        test_random_complex_vertex_against_literal_sum(1, cpu_grid.get());
+        test_random_complex_vertex_against_literal_sum(2, cpu_grid.get());
+#ifdef LIBRPA_USE_DDLA
+        if (mixed)
+            for (const bool larger : {false, true})
+                for (const int spinor : {1, 2})
+                    test_native_mixed_coefficient_shapes(*cpu_grid, larger, spinor);
+#endif
+        test_nonzero_R_wrap_and_minus_fourier_phase();
+        test_multiple_atoms_and_sites_remain_separate();
+        test_complex_pair_reversal_and_hermiticity();
+        test_real_D_reduces_to_D_W_Dt();
+        test_upper_triangle_mirror_added_once();
+        test_q_weighted_sum();
+        test_fourier_contraction_matches_real_space_convolution();
+        test_distributed_contraction_ownership(comm_h);
+        test_analytic_cross_end_complex_phase();
+        test_auxiliary_square_covariance(comm_h);
+        test_auxiliary_rectangular_projection(comm_h);
+        test_rectangular_intershell_ordered_pair_contraction(comm_h);
+        test_auxiliary_pair_reversal_and_sparse_support();
+#ifdef LIBRPA_USE_LIBRI
+        test_production_wrapper_mpi(comm_h);
+        test_s_aware_non_even_wrapper(comm_h);
+        test_wrapper_nyquist_and_twisted_mesh(comm_h);
+#endif
+    }
+    global::dev_opts.use_mixed_type_ddla = saved_mixed;
+    cpu_grid.reset();
 
     if (comm_h.is_root()) std::cout << "PairDensityVertex tests passed\n";
     MPI_Finalize();

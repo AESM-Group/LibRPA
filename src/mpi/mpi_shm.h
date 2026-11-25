@@ -6,7 +6,7 @@
 #include <utility>
 #include <vector>
 
-#include "../interface/mpi.h"
+#include "../interface/mpi/mpi.h"
 #include "../utils/error.h"
 
 namespace librpa_int

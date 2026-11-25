@@ -20,7 +20,6 @@ option_dielect_func = 4
 parallel_routing = libri
 vq_threshold = 0
 sqrt_coulomb_threshold = 0
-use_scalapack_gw_wc = true
 use_shrink_abfs = true
 use_shrink_chi = true
 use_fullcoul_exx = false

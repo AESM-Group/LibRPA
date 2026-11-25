@@ -5,4 +5,3 @@ input_dir = ../dataset
 nfreq = 16
 chi0_method = conventional
 parallel_routing = atompair
-use_scalapack_ecrpa = f

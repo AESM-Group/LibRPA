@@ -2,10 +2,15 @@
 
 #include <cmath>
 #include <complex>
+#include <cstdlib>
+#include <dlfcn.h>
+#include <chrono>
 #include <iostream>
+#include <iomanip>
 #include <iterator>
 #include <map>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "../mpi/global_mpi.h"
@@ -15,6 +20,10 @@
 #include "../io/stl_io_helper.h"
 #include "mpi_test_config.h"
 #include "testutils.h"
+
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#include <ddla/ddla.h>
+#endif
 
 using namespace std;
 using namespace librpa_int;
@@ -376,7 +385,7 @@ static void test_gf_cplx_imagtimes_Rs_kblacs_para_full_wfc(bool masked = false)
 
 static void test_dm_gf_kblacs_para_redistributed_full_wfc()
 {
-    if (size_global < 4) return;
+    if (size_global < 2) return;
 
     const int nk = 2;
     const int nb = 144;
@@ -439,6 +448,14 @@ static void test_dm_gf_kblacs_para_redistributed_full_wfc()
 
     const auto dm_Rs = get_dmat_cplx_Rs_kblacs_para(
         0, mf, kfrac_list, Rs, context, desc_wfc, desc_dm);
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    // Match a local LibRI contraction between uses of the same BLACS handle.
+    // MPI_COMM_SELF selects device 0, which differs from nonzero world ranks.
+    ddla::DdlaHandle_t local_context = nullptr;
+    ddla::DDLA_CHECK(ddla::ddlaInit(local_context, ddla::DdlaBackend::GPU));
+    ddla::DDLA_CHECK(ddla::ddlaSet(local_context, MPI_COMM_SELF, 1, 1, 'R'));
+    ddla::DDLA_CHECK(ddla::ddlaDestroy(local_context));
+#endif
     const auto gf_Rs = get_gf_cplx_imagtimes_Rs_kblacs_para(
         0, mf, kfrac_list, imagtimes, Rs, context, desc_wfc, desc_dm);
 
@@ -968,6 +985,61 @@ static void test_gf_kblacs_reduced_kstar_spinor_matches_serial_restore()
         }
 }
 
+// Reusing an owning MeanField with rewritten storage must start a new device
+// bra lifetime, including when empty ranks and several k points participate.
+static void test_gf_kblacs_rewritten_wfc_storage()
+{
+    constexpr int nk = 2, nb = 2, nao = 3;
+    std::vector<Vector3_Order<double>> kfrac{{0, 0, 0}, {0.5, 0, 0}};
+    const std::vector<Vector3_Order<int>> Rs{{0, 0, 0}, {1, 0, 0}};
+    const std::vector<double> taus{-0.4, 0.3};
+    MeanField reference(1, nk, nb, nao), mf(1, nk, nb, nao);
+    KPointBlacsProcessShape shape(1, size_global, false);
+    KPointBlacsParallelContext context(shape, mpi_comm_global_h.comm, nk);
+    const auto source_desc = context.create_array_desc(nao, nb, nao, nb);
+    const auto wfc_desc = make_permanent_wfc_desc(context, nao, nb);
+    const auto out_desc = context.create_array_desc(nao, nao);
+    for (auto *state : {&reference, &mf})
+    {
+        state->get_efermi() = 0;
+        for (int k = 0; k != nk; ++k)
+            for (int b = 0; b != nb; ++b)
+            {
+                state->get_eigenvals()[0](k, b) = b ? 0.7 : -0.8;
+                state->get_weight()[0](k, b) = b ? 0.0 : 2.0 / nk;
+            }
+    }
+    for (int k = 0; k != nk; ++k)
+    {
+        auto &c = reference.get_eigenvectors()[0][0][k];
+        c.create(nb, nao);
+        for (int b = 0; b != nb; ++b)
+            for (int a = 0; a != nao; ++a)
+                c(b, a) = {0.1 + 0.2 * b + 0.3 * a, -0.2 + 0.1 * a + 0.4 * k};
+        if (context.kpoint_blacs_root_global_rank(k) == myid_global)
+            mf.get_eigenvectors()[0][0][k] = c;
+    }
+    redistribute_meanfield_eigvecs_kblacs(mf, context, source_desc, wfc_desc, "rewrite test");
+    for (int generation = 0; generation != 2; ++generation)
+    {
+        const auto expected = reference.get_gf_cplx_imagtimes_Rs(0, 0, 0, kfrac, taus, Rs);
+        const auto actual = get_gf_cplx_imagtimes_Rs_kblacs_para(
+            0, mf, kfrac, taus, Rs, context, wfc_desc, out_desc);
+        for (const auto tau : taus)
+            for (const auto &R : Rs)
+                for (int j = 0; j != out_desc.n_loc(); ++j)
+                    for (int i = 0; i != out_desc.m_loc(); ++i)
+                        assert(fequal(actual.at(tau).at(R)(i, j),
+                                      expected.at(tau).at(R)(out_desc.indx_l2g_r(i),
+                                                            out_desc.indx_l2g_c(j)),
+                                      cplxdb{1e-12, 0}));
+        // Mutate elements in place, preserving allocation identity.
+        for (auto *state : {&reference, &mf})
+            for (auto &[k, c] : state->get_eigenvectors()[0][0])
+                for (int i = 0; i != c.size; ++i) c.c[i] *= cplxdb{1.2, -0.3};
+    }
+}
+
 static void test_dmat_kblacs_reduced_kstar_spinor_matches_serial_restore()
 {
     if (size_global < 2) return;
@@ -1051,12 +1123,126 @@ static void test_dmat_kblacs_reduced_kstar_spinor_matches_serial_restore()
     }
 }
 
+// Explicit benchmark mode uses production ownership and includes the complete
+// scaling/GEMM/redistribution/Fourier stage. Fixture setup/checksums are untimed.
+static void benchmark_wfc(int argc, char **argv)
+{
+    // A non-PIE executable can resolve an undefined weak function to zero at
+    // static link time. Resolve the optional preloaded hook at runtime instead.
+    const auto ddla_probe_phase = reinterpret_cast<void (*)(const char *, int)>(
+        dlsym(RTLD_DEFAULT, "ddla_probe_phase"));
+    if (std::getenv("DDLA_PROBE_DIR") != nullptr && ddla_probe_phase == nullptr)
+        throw std::runtime_error("DDLA probe phase hook not found through dlsym(RTLD_DEFAULT)");
+    if (argc != 8)
+        throw std::invalid_argument("--benchmark-wfc nao bands nk ntau repetitions spinor(0|1)");
+    const int nao = std::stoi(argv[2]), nb = std::stoi(argv[3]), nk = std::stoi(argv[4]);
+    const int ntau = std::stoi(argv[5]), repeats = std::stoi(argv[6]);
+    const bool spinor = std::stoi(argv[7]) != 0;
+    if (nao < 1 || nb < 1 || nb > nao * (spinor ? 2 : 1) || nk < 1 || ntau < 1 ||
+        repeats < 1 || (spinor && nk != 1))
+        throw std::invalid_argument("Invalid WFC benchmark dimensions; spinor requires nk=1");
+    KPointBlacsProcessShape shape(1, size_global, false);
+    KPointBlacsParallelContext context(shape, mpi_comm_global_h.comm, nk);
+    const auto source_desc = context.create_array_desc(nao, nb, nao, nb);
+    const auto wfc_desc = make_permanent_wfc_desc(context, nao, nb);
+    const auto out_desc = context.create_array_desc(nao, nao);
+    MeanField mf(1, nk, nb, nao, spinor ? 2 : 1);
+    mf.get_efermi() = 0;
+    std::vector<Vector3_Order<double>> kfrac;
+    for (int k = 0; k != nk; ++k)
+    {
+        kfrac.push_back({static_cast<double>(k) / nk, 0, 0});
+        for (int b = 0; b != nb; ++b)
+        {
+            mf.get_eigenvals()[0](k, b) = (b - 0.5 * nb) / nb;
+            mf.get_weight()[0](k, b) = b < nb / 2 ? 2.0 / nk / (spinor ? 2 : 1) : 0;
+        }
+        if (context.kpoint_blacs_root_global_rank(k) != myid_global) continue;
+        for (int s = 0; s != (spinor ? 2 : 1); ++s)
+        {
+            auto &c = mf.get_eigenvectors()[0][s][k];
+            c.create(nb, nao);
+            for (int b = 0; b != nb; ++b)
+                for (int a = 0; a != nao; ++a)
+                    c(b, a) = cplxdb{std::sin(0.013 * (b + 1) * (a + 2) + 0.21 * k + s),
+                                      0.3 * std::cos(0.017 * (b + 2) * (a + 1) + 0.4 * s)} /
+                              std::sqrt(static_cast<double>(nao));
+        }
+    }
+    redistribute_meanfield_eigvecs_kblacs(mf, context, source_desc, wfc_desc, "WFC benchmark");
+    const std::vector<Vector3_Order<int>> Rs{{0, 0, 0}, {1, 0, 0}};
+    std::vector<double> taus;
+    for (int t = 0; t != ntau; ++t)
+        taus.push_back((t % 2 ? -1 : 1) * (0.1 + static_cast<double>(t) / ntau));
+    auto symmetry = build_gamma_tr_spinor_kstar_context();
+    AtomicBasis basis(std::vector<std::size_t>{static_cast<std::size_t>(nao)});
+    basis.set_l_shells({std::vector<int>(nao, 0)});
+    PeriodicBoundaryData pbc;
+    for (int repetition = -1; repetition != repeats; ++repetition)
+    {
+        std::map<double, std::map<Vector3_Order<int>, Matz>> scalar;
+        std::map<double, std::map<Vector3_Order<int>, SpinorBlocks4<Matz>>> channels;
+        MPI_Barrier(MPI_COMM_WORLD);
+        const double monotonic = std::chrono::duration<double>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+        if (ddla_probe_phase) ddla_probe_phase(repetition < 0 ? "wfc_warmup" : "wfc_measured", 1);
+        const double start = MPI_Wtime();
+        if (spinor)
+            channels = get_symmetry_restored_gf_cplx_imagtimes_Rs_kblacs_para_spinor(
+                0, mf, kfrac, taus, Rs, context, wfc_desc, out_desc, symmetry, pbc, basis);
+        else
+            scalar = get_gf_cplx_imagtimes_Rs_kblacs_para(
+                0, mf, kfrac, taus, Rs, context, wfc_desc, out_desc);
+        const double elapsed = MPI_Wtime() - start;
+        if (ddla_probe_phase) ddla_probe_phase(repetition < 0 ? "wfc_warmup" : "wfc_measured", 0);
+        double seconds = 0, checksum[3] = {}, total[3] = {};
+        MPI_Allreduce(&elapsed, &seconds, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+        const auto accumulate = [&](const Matz &m, int channel) {
+            for (int j = 0; j != m.nc(); ++j)
+                for (int i = 0; i != m.nr(); ++i)
+                {
+                    const double weight = 1.0 + 0.01 * out_desc.indx_l2g_r(i) +
+                                          0.003 * out_desc.indx_l2g_c(j) + channel;
+                    checksum[0] += weight * m(i, j).real();
+                    checksum[1] += weight * m(i, j).imag();
+                    checksum[2] += std::norm(m(i, j));
+                }
+        };
+        for (const auto &[tau, blocks] : scalar)
+            for (const auto &[r, m] : blocks) accumulate(m, 0);
+        for (const auto &[tau, blocks] : channels)
+            for (const auto &[r, m] : blocks)
+            {
+                accumulate(m.b00, 0); accumulate(m.b01, 1);
+                accumulate(m.b10, 2); accumulate(m.b11, 3);
+            }
+        MPI_Allreduce(checksum, total, 3, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        for (const auto value : total) assert(std::isfinite(value));
+        if (myid_global == 0)
+            std::cout << std::setprecision(17) << "BENCH_WFC rep=" << repetition
+                      << " nao=" << nao << " bands=" << nb << " nk=" << nk << " ntau=" << ntau
+                      << " spinor=" << spinor << " ranks=" << size_global << " seconds=" << seconds
+                      << " start_monotonic=" << monotonic
+                      << " checksum_re=" << total[0] << " checksum_im=" << total[1]
+                      << " checksum_norm=" << total[2] << std::endl;
+    }
+}
+
 int main (int argc, char *argv[])
 {
     int provided;
     MPI_Init_thread(&argc, &argv, LIBRPA_MPI_THREAD_LEVEL, &provided);
     init_global_mpi(MPI_COMM_WORLD);
     init_global_io();
+
+    if (argc > 1 && std::string(argv[1]) == "--benchmark-wfc")
+    {
+        benchmark_wfc(argc, argv);
+        finalize_global_io();
+        finalize_global_mpi();
+        MPI_Finalize();
+        return 0;
+    }
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
     BlacsCtxtHandler world_blacs_h(MPI_COMM_WORLD);
@@ -1086,6 +1272,7 @@ int main (int argc, char *argv[])
     test_dmat_gf_kblacs_reduced_kstar_matches_full_bz_fourier(true);
     test_dmat_gf_kblacs_reduced_kstar_matches_full_bz_fourier(false, true);
     test_gf_kblacs_reduced_kstar_spinor_matches_serial_restore();
+    test_gf_kblacs_rewritten_wfc_storage();
     test_dmat_kblacs_reduced_kstar_spinor_matches_serial_restore();
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)

@@ -2,6 +2,7 @@
 #include <complex>
 #include <iostream>
 #include <stdexcept>
+#include <RI/ri/Label_Tools.h>
 
 #include "../utils/libri_output_filter.h"
 
@@ -49,6 +50,14 @@ void check()
         for (const int atom : {0, 1, 9})
         {
             const AtomCell intermediate{atom, {2, -1, 0}};
+#ifdef __GPU_RI
+            for (const auto label : cpu_all_cell)
+                require(callback.filter_GPU_for32(label, atom, pair.left, pair.right) == !pair.keep,
+                        "staged GPU all-cell output pair is incorrect");
+            for (const auto label : cpu_mixed)
+                require(callback.filter_GPU_for32(label, atom, pair.right, pair.left) == !pair.keep,
+                        "staged GPU mixed output order is incorrect");
+#endif
             for (const auto label : cpu_all_cell)
             {
                 // CPU: (Aa2, Ab01, Ab2); GPU: (Aa01, Aa2, Ab2).
@@ -87,11 +96,55 @@ void check()
     }
 
     const Sector empty;
+#ifdef __GPU_RI
+    for (const auto label : RI::Label::array_ab_ab)
+    {
+        const auto group = RI::Label_Tools::to_Aab_Aab(label);
+        if (group == RI::Label::Aab_Aab::a01b01_a01b01 ||
+            group == RI::Label::Aab_Aab::a01b01_a01b2)
+            continue;  // Both translated output families are checked above.
+        const AtomCell accepted{2, {1, 1, 0}}, rejected{2, {2, 1, 0}};
+        for (const int atom : {0, 1, 9})
+        {
+            const AtomCell intermediate{atom, {2, -1, 0}};
+            if (group == RI::Label::Aab_Aab::a01b01_a2b2)
+            {
+                require(!callback.filter_GPU_for32(label, 1, accepted, intermediate) &&
+                            callback.filter_GPU_for32(label, 1, rejected, intermediate),
+                        "staged GPU output must not depend on Ab2");
+            }
+            else
+            {
+                require(!callback.filter_GPU_for32(label, 1, intermediate, accepted) &&
+                            callback.filter_GPU_for32(label, 1, intermediate, rejected),
+                        "staged GPU output must not depend on the intermediate atom");
+            }
+            if (group == RI::Label::Aab_Aab::a01b2_a2b01)
+                require(!callback.filter_GPU_for23(label, 1, accepted) &&
+                            callback.filter_GPU_for23(label, 1, rejected),
+                        "GPU final two-loop stage must screen the output pair");
+        }
+    }
+#endif
     librpa_int::LibriOutputOnlySymmetryFilter<int, Cell, T> unrestricted(period, empty);
     const AtomCell outside{9, {2, -1, 0}};
     for (const auto label : RI::Label::array_ab_ab)
     {
         // Partial callbacks must never prune summed-over intermediate atoms.
+#ifdef __GPU_RI
+        require(!callback.filter_GPU_for11(label, 9) &&
+                    !callback.filter_GPU_for11(label, outside) &&
+                    !callback.filter_GPU_for12(label, 9) &&
+                    !callback.filter_GPU_for13(label, 9) &&
+                    !callback.filter_GPU_for21(label, 9, outside) &&
+                    !callback.filter_GPU_for22(label, 9, outside) &&
+                    !callback.filter_GPU_for31(label, 9, outside, outside) &&
+                    !callback.filter_GPU_for31(label, outside, outside, 9),
+                "GPU construction stages must not screen intermediate atoms");
+        require(!unrestricted.filter_GPU_for32(label, 9, outside, outside) &&
+                    !unrestricted.filter_GPU_for23(label, 9, outside),
+                "empty sector must disable staged GPU filtering");
+#endif
         require(!callback.filter_for1(label, 9) && !callback.filter_for1(label, outside) &&
                     !callback.filter_for2(label, 9, outside) &&
                     !callback.filter_for2(label, outside, 9) &&

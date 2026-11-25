@@ -6,9 +6,16 @@
 #include "base_mpi.h"
 #include "../math/scalapack_connector.h"
 
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#ifdef LIBRPA_USE_DDLA
 #include <ddla/ddla.h>
-#include <ddla/ddla_stream.h>
+#endif
+
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#if defined(LIBRPA_USE_CUDA)
+#include <cuda_runtime_api.h>
+#else
+#include <hip/hip_runtime_api.h>
+#endif
 #endif
 
 #ifdef LIBRPA_USE_ELPA
@@ -33,6 +40,9 @@ private:
     bool initialized_;
     bool pgrid_set_;
     bool comm_set_;
+#ifdef LIBRPA_USE_DDLA
+    void destroy_ddla_handles();
+#endif
 public:
     int ictxt;
     CTXT_LAYOUT layout;
@@ -42,9 +52,14 @@ public:
     int npcols;
     int myprow;
     int mypcol;
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+#ifdef LIBRPA_USE_DDLA
     ddla::DdlaHandle_t ddla_handle;
-    void init_ddla_handle();
+    ddla::DdlaHandle_t ddla_cpu_handle;
+#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
+    void init_ddla_handle(ddla::DdlaBackend backend = ddla::DdlaBackend::GPU);
+#else
+    void init_ddla_handle(ddla::DdlaBackend backend = ddla::DdlaBackend::CPU);
+#endif
 #endif
     BlacsCtxtHandler();
     BlacsCtxtHandler(MPI_Comm comm_in);
@@ -144,9 +159,11 @@ private:
 
     //! flag for initialization
     bool initialized_ = false;
+    bool use_ddla_linear_ = false;
 
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    ddla::DdlaDesc ddla_desc_;
+#ifdef LIBRPA_USE_DDLA
+    // Non-owning: the BLACS handler owns the matching DDLA process grid.
+    ddla::DdlaHandle_t ddla_handle_;
 #endif
 
 #ifdef LIBRPA_USE_ELPA
@@ -155,6 +172,8 @@ private:
 
 public:
     int desc[9];
+    void set_linear_algorithm(const std::string& method) { use_ddla_linear_ = method == "ddla"; }
+    bool use_ddla_linear() const noexcept { return use_ddla_linear_; }
     ArrayDesc();
     ArrayDesc(const BlacsCtxtHandler &blacs_ctxt_h);
     ArrayDesc(const int &ictxt);
@@ -216,11 +235,12 @@ public:
     bool is_initialized() const noexcept { return this->initialized_; };
     void barrier(CTXT_SCOPE scope = CTXT_SCOPE::A) const;
 
-#if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
-    const ddla::DdlaDesc& ddla_desc() const noexcept { return ddla_desc_; }
-    void set_ddla_desc(const ddla::DdlaHandle_t& ddla_handle){
-        ddla_desc_.set_ddla_handle(ddla_handle);
-        ddla_desc_.init(this->m_, this->n_, this->mb_, this->nb_, this->irsrc_, this->icsrc_);
+#ifdef LIBRPA_USE_DDLA
+
+    ddla::DdlaHandle_t ddla_handle() const noexcept { return ddla_handle_; }
+    void set_ddla_handle(const ddla::DdlaHandle_t& ddla_handle){
+        // DDLA accepts the existing ScaLAPACK descriptor without translation.
+        ddla_handle_ = ddla_handle;
     }
 #endif
 #ifdef LIBRPA_USE_ELPA
@@ -239,21 +259,33 @@ public:
         elpa_set(elpa_handle_, "process_row", myprow_, &error);
         elpa_set(elpa_handle_, "process_col", mypcol_, &error);
 
-        elpa_setup(elpa_handle_);
+        if (elpa_setup(elpa_handle_) != ELPA_OK)
+            throw std::runtime_error("ELPA handle setup failed");
 
 #if defined(LIBRPA_USE_CUDA) || defined(LIBRPA_USE_HIP)
         if(use_gpu_replace_scalapack)
         {
-            elpa_set(elpa_handle_, "use_gpu_id", ddla_desc_.ddla_handle()->local_device, &error);
+            ddla::DDLA_CHECK(ddla::ddlaSetDevice(ddla_handle_));
+            int device = 0;
+#ifdef LIBRPA_USE_CUDA
+            if (cudaGetDevice(&device) != cudaSuccess)
+#else
+            if (hipGetDevice(&device) != hipSuccess)
+#endif
+                throw std::runtime_error("Cannot query the current GPU for ELPA");
+            elpa_set(elpa_handle_, "use_gpu_id", device, &error);
 #ifdef LIBRPA_USE_HIP
             elpa_set(elpa_handle_, "amd-gpu", 1, &error);
+            if (error != ELPA_OK) throw std::runtime_error("ELPA was not built with HIP support");
 #endif
 #ifdef LIBRPA_USE_CUDA
             elpa_set(elpa_handle_, "nvidia-gpu", 1, &error);
+            if (error != ELPA_OK) throw std::runtime_error("ELPA was not built with CUDA support");
 #endif
             elpa_set(elpa_handle_, "use_ccl", 0, &error);
             // 初始化 GPU
-            elpa_setup_gpu(elpa_handle_);
+            if (elpa_setup_gpu(elpa_handle_) != ELPA_OK)
+                throw std::runtime_error("ELPA GPU setup failed");
         }else{
             elpa_set(elpa_handle_, "gpu_tridiag",                   0, &error);
             elpa_set(elpa_handle_, "gpu_solve_tridi",               0, &error);
