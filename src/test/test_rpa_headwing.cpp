@@ -4929,7 +4929,9 @@ void test_velocity_setters_invalidate_native_headwing_frame()
     // The C setters take a mutable handle; the accessor is const-only.
     auto *c_handler = const_cast<LibrpaHandler *>(handler.get_c_handler());
     seed();
-    const std::array<double, 8> packed{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    // One spin, one k point, three Cartesian components, 2 x 2 bands: the packed
+    // setter reads 3 * 2 * 2 = 12 interleaved complex values, i.e. 24 doubles.
+    const std::array<double, 24> packed{};
     librpa_set_velocity_matrix_packed(c_handler, 1, 1, 2, packed.data());
     check_cleared("librpa_set_velocity_matrix_packed");
 
