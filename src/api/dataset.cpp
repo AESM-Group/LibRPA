@@ -237,6 +237,19 @@ void Dataset::invalidate_compute_objects()
 {
     symmetry_context.clear();
     // p_headwing.reset();
+    // The native head/wing full-BZ frame was differentiated from the same inputs
+    // these compute objects depend on, and `make_analytic_headwing` selects it on
+    // `headwing_full_bz_ready` alone. A run that arms the frame without building
+    // the optical object (`prepare_optical = false`, the cRPA native route) leaves
+    // `p_headwing` empty, so the `p_headwing` early return in
+    // `initialize_ds_headwing` does not hide a stale frame from the next task on
+    // the same handler. Drop the frame here, with the other per-input state.
+    // The frame and the optical object must go together. `diele_func` keeps the
+    // velocity container to rebuild the wing later, so dropping the buffer while
+    // `p_headwing` survives turns the next `cal_wing` into a dimension-mismatch
+    // error instead of a rebuild: the stored container no longer holds the
+    // entries that object was built from.
+    invalidate_native_headwing_frame();
     p_exx.reset();
     p_chi0.reset();
     p_g0w0.reset();
