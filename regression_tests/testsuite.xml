@@ -553,6 +553,46 @@
       <!--           comparison="cmp_float.abs_diff(1e-4)" -->
       <!-- /> -->
     </testcase>
+
+    <!-- Collinear nspin=2 on a genuinely reduced grid. ABACUS writes the 12
+         spatial operations of the magnetic group plus a unitary-only
+         identity-spin table into stru_out; LibRPA then expands the 2 IBZ
+         states to the 4 full-grid points. Without that identity-spin table
+         ABACUS leaves the block out, LibRPA completes the group to a grey
+         group, and validate_spin_operations_for_storage rejects the
+         antiunitary copy as a collinear spin-channel swap. -->
+    <testcase name="MnO2 nspin2 symmetry-reduced k-grid, native velocity (abacus input)" directory="g0w0_band_abacus_MnO2_nspin2_sym_kpara_v1_libri">
+      <labels refhash="9060cd32522ffa50f7d2763f51878be95fafe2b3"
+      />
+      <build require_libri="true"
+      />
+      <!-- kpara + libri degenerates to one k-point group at a single rank, and
+           nothing pins that layout here; disable it like the other kpara cases. -->
+      <run ntasks_disable="1"
+           nthreads_disable="none"
+           ntasks_enable="none"
+           nthreads_enable="none"
+      />
+      <!-- The 36-row table covers every band, including the high empty states
+           that this case's own log flags as possible RI error. The comparison
+           pins them as plumbing so a change in the screened interaction shows
+           up there too; they are not a validated quasiparticle result. -->
+      <validate name="IBZ states entering the expansion"
+                regex="G0W0 native velocity: expanded (\d+) IBZ states"
+                comparison="cmp_float.abs_diff(0.0)"
+      />
+      <validate name="full-grid states after the expansion"
+                regex="G0W0 native velocity: expanded \d+ IBZ states to (\d+) full-grid states"
+                comparison="cmp_float.abs_diff(0.0)"
+      />
+      <validate name="Quasi-particle energies on k-grid"
+                regex="State\s+occ\s+e_mf\s+v_xc\s+v_exx\s+ReSigc\s+ImSigc\s+e_qp"
+                headers="2"
+                rows="36"
+                comparison="cmp_table.abs_diff(1e-4)"
+      />
+    </testcase>
+
     <!-- Same MnO2 dataset as the case above, but with the head/wing velocity
          differentiated by LibRPA from the dataset's own OUT.ABACUS H(R)/S(R)/r(R)
          blocks instead of read from the auxiliary bundle. The bundle band_out
